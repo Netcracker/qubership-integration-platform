@@ -92,11 +92,15 @@ fixtures:
   deployment: http-sender-context
 scenarios:
 - id: sends-get-requests-with-query-and-response-headers
+  expectedBehavior: "Send the configured GET query and headers, return JSON or text responses, and restore the incoming context."
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:19b6125f-bf3b-5979-9070-ba33b59aa7a3
   invocations:
   - id: gets-json-response
+    expectedBehavior: >-
+      Send the exact GET path, query, and headers and return the JSON body, HTTP 200 status, and response
+      headers.
     body: null
     headers:
       Accept: application/json
@@ -177,6 +181,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: gets-text-response
+    expectedBehavior: >-
+      Send the GET request and return its plain-text body and response headers without losing the incoming
+      context.
     body: null
     headers:
       Accept: text/plain; charset=UTF-8
@@ -252,11 +259,15 @@ scenarios:
       expectedRequest:
         count: 0
 - id: sends-post-requests-and-recovers-from-failures
+  expectedBehavior: >-
+    Send POST bodies with the configured encoding, map HTTP and transport failures, follow redirects, and
+    recover through the same sender.
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
   invocations:
   - id: fails-on-connection-refused
+    expectedBehavior: "Report HttpHostConnectException for the refused connection and restore the incoming context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -337,6 +348,7 @@ scenarios:
       message: 'Connect to http://127.0.0.1:<loopback-port> failed: Connection refused'
       cause: null
   - id: recovers-after-connection-refused
+    expectedBehavior: "Complete the next POST successfully after connection refusal and restore the incoming context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -414,6 +426,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-empty-response
+    expectedBehavior: "Report NoHttpResponseException when the server closes without a response and restore the incoming context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -494,6 +507,7 @@ scenarios:
       message: The target server failed to respond
       cause: null
   - id: recovers-after-empty-response
+    expectedBehavior: "Complete the next POST successfully after the empty-response failure."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -571,6 +585,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-connection-reset
+    expectedBehavior: "Report the expected SocketException when the connection is reset and restore the incoming context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -651,6 +666,7 @@ scenarios:
       message: Connection reset
       cause: null
   - id: recovers-after-connection-reset
+    expectedBehavior: "Complete the next POST successfully after the reset connection."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -728,6 +744,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: posts-json-body
+    expectedBehavior: "Send the exact JSON request bytes and return the HTTP 201 JSON response with restored context."
     body: '{"name":"QIP","enabled":true}'
     headers:
       Accept: application/json
@@ -806,6 +823,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: posts-text-body
+    expectedBehavior: "Send the exact text request body and return the HTTP 200 response with restored context."
     body: Hello, world!
     headers:
       Accept: text/plain; charset=UTF-8
@@ -880,6 +898,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: posts-empty-body
+    expectedBehavior: "Send an empty POST body and return the successful response without adding request content."
     body: null
     headers:
       Accept: text/plain
@@ -954,6 +973,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-400
+    expectedBehavior: >-
+      Report HTTP 400 with the expected error body and HttpOperationFailedException while restoring incoming
+      context.
     body: '{"case":400}'
     headers:
       Accept: application/json
@@ -1036,6 +1058,7 @@ scenarios:
         statusCode: 400'
       cause: null
   - id: recovers-after-http-400
+    expectedBehavior: "Complete the next POST successfully after HTTP 400, returning fresh response data and restoring context."
     body: '{"retryAfter":400}'
     headers:
       Accept: application/json
@@ -1112,6 +1135,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-401
+    expectedBehavior: >-
+      Report HTTP 401 with the expected error body and HttpOperationFailedException while restoring incoming
+      context.
     body: '{"case":401}'
     headers:
       Accept: application/json
@@ -1194,6 +1220,7 @@ scenarios:
         statusCode: 401'
       cause: null
   - id: recovers-after-http-401
+    expectedBehavior: "Complete the next POST successfully after HTTP 401, returning fresh response data and restoring context."
     body: '{"retryAfter":401}'
     headers:
       Accept: application/json
@@ -1270,6 +1297,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-403
+    expectedBehavior: >-
+      Report HTTP 403 with the expected error body and HttpOperationFailedException while restoring incoming
+      context.
     body: '{"case":403}'
     headers:
       Accept: application/json
@@ -1352,6 +1382,7 @@ scenarios:
         statusCode: 403'
       cause: null
   - id: recovers-after-http-403
+    expectedBehavior: "Complete the next POST successfully after HTTP 403, returning fresh response data and restoring context."
     body: '{"retryAfter":403}'
     headers:
       Accept: application/json
@@ -1428,6 +1459,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-404
+    expectedBehavior: >-
+      Report HTTP 404 with the expected error body and HttpOperationFailedException while restoring incoming
+      context.
     body: '{"case":404}'
     headers:
       Accept: application/json
@@ -1510,6 +1544,7 @@ scenarios:
         statusCode: 404'
       cause: null
   - id: recovers-after-http-404
+    expectedBehavior: "Complete the next POST successfully after HTTP 404, returning fresh response data and restoring context."
     body: '{"retryAfter":404}'
     headers:
       Accept: application/json
@@ -1586,6 +1621,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-500
+    expectedBehavior: >-
+      Report HTTP 500 with the expected error body and HttpOperationFailedException while restoring incoming
+      context.
     body: '{"case":500}'
     headers:
       Accept: application/json
@@ -1668,6 +1706,7 @@ scenarios:
         statusCode: 500'
       cause: null
   - id: recovers-after-http-500
+    expectedBehavior: "Complete the next POST successfully after HTTP 500, returning fresh response data and restoring context."
     body: '{"retryAfter":500}'
     headers:
       Accept: application/json
@@ -1744,6 +1783,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: follows-http-301
+    expectedBehavior: >-
+      Follow the HTTP 301 redirect with the expected method and body at each hop and return the final successful
+      response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -1863,6 +1905,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: follows-http-302
+    expectedBehavior: >-
+      Follow the HTTP 302 redirect with the expected method and body at each hop and return the final successful
+      response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -1982,6 +2027,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: follows-http-307
+    expectedBehavior: >-
+      Follow the HTTP 307 redirect with the expected method and body at each hop and return the final successful
+      response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -2101,6 +2149,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: follows-http-308
+    expectedBehavior: >-
+      Follow the HTTP 308 redirect with the expected method and body at each hop and return the final successful
+      response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -2220,6 +2271,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-400-with-text-body
+    expectedBehavior: >-
+      Propagate the HTTP 400 status and text error body through the expected HTTP exception while restoring
+      context.
     body: '{"case":"text-error"}'
     headers:
       Accept: application/json
@@ -2298,6 +2352,7 @@ scenarios:
         statusCode: 400'
       cause: null
   - id: recovers-after-http-400-with-text-body
+    expectedBehavior: "Complete a fresh POST after the HTTP 400 text error without retaining failed-response data."
     body: '{"retryAfter":"text-error"}'
     headers:
       Accept: application/json
@@ -2374,6 +2429,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-500-with-empty-body
+    expectedBehavior: "Report the HTTP 500 exception with an empty error body and restore context."
     body: '{"case":"empty-error"}'
     headers:
       Accept: application/json
@@ -2452,6 +2508,7 @@ scenarios:
         statusCode: 500'
       cause: null
   - id: recovers-after-http-500-with-empty-body
+    expectedBehavior: "Complete a fresh POST after the empty-body HTTP 500 error."
     body: '{"retryAfter":"empty-error"}'
     headers:
       Accept: application/json
@@ -2528,6 +2585,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: follows-http-303
+    expectedBehavior: >-
+      Follow the HTTP 303 redirect with the expected method and body at each hop and return the final successful
+      response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -2647,6 +2707,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-on-http-500-after-303-redirect
+    expectedBehavior: "Follow the HTTP 303 redirect and report the final HTTP 500 response through the expected exception."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -2770,6 +2831,7 @@ scenarios:
         statusCode: 500'
       cause: null
   - id: recovers-after-redirect-error
+    expectedBehavior: "Complete a fresh POST after the redirect chain ended in an HTTP error."
     body: '{"retryAfter":500}'
     headers:
       Accept: application/json
@@ -2846,6 +2908,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-utf16le-body-from-content-type
+    expectedBehavior: >-
+      Encode the outgoing request as UTF-16LE selected by Content-Type and return the decoded successful
+      response.
     body: abc
     headers:
       Content-Type: text/plain; charset=UTF-16LE
@@ -2923,6 +2988,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-utf16le-body-from-charset-property
+    expectedBehavior: >-
+      Encode the outgoing request as UTF-16LE selected by the charset property and return the successful
+      response.
     body: abc
     headers:
       Content-Type: text/plain
@@ -3002,6 +3070,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-utf16le-body-from-charset-header
+    expectedBehavior: "Encode the outgoing request as UTF-16LE selected by the charset header and return the successful response."
     body: abc
     headers:
       Content-Type: text/plain
@@ -3080,6 +3149,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: decodes-utf16le-response-after-utf8-request
+    expectedBehavior: "Send the request as UTF-8 and decode the UTF-16LE response without changing its text."
     body: abc
     headers:
       Content-Type: text/plain
@@ -3157,6 +3227,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: rejects-unknown-content-type-charset
+    expectedBehavior: "Reject the unknown Content-Type charset with UnsupportedCharsetException before sending an HTTP request."
     body: abc
     headers:
       Content-Type: text/plain; charset=snapshot-unknown-charset
@@ -3222,6 +3293,7 @@ scenarios:
       message: snapshot-unknown-charset
       cause: null
   - id: recovers-with-utf8-after-unknown-charset
+    expectedBehavior: "Send the fresh UTF-8 request successfully after the unsupported-charset failure."
     body: abc
     headers:
       Content-Type: text/plain
@@ -3299,6 +3371,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: decodes-utf16le-http-error-body
+    expectedBehavior: "Decode the UTF-16LE HTTP 500 body into the expected exception and restore the incoming context."
     body: abc
     headers:
       Content-Type: text/plain
@@ -3379,6 +3452,7 @@ scenarios:
         statusCode: 500'
       cause: null
   - id: recovers-after-utf16le-http-error
+    expectedBehavior: "Complete the next request with fresh data after the UTF-16LE HTTP error."
     body: abc
     headers:
       Content-Type: text/plain
@@ -3456,11 +3530,13 @@ scenarios:
       expectedRequest:
         count: 0
 - id: sends-put-request-body
+  expectedBehavior: "Send the configured PUT body and return the replacement resource response with restored context."
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:3cd590fa-8f70-5302-886f-cb0c081a0bf5
   invocations:
   - id: replaces-json-resource
+    expectedBehavior: "Send the configured PUT body and return the replacement resource response with restored context."
     body: '{"id":17,"name":"updated"}'
     headers:
       Accept: application/json
@@ -3540,11 +3616,13 @@ scenarios:
       expectedRequest:
         count: 0
 - id: sends-patch-request-body
+  expectedBehavior: "Send the configured PATCH body and return the partial-update response with restored context."
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:77417e82-2dd7-5721-8851-5b01b0a5947c
   invocations:
   - id: patches-json-resource
+    expectedBehavior: "Send the configured PATCH body and return the partial-update response with restored context."
     body: '{"name":"patched"}'
     headers:
       Accept: application/json
@@ -3624,11 +3702,13 @@ scenarios:
       expectedRequest:
         count: 0
 - id: sends-delete-and-returns-no-content
+  expectedBehavior: "Send DELETE and return HTTP 204 with no response body while restoring the incoming context."
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:6cdb303b-bc48-5eea-824d-8638acba9677
   invocations:
   - id: deletes-resource
+    expectedBehavior: "Send DELETE and return HTTP 204 with no response body while restoring the incoming context."
     body: null
     headers:
       Accept: application/json
@@ -3704,11 +3784,13 @@ scenarios:
       expectedRequest:
         count: 0
 - id: sends-head-and-returns-response-headers
+  expectedBehavior: "Send HEAD and return response headers without a response body while restoring the incoming context."
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:5d48c72f-5819-57fa-935b-94d264300604
   invocations:
   - id: reads-resource-headers
+    expectedBehavior: "Send HEAD and return response headers without a response body while restoring the incoming context."
     body: null
     headers:
       Accept: application/json
@@ -3784,11 +3866,17 @@ scenarios:
       expectedRequest:
         count: 0
 - id: recovers-after-response-timeout
+  expectedBehavior: >-
+    Report the response timeout and successfully process the next request through the same sender with restored
+    context.
   scope: Long
   deployment: http-sender-client
   endpointUri: cip-chain:d50d8eea-a585-5b18-be63-6943ab710453
   invocations:
   - id: times-out-waiting-for-response
+    expectedBehavior: >-
+      Report SocketTimeoutException when the response exceeds the configured timeout and restore the incoming
+      context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -3845,6 +3933,7 @@ scenarios:
       message: Read timed out
       cause: null
   - id: succeeds-after-response-timeout
+    expectedBehavior: "Complete the next request successfully through the existing sender after the response timeout."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -3899,11 +3988,15 @@ scenarios:
       expectedRequest:
         count: 0
 - id: evaluates-and-normalizes-dynamic-uris
+  expectedBehavior: >-
+    Evaluate each request's dynamic destination, preserve URI semantics during encoding, reject malformed URIs
+    before HTTP, and recover.
   scope: Short
   deployment: http-sender-addressing
   endpointUri: cip-chain:716d9462-69ff-536b-8b9a-eeb7738993a4
   invocations:
   - id: uses-first-dynamic-address
+    expectedBehavior: "Resolve the first dynamic address and send the expected path and query to that destination."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -3965,6 +4058,7 @@ scenarios:
     properties:
       targetUri: http://first-http.invalid/dynamic/first?name=first&repeat=one
   - id: uses-second-dynamic-address
+    expectedBehavior: "Resolve the fresh second dynamic address without retaining the previous destination or request values."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4026,6 +4120,7 @@ scenarios:
     properties:
       targetUri: http://second-http.invalid/dynamic/second?name=second&repeat=two
   - id: encodes-spaces-in-path-and-query
+    expectedBehavior: "Encode spaces in the dynamic path and query while preserving their expected request values."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4087,6 +4182,7 @@ scenarios:
     properties:
       targetUri: http://snapshot-http.invalid/path with spaces?name=world &mode=one
   - id: adds-default-http-scheme
+    expectedBehavior: "Add the default HTTP scheme when the evaluated destination does not specify one."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4148,6 +4244,7 @@ scenarios:
     properties:
       targetUri: snapshot-http.invalid/dynamic/default?mode=default
   - id: rejects-invalid-uri-before-http
+    expectedBehavior: "Report URISyntaxException for the malformed dynamic URI without making an HTTP request."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4210,6 +4307,7 @@ scenarios:
       message: 'Expected scheme name at index 0: ://broken'
       cause: null
   - id: recovers-after-invalid-uri
+    expectedBehavior: "Resolve and call a fresh valid destination successfully after the malformed-URI failure."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4272,6 +4370,7 @@ scenarios:
       targetUri: http://snapshot-http.invalid/dynamic/recovered?after=invalid
 
   - id: preserves-percent-encoded-path-and-query
+    expectedBehavior: "Preserve encoded slashes and percent signs in the dynamic path and query rather than encoding them again."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4334,6 +4433,7 @@ scenarios:
       targetUri: http://snapshot-http.invalid/encoded/a%2Fb/%25done?slash=a%2Fb&percent=100%25
 
   - id: preserves-plus-repeated-keys-and-empty-query-value
+    expectedBehavior: "Preserve plus signs, repeated query keys, and empty query values in the outgoing dynamic URI."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4396,11 +4496,15 @@ scenarios:
       targetUri: http://snapshot-http.invalid/literal+plus?value=a+b&tag=first&tag=second&empty=&escapedPlus=a%2Bb
 
 - id: skips-context-propagation-when-disabled
+  expectedBehavior: >-
+    Omit propagated context headers when disabled, handle success and error responses, and preserve the incoming
+    context.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:1b6bcbe7-6269-5349-8457-39d8e6f80c30
   invocations:
   - id: context-disabled-success
+    expectedBehavior: "Send the successful request without propagated context headers and preserve the caller's incoming context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4498,6 +4602,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-disabled-error
+    expectedBehavior: "Report the HTTP 500 response without sending propagated context headers or altering the caller's context."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4599,6 +4704,7 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: context-disabled-recovery
+    expectedBehavior: "Complete a fresh successful request after the HTTP error with context propagation still disabled."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4696,6 +4802,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-disabled-missing-incoming-context
+    expectedBehavior: "Omit outgoing context headers when no incoming values are supplied and context propagation is disabled."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4793,11 +4900,17 @@ scenarios:
       expectedRequest:
         count: 0
 - id: restores-context-after-literal-overrides
+  expectedBehavior: >-
+    Apply literal context overrides with incoming Authorization priority and restore context after success,
+    failure, and response-header collisions.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:7dc82e6c-742d-54e2-84f8-276856835559
   invocations:
   - id: context-literal-without-incoming-authorization
+    expectedBehavior: >-
+      Apply the literal request ID and token overrides when no incoming Authorization is supplied, then restore
+      the caller's context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4894,6 +5007,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-literal-success
+    expectedBehavior: >-
+      Use literal context overrides while giving incoming Authorization priority, then restore context after
+      HTTP 200.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -4991,6 +5107,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-literal-error
+    expectedBehavior: "Keep incoming Authorization priority over the literal token override and restore context after HTTP 500."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5092,6 +5209,7 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: context-literal-recovery
+    expectedBehavior: "Apply the literal overrides to fresh request data and restore context after recovery from the HTTP error."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5189,6 +5307,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-literal-missing-incoming-context
+    expectedBehavior: >-
+      Use the literal override values when incoming context is absent and remove temporary override properties
+      after sending.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5285,6 +5406,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: response-context-collision-success
+    expectedBehavior: >-
+      Preserve the declared outgoing Authorization priority and restore incoming context despite conflicting
+      context headers in the HTTP 200 response.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5384,6 +5508,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: response-context-collision-error
+    expectedBehavior: >-
+      Restore incoming context despite conflicting context headers in the HTTP 500 response and propagate the
+      expected HTTP failure.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5487,6 +5614,9 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: response-context-collision-recovery
+    expectedBehavior: >-
+      Return fresh response data and restore incoming context after a previous response-header collision and
+      HTTP error.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5586,11 +5716,17 @@ scenarios:
       expectedRequest:
         count: 0
 - id: evaluates-context-overrides-for-each-invocation
+  expectedBehavior: >-
+    Evaluate fresh dynamic context overrides per request, honor incoming Authorization, and restore context
+    after success or HTTP failure.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:7df71ab2-e6ce-51c9-9cef-fe247dd11697
   invocations:
   - id: context-dynamic-success
+    expectedBehavior: >-
+      Evaluate the current request's context expressions, give incoming Authorization priority, and restore
+      context after HTTP 200.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5692,6 +5828,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-dynamic-error
+    expectedBehavior: "Evaluate fresh context expressions and restore incoming context when the request receives HTTP 500."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5797,6 +5934,9 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: context-dynamic-recovery
+    expectedBehavior: >-
+      Use the recovery request's fresh context expression values and complete successfully without retaining
+      prior overrides.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5898,6 +6038,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: context-dynamic-missing-incoming-context
+    expectedBehavior: >-
+      Use the evaluated request ID and token when incoming context is absent, then clear temporary override
+      state.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -5998,11 +6141,15 @@ scenarios:
       expectedRequest:
         count: 0
 - id: propagates-and-receives-header-correlation-ids
+  expectedBehavior: >-
+    Send and receive correlation IDs through headers, retaining outgoing IDs when the response omits one and
+    recovering after HTTP errors.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:7232f625-6d77-5e12-9278-825e1a415716
   invocations:
   - id: receives-response-header-id
+    expectedBehavior: "Send the outgoing correlation header and replace the correlation property with the response header's ID."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6105,6 +6252,7 @@ scenarios:
     properties:
       correlationId: outgoing-header-id
   - id: keeps-outgoing-id-without-response-header
+    expectedBehavior: "Keep the outgoing correlation ID when the successful response does not provide its correlation header."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6206,6 +6354,7 @@ scenarios:
     properties:
       correlationId: outgoing-without-response
   - id: has-no-header-id
+    expectedBehavior: "Leave the correlation ID absent when neither the request nor the response supplies a correlation header."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6304,6 +6453,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: receives-header-id-without-outgoing-id
+    expectedBehavior: "Accept the response header's correlation ID when the request has no outgoing correlation ID."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6403,6 +6553,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: keeps-outgoing-id-after-header-error
+    expectedBehavior: >-
+      Retain the outgoing correlation ID after the HTTP error without replacing it with missing response
+      correlation data.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6509,6 +6662,7 @@ scenarios:
     properties:
       correlationId: outgoing-before-error
   - id: receives-header-id-after-recovery
+    expectedBehavior: "Use the fresh response header's correlation ID after recovery from the HTTP error."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6611,11 +6765,15 @@ scenarios:
     properties:
       correlationId: outgoing-before-recovery
 - id: propagates-and-receives-body-correlation-ids
+  expectedBehavior: >-
+    Send and receive JSON-body correlation IDs while preserving IDs for absent fields, text or empty bodies, and
+    failed requests.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
   invocations:
   - id: propagates-and-receives-body-id
+    expectedBehavior: "Send the outgoing correlation ID in JSON and adopt the ID returned in the response body."
     body: '{"input":"original","requestId":"stale-body-id"}'
     headers:
       Accept: application/json
@@ -6720,6 +6878,7 @@ scenarios:
     properties:
       correlationId: outgoing-body-id
   - id: receives-body-id-without-outgoing-id
+    expectedBehavior: "Adopt the JSON response correlation ID even when the outgoing request has none."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6820,6 +6979,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: keeps-id-when-response-field-is-absent
+    expectedBehavior: "Keep the outgoing correlation ID when the JSON response omits the configured correlation field."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -6922,6 +7082,7 @@ scenarios:
     properties:
       correlationId: outgoing-without-response
   - id: has-no-body-id
+    expectedBehavior: "Leave the correlation ID absent when neither JSON body supplies the configured field."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7020,6 +7181,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: keeps-id-for-plain-text-response
+    expectedBehavior: "Keep the outgoing correlation ID when the successful response is plain text rather than a JSON object."
     body: '{"input":"original"}'
     headers:
       Accept: text/plain
@@ -7120,6 +7282,7 @@ scenarios:
     properties:
       correlationId: outgoing-plain-response
   - id: keeps-plain-text-request-body
+    expectedBehavior: "Preserve the plain-text request body while processing the response through the body-correlation sender."
     body: plain outgoing request
     headers:
       Accept: text/plain
@@ -7218,6 +7381,7 @@ scenarios:
     properties:
       correlationId: outgoing-plain-request
   - id: keeps-id-after-body-error
+    expectedBehavior: "Retain the outgoing correlation ID after an HTTP failure from the body-correlation sender."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7326,6 +7490,7 @@ scenarios:
     properties:
       correlationId: outgoing-before-error
   - id: receives-body-id-after-recovery
+    expectedBehavior: "Adopt the fresh response body's correlation ID after recovering from the HTTP error."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7430,6 +7595,9 @@ scenarios:
     properties:
       correlationId: outgoing-before-recovery
   - id: keeps-body-correlation-id-with-empty-request-and-response
+    expectedBehavior: >-
+      Keep the incoming correlation ID for an empty request and HTTP 204 response without fabricating a JSON
+      body.
     body: null
     headers:
       Accept: application/json
@@ -7529,11 +7697,17 @@ scenarios:
     properties:
       correlationId: outgoing-empty-body-id
 - id: routes-through-external-gateway-prefix
+  expectedBehavior: >-
+    Use the generated external gateway destination and path, report HTTP errors, and recover while restoring
+    incoming context.
   scope: Short
   deployment: http-sender-addressing
   endpointUri: cip-chain:7bc3a198-ab3f-5c4c-aef6-e4c4f6e4314b
   invocations:
   - id: uses-external-address
+    expectedBehavior: >-
+      Send the request using the generated external gateway destination and expected path, then restore incoming
+      context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7593,6 +7767,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-through-external-address
+    expectedBehavior: >-
+      Report HTTP 500 through the generated external gateway destination while preserving the expected request
+      and restoring context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7656,6 +7833,9 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: recovers-through-external-address
+    expectedBehavior: >-
+      Complete a fresh successful request through the generated external gateway destination after the HTTP
+      error.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7716,11 +7896,17 @@ scenarios:
       expectedRequest:
         count: 0
 - id: routes-through-external-default-gateway-prefix
+  expectedBehavior: >-
+    Use the generated default external gateway destination and path, report HTTP errors, and recover with
+    restored context.
   scope: Short
   deployment: http-sender-addressing
   endpointUri: cip-chain:841f1b08-9b74-5ff1-ac64-913155b42cad
   invocations:
   - id: uses-external-default-address
+    expectedBehavior: >-
+      Send the request using the generated external-default gateway destination and expected path, then restore
+      incoming context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7780,6 +7966,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fails-through-external-default-address
+    expectedBehavior: >-
+      Report HTTP 500 through the generated external-default gateway destination while preserving the expected
+      request and restoring context.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7843,6 +8032,9 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: recovers-through-external-default-address
+    expectedBehavior: >-
+      Complete a fresh successful request through the generated external-default gateway destination after the
+      HTTP error.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7903,11 +8095,15 @@ scenarios:
       expectedRequest:
         count: 0
 - id: reuses-established-connections
+  expectedBehavior: >-
+    Reuse the same TCP connection across requests, open a new connection after server closure, and reuse that
+    replacement.
   scope: Short
   deployment: http-sender-methods
   endpointUri: cip-chain:7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
   invocations:
   - id: sends-request-1
+    expectedBehavior: "Establish the first TCP connection and complete the successful request."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -7986,6 +8182,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-request-2
+    expectedBehavior: "Complete request 2 on the existing TCP connection without increasing the observed connection count."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8064,6 +8261,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-request-3
+    expectedBehavior: "Complete request 3 on the existing TCP connection without increasing the observed connection count."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8143,6 +8341,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: server-closes-established-connection
+    expectedBehavior: "Complete the request on the reused connection and observe the server's Connection: close response."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8224,6 +8423,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: reconnects-after-server-close
+    expectedBehavior: "Open a second TCP connection and successfully send the next request after server closure."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8303,6 +8503,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: reuses-reconnected-connection
+    expectedBehavior: >-
+      Send the following request on the replacement connection without increasing the connection count beyond
+      two.
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8382,11 +8585,13 @@ scenarios:
       expectedRequest:
         count: 0
 - id: opens-a-connection-for-each-request
+  expectedBehavior: "Open a separate TCP connection for every request when connection reuse is disabled."
   scope: Short
   deployment: http-sender-client
   endpointUri: cip-chain:0d1244a0-3beb-5846-a913-4d13e58866d0
   invocations:
   - id: sends-request-1
+    expectedBehavior: "Complete request 1 on a new TCP connection with reuse disabled, observing 1 connection(s) in total."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8441,6 +8646,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-request-2
+    expectedBehavior: "Complete request 2 on a new TCP connection with reuse disabled, observing 2 connection(s) in total."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8495,6 +8701,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: sends-request-3
+    expectedBehavior: "Complete request 3 on a new TCP connection with reuse disabled, observing 3 connection(s) in total."
     body: '{"input":"original"}'
     headers:
       Accept: application/json
@@ -8549,11 +8756,17 @@ scenarios:
       expectedRequest:
         count: 0
 - id: passes-response-and-restores-context-between-senders
+  expectedBehavior: >-
+    Pass the first sender's response and correlation ID to the second, restore context between senders, and
+    recover after either HTTP failure.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:a6b50175-c0ed-5361-843f-09003ed98a18
   invocations:
   - id: sends-through-both-senders
+    expectedBehavior: >-
+      Send through both endpoints in order, passing the first response and correlation ID to the second while
+      restoring context between them.
     body: '{"input":"sends-through-both-senders"}'
     headers:
       Accept: application/json
@@ -8688,6 +8901,7 @@ scenarios:
       X-Http-Response: sends-through-both-senders-second
       Authorization: Bearer composition-token
   - id: skips-second-sender-after-first-http-error
+    expectedBehavior: "Propagate the first sender's HTTP 500, skip the second sender entirely, and restore incoming context."
     body: '{"input":"skips-second-sender-after-first-http-error"}'
     headers:
       Accept: application/json
@@ -8797,6 +9011,7 @@ scenarios:
         500'
       cause: null
   - id: recovers-sequence-after-first-http-error
+    expectedBehavior: "Complete both senders with fresh response and correlation data after the first-sender HTTP failure."
     body: '{"input":"recovers-sequence-after-first-http-error"}'
     headers:
       Accept: application/json
@@ -8931,6 +9146,9 @@ scenarios:
       X-Http-Response: recovers-sequence-after-first-http-error-second
       Authorization: Bearer composition-token
   - id: restores-context-after-second-http-error
+    expectedBehavior: >-
+      Pass the first response to the second sender, propagate the second sender's HTTP 503, and restore incoming
+      context.
     body: '{"input":"restores-context-after-second-http-error"}'
     headers:
       Accept: application/json
@@ -9067,6 +9285,7 @@ scenarios:
         503'
       cause: null
   - id: recovers-sequence-after-second-http-error
+    expectedBehavior: "Complete the two-sender sequence successfully with fresh data after the second-sender HTTP failure."
     body: '{"input":"recovers-sequence-after-second-http-error"}'
     headers:
       Accept: application/json
@@ -9201,11 +9420,17 @@ scenarios:
       X-Http-Response: recovers-sequence-after-second-http-error-second
       Authorization: Bearer composition-token
 - id: handles-http-errors-with-fallback-and-finally
+  expectedBehavior: >-
+    Use fallback only for handled primary HTTP errors, propagate fallback or transport failures, restore
+    context, and execute Finally once.
   scope: Short
   deployment: http-sender-context
   endpointUri: cip-chain:966a10d1-2123-5446-96d5-46866bdd0e91
   invocations:
   - id: completes-primary-without-fallback
+    expectedBehavior: >-
+      Complete the primary sender, skip Catch and the fallback sender, restore context, and execute Finally
+      exactly once.
     body: '{"input":"completes-primary-without-fallback"}'
     headers:
       Accept: application/json
@@ -9310,6 +9535,9 @@ scenarios:
       X-Http-Response: completes-primary-without-fallback-primary
       Authorization: Bearer composition-token
   - id: handles-primary-http-error-with-fallback
+    expectedBehavior: >-
+      Capture the primary HTTP error in Catch, return the successful fallback response, restore context, and
+      execute Finally once.
     body: '{"input":"handles-primary-http-error-with-fallback"}'
     headers:
       Accept: application/json
@@ -9436,6 +9664,9 @@ scenarios:
       X-Http-Response: handles-primary-http-error-with-fallback-fallback
       Authorization: Bearer composition-token
   - id: propagates-fallback-http-error
+    expectedBehavior: >-
+      Capture the primary error, propagate the fallback sender's HTTP 503, restore context, and execute Finally
+      once without marking completion.
     body: '{"input":"propagates-fallback-http-error"}'
     headers:
       Accept: application/json
@@ -9566,6 +9797,9 @@ scenarios:
         503'
       cause: null
   - id: recovers-primary-after-fallback-http-error
+    expectedBehavior: >-
+      Complete a fresh primary request without fallback or stale caught-error data after the fallback failure,
+      executing Finally once.
     body: '{"input":"recovers-primary-after-fallback-http-error"}'
     headers:
       Accept: application/json
@@ -9670,6 +9904,9 @@ scenarios:
       X-Http-Response: recovers-primary-after-fallback-http-error-primary
       Authorization: Bearer composition-token
   - id: propagates-uncaught-transport-error
+    expectedBehavior: >-
+      Propagate the primary transport exception without entering the HTTP-error Catch or invoking fallback, and
+      execute Finally once.
     body: '{"input":"propagates-uncaught-transport-error"}'
     headers:
       Accept: application/json
@@ -9777,6 +10014,9 @@ scenarios:
       message: The target server failed to respond
       cause: null
   - id: recovers-primary-after-transport-error
+    expectedBehavior: >-
+      Complete the next primary request successfully after the uncaught transport error, with restored context
+      and one Finally execution.
     body: '{"input":"recovers-primary-after-transport-error"}'
     headers:
       Accept: application/json

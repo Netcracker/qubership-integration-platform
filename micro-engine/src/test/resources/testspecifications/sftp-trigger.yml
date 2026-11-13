@@ -66,6 +66,8 @@ fixtures:
   sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
 scenarios:
 - id: consumes-content-metadata-and-selected-files
+  expectedBehavior: >-
+    Consume supported file content and native metadata while excluding files outside the configured selection.
   scope: Short
   deployment: base
   driver:
@@ -73,6 +75,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: polls-an-empty-directory-and-consumes-later-files
+    expectedBehavior: >-
+      Poll an empty directory without business work, failed completions, or retained file keys.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -90,6 +94,9 @@ scenarios:
           expectedFileNames: []
           expectedRetainedKeyCount: 0
   - id: consumes-text-json-utf8-and-empty-files
+    expectedBehavior: >-
+      Consume all seven selected files with exact text, UTF-8 and binary bytes, empty content, and native file
+      headers.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -152,6 +159,8 @@ scenarios:
             order report café.txt:
               body: named-content
   - id: filters-files-with-ant-include
+    expectedBehavior: >-
+      Consume only the file matching the Ant mask and leave excluded remote files untouched.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -179,6 +188,8 @@ scenarios:
             excluded.csv: excluded-csv
             extensionless: excluded-name
   - id: excludes-files-outside-the-polled-directory
+    expectedBehavior: >-
+      Consume the file in the polling directory without consuming its sibling-directory file.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -202,6 +213,8 @@ scenarios:
           expectedRemoteFiles:
             ../sibling/sibling.txt: outside-content
   - id: ignores-subdirectories-with-native-recursion-disabled
+    expectedBehavior: >-
+      Consume the root file while leaving a nested child file untouched when recursion is disabled.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -225,6 +238,8 @@ scenarios:
           expectedRemoteFiles:
             nested/child.txt: nested-content
   - id: ignores-dot-prefixed-files
+    expectedBehavior: >-
+      Consume the visible file without processing the dot-prefixed file.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -248,6 +263,8 @@ scenarios:
           expectedRemoteFiles:
             .hidden.txt: hidden-content
   - id: consumes-a-batch-without-assuming-file-order
+    expectedBehavior: >-
+      Complete all three batch files exactly once without requiring a particular polling order.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -274,6 +291,8 @@ scenarios:
           - batch-b.txt
           - batch-c.txt
 - id: streams-large-files-and-recovers-after-an-interrupted-download
+  expectedBehavior: >-
+    Preserve complete large-file bytes and retry a file after its initial download is interrupted.
   scope: Long
   deployment: base
   driver:
@@ -281,6 +300,9 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: streams-large-files-without-truncation
+    expectedBehavior: >-
+      Stream the large file with its exact byte length and SHA-256 digest, then complete one business
+      invocation.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -303,6 +325,9 @@ scenarios:
           expectedFileNames:
           - large.txt
   - id: retries-after-a-connection-is-lost-during-download
+    expectedBehavior: >-
+      Record one interrupted download, retry the same file, and complete once with the full expected byte
+      length and digest.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -327,6 +352,8 @@ scenarios:
           expectedFileNames:
           - interrupted.txt
 - id: consumes-buffered-files
+  expectedBehavior: >-
+    Preserve text and binary content when stream download is disabled.
   scope: Short
   deployment: buffered
   driver:
@@ -334,6 +361,8 @@ scenarios:
     sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
   invocations:
   - id: consumes-files-with-stream-download-disabled
+    expectedBehavior: >-
+      Consume the buffered text file with matching content and native file headers.
     body: buffered-content
     expectedBody: Triggered
     interactions:
@@ -348,6 +377,8 @@ scenarios:
           expectedStreamDownload: false
           verifyFileHeaders: true
   - id: preserves-buffered-binary-bytes
+    expectedBehavior: >-
+      Preserve all six buffered binary bytes and their SHA-256 digest without stream download.
     driver:
       provider: sftp-trigger
       sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
@@ -367,6 +398,8 @@ scenarios:
           expectedBodyLength: 6
           expectedBodySha256: 3e1184bc6a8b6e20e85992c10f7f60cb6b5082dc4099d5dea1b744139fb757e7
 - id: consumes-visible-files-without-a-mask
+  expectedBehavior: >-
+    Consume visible files with any extension when no Ant include mask is configured.
   scope: Short
   deployment: unfiltered
   driver:
@@ -374,6 +407,8 @@ scenarios:
     sourceElementId: dac8f987-0e36-51bb-a42a-bb85f14122bc
   invocations:
   - id: consumes-files-without-an-ant-mask
+    expectedBehavior: >-
+      Consume all three visible files regardless of extension when no include mask is configured.
     driver:
       provider: sftp-trigger
       sourceElementId: dac8f987-0e36-51bb-a42a-bb85f14122bc
@@ -400,6 +435,8 @@ scenarios:
           - unfiltered.bin
           - unfiltered
 - id: preserves-native-file-key-semantics
+  expectedBehavior: >-
+    Deduplicate unchanged files, acquire changed native keys, and retain keys across route restart.
   scope: Long
   deployment: base
   driver:
@@ -407,6 +444,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: consumes-the-first-file-key
+    expectedBehavior: >-
+      Consume the first file and retain its native idempotency key.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -426,6 +465,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRetainedKeyCount: 1
   - id: suppresses-an-unchanged-file-on-later-polls
+    expectedBehavior: >-
+      Leave the unchanged remote file in place without another completion or business execution.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -445,6 +486,8 @@ scenarios:
           expectedRemoteFiles:
             same-name.txt: first-size
   - id: consumes-the-same-name-after-a-size-change
+    expectedBehavior: >-
+      Consume the same file name with its changed size and retain a second distinct native key.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -467,6 +510,8 @@ scenarios:
           expectedFileNames:
           - same-name.txt
   - id: consumes-the-same-name-after-a-modification-time-change
+    expectedBehavior: >-
+      Consume the same file name after its modification time changes and retain the new key.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -489,6 +534,8 @@ scenarios:
           expectedFileNames:
           - same-name.txt
   - id: retains-file-keys-across-stop-and-start-of-the-same-endpoint
+    expectedBehavior: >-
+      Restart the same endpoint without reprocessing files whose native keys are already retained.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -507,6 +554,8 @@ scenarios:
           expectedRetainedKeyCount: 3
           expectedFileNames: []
   - id: consumes-a-new-file-after-retaining-earlier-keys
+    expectedBehavior: >-
+      Consume a new file after restart while preserving all previously retained keys.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -527,6 +576,8 @@ scenarios:
           expectedFileNames:
           - new-after-restart.txt
 - id: suppresses-distinct-files-sharing-one-native-key
+  expectedBehavior: >-
+    Process only the first file when distinct file names resolve to the same native idempotency key.
   scope: Short
   deployment: fixed-key
   driver:
@@ -534,6 +585,8 @@ scenarios:
     sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
   invocations:
   - id: consumes-the-first-fixed-key-file
+    expectedBehavior: >-
+      Consume the first file and reserve the configured fixed idempotency key.
     driver:
       provider: sftp-trigger
       sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
@@ -552,6 +605,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRetainedKeyCount: 1
   - id: suppresses-a-different-file-with-a-fixed-key
+    expectedBehavior: >-
+      Leave a second distinct file unprocessed because its configured fixed key is already retained.
     driver:
       provider: sftp-trigger
       sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
@@ -573,6 +628,8 @@ scenarios:
             first-fixed.txt: first-fixed
             second-fixed.txt: second-fixed
 - id: suppresses-same-key-files-within-one-poll
+  expectedBehavior: >-
+    Reserve a shared native key before processing so one polling batch executes business work only once.
   scope: Short
   deployment: fixed-key
   driver:
@@ -580,6 +637,8 @@ scenarios:
     sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
   invocations:
   - id: reserves-a-shared-key-before-processing-the-batch
+    expectedBehavior: >-
+      Execute one business invocation for two files sharing one key within the same polling batch.
     driver:
       provider: sftp-trigger
       sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
@@ -606,6 +665,8 @@ scenarios:
             batch-first.txt: shared-key-content
             batch-second.txt: shared-key-content
 - id: repeats-native-consumption-without-idempotency
+  expectedBehavior: >-
+    Consume the same remote file repeatedly when native idempotency is disabled.
   scope: Short
   deployment: no-idempotency
   driver:
@@ -613,6 +674,8 @@ scenarios:
     sourceElementId: 42b51522-432c-5451-820a-be804fbc0a5e
   invocations:
   - id: repeats-consumption-when-native-idempotency-is-disabled
+    expectedBehavior: >-
+      Complete two consumptions of the same remote file while native idempotency is disabled.
     driver:
       provider: sftp-trigger
       sourceElementId: 42b51522-432c-5451-820a-be804fbc0a5e
@@ -634,6 +697,8 @@ scenarios:
           - repeat.txt
           stopAfterCompletions: 2
 - id: rolls-back-a-native-file-key-after-processing-failure
+  expectedBehavior: >-
+    Release a failed file key, retry the same file, and retain its key after successful processing.
   scope: Long
   deployment: base
   driver:
@@ -641,6 +706,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: retries-a-file-after-an-unhandled-processing-failure
+    expectedBehavior: >-
+      Capture one failed completion, retry the same file successfully, and retain one native key.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -672,6 +739,8 @@ scenarios:
       - count: 1
         body: Triggered
 - id: consumes-preexisting-backlog
+  expectedBehavior: >-
+    Consume files already present before the SFTP route starts.
   scope: Short
   deployment: base
   driver:
@@ -679,6 +748,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: consumes-backlog-present-before-route-start
+    expectedBehavior: >-
+      Consume both preloaded backlog files after route startup and preserve their remote content.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -706,6 +777,8 @@ scenarios:
             backlog-a.txt: backlog-a
             backlog-b.txt: backlog-b
 - id: creates-the-polled-directory
+  expectedBehavior: >-
+    Create the missing remote polling directory when directory creation is enabled, then consume its file.
   scope: Long
   deployment: create-directory
   driver:
@@ -713,6 +786,8 @@ scenarios:
     sourceElementId: b4416023-ff97-5e21-9eb0-3cb7b2063014
   invocations:
   - id: creates-a-missing-directory-when-enabled
+    expectedBehavior: >-
+      Create the absent polling directory and consume the published file once.
     body: created-directory-content
     expectedBody: Triggered
     interactions:
@@ -729,6 +804,8 @@ scenarios:
           expectedFileNames:
           - creates-a-missing-directory-when-enabled.txt
 - id: recovers-from-an-ignored-missing-directory
+  expectedBehavior: >-
+    Wait through an ignored missing-directory error and consume after the directory becomes available.
   scope: Long
   deployment: base
   driver:
@@ -736,6 +813,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: recovers-when-a-missing-directory-is-created
+    expectedBehavior: >-
+      Consume the file after the missing polling directory is restored, with no failed file completion.
     body: restored-directory-content
     expectedBody: Triggered
     interactions:
@@ -752,6 +831,9 @@ scenarios:
           expectedFileNames:
           - recovers-when-a-missing-directory-is-created.txt
 - id: reports-remote-directory-errors-and-recovers
+  expectedBehavior: >-
+    Observe strict missing-directory and permission errors, then resume file processing after remote access is
+    restored.
   scope: Long
   deployment: strict-remote-errors
   driver:
@@ -759,6 +841,8 @@ scenarios:
     sourceElementId: 9acfbf7d-ad8a-5083-8c40-c0156946a2d0
   invocations:
   - id: reports-a-missing-directory-before-recovery
+    expectedBehavior: >-
+      Observe the missing-directory poll error, then consume successfully after the directory is restored.
     body: strict-missing-content
     expectedBody: Triggered
     interactions:
@@ -774,6 +858,8 @@ scenarios:
           consumerAction: missing-directory-until-published
           expectedPollFailures: 1
   - id: reports-permission-denied-and-recovers-after-access-is-restored
+    expectedBehavior: >-
+      Observe a permission-denied poll error, then consume successfully after access is restored.
     body: strict-permission-content
     expectedBody: Triggered
     interactions:
@@ -788,6 +874,8 @@ scenarios:
           consumerAction: deny-access-until-published
           expectedPollFailures: 1
 - id: recovers-from-remote-access-and-connection-failures
+  expectedBehavior: >-
+    Resume file consumption after permission, password, connection, and server-restart failures.
   scope: Long
   deployment: base
   driver:
@@ -795,6 +883,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: ignores-permission-denied-and-recovers-after-access-is-restored
+    expectedBehavior: >-
+      Wait through denied remote access and consume the file after permission is restored.
     body: restored-access
     expectedBody: Triggered
     interactions:
@@ -808,6 +898,8 @@ scenarios:
           expectedFailureCompletions: 0
           consumerAction: deny-access-until-published
   - id: recovers-after-password-authentication-is-restored
+    expectedBehavior: >-
+      Consume successfully after the server accepts the configured password again.
     body: restored-password
     expectedBody: Triggered
     interactions:
@@ -821,6 +913,8 @@ scenarios:
           expectedFailureCompletions: 0
           consumerAction: deny-password-until-published
   - id: recovers-after-a-refused-connection
+    expectedBehavior: >-
+      Reconnect and consume the file after the refused SFTP connection becomes available.
     body: restored-connection
     expectedBody: Triggered
     interactions:
@@ -834,6 +928,8 @@ scenarios:
           expectedFailureCompletions: 0
           consumerAction: refuse-until-published
   - id: reconnects-after-an-sftp-server-restart
+    expectedBehavior: >-
+      Reconnect after restarting the SFTP server and complete the published file once.
     body: restarted-server
     expectedBody: Triggered
     interactions:
@@ -847,6 +943,9 @@ scenarios:
           expectedFailureCompletions: 0
           consumerAction: restart-server
 - id: preserves-native-consumer-lifecycle
+  expectedBehavior: >-
+    Preserve file-key and completion semantics across route restart, graceful stop, redeployment, and context
+    close.
   scope: Long
   deployment: base
   driver:
@@ -854,6 +953,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: consumes-before-lifecycle-controls
+    expectedBehavior: >-
+      Consume the initial lifecycle file and retain its native key before changing route state.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -872,6 +973,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRetainedKeyCount: 1
   - id: consumes-backlog-after-route-stop-and-start
+    expectedBehavior: >-
+      Consume the file queued while the route was stopped and retain both lifecycle keys.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -891,6 +994,8 @@ scenarios:
           consumerAction: stop-until-published
           expectedRetainedKeyCount: 2
   - id: waits-for-an-inflight-file-during-graceful-stop
+    expectedBehavior: >-
+      Allow the in-flight file to finish during graceful route stop and retain its key.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -910,6 +1015,8 @@ scenarios:
           consumerAction: stop-during-processing
           expectedRetainedKeyCount: 3
   - id: closes-the-old-consumer-and-uses-a-fresh-repository-after-redeployment
+    expectedBehavior: >-
+      Replace the old consumer and consume the three existing files with a fresh native key repository.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -932,6 +1039,8 @@ scenarios:
           - lifecycle-backlog.txt
           - lifecycle-inflight.txt
   - id: stops-polling-and-cleans-up-resources-on-context-close
+    expectedBehavior: >-
+      Complete the final file and stop polling with consumer resources closed when the Camel context closes.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -951,6 +1060,8 @@ scenarios:
           verifyContextClose: true
           expectedRetainedKeyCount: 4
 - id: isolates-quartz-polling-between-generated-deployments
+  expectedBehavior: >-
+    Keep generated polling schedules independent so stopping one deployment leaves the peer consumer active.
   scope: Long
   deployment: isolated-base
   driver:
@@ -958,6 +1069,8 @@ scenarios:
     sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
   invocations:
   - id: isolates-generated-quartz-triggers-between-deployments
+    expectedBehavior: >-
+      Consume independently in both generated deployments with distinct native Quartz polling triggers.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -992,6 +1105,8 @@ scenarios:
           - peer-first.txt
           expectedStreamDownload: false
   - id: keeps-the-peer-schedule-running-after-subject-stop
+    expectedBehavior: >-
+      Stop the subject consumer without preventing the peer deployment from consuming its next file.
     driver:
       provider: sftp-trigger
       sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
@@ -1023,6 +1138,8 @@ scenarios:
           - peer-after-stop.txt
           expectedStreamDownload: false
 - id: rejects-an-invalid-quartz-cron-expression
+  expectedBehavior: >-
+    Fail route startup for an invalid Quartz cron expression before any file is consumed.
   scope: Short
   deployment: invalid-cron
   driver:
@@ -1030,6 +1147,8 @@ scenarios:
     sourceElementId: 4d27e468-bc4d-5a49-8a84-79cc9dbbae79
   invocations:
   - id: does-not-consume-files-before-invalid-schedule-startup
+    expectedBehavior: >-
+      Reject the invalid schedule during startup with no business work or file consumption.
     driver:
       provider: sftp-trigger
       sourceElementId: 4d27e468-bc4d-5a49-8a84-79cc9dbbae79

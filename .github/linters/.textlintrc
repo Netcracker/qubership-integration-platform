@@ -10,7 +10,9 @@
                 "readme(s)?",
                 "repo\\b",
                 "code-?review(s)?",
-                "id['’]?s"
+                "id['’]?s",
+                "regexp?(s)?",
+                "style-?sheet(s)?"
             ]
         }
     }

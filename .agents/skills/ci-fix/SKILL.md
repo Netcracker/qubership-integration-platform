@@ -19,6 +19,9 @@ gh run view <run-id> --json jobs -q '.jobs[] | select(.conclusion=="failure") | 
 gh run view --job <job-id> --log-failed
 ```
 
+If the CLI is unavailable, retrieve the same job logs and artifacts through an
+authenticated GitHub connector or REST API. Keep credentials out of saved logs.
+
 Logs carry ANSI colour codes that break `grep` patterns containing spaces. Strip
 them when you save a log for repeated searching:
 
@@ -31,6 +34,11 @@ gh run view --job <job-id> --log-failed | sed 's/\x1b\[[0-9;]*m//g' > "$SCRATCH/
 The workflows are per module (`<module>-build.yaml`) plus repo-wide ones, and
 which file owns a linter is not obvious from the error text:
 
+- **Snapshot Flow Build**, including `Catalog to Micro Engine snapshot flow`,
+  comes from `snapshot-flow-build.yaml`. Load `component-testing` and read its
+  [failure diagnosis](../../../.apm/skills/component-testing/references/troubleshooting.md) before
+  changing a scenario, fixture, generated input, or workflow setting. Its shell
+  step contains three Maven builds; identify which one failed first.
 - **ESLint, `tsc`, Jest failures** come from the module job in
   `ui-build.yaml` or `vscode-extension-build.yaml`, never from super-linter.
   `.github/super-linter.env` disables the TypeScript and JSX validators on

@@ -432,9 +432,9 @@ class ArtemisJmsTriggerSnapshotFixtureProvider implements SnapshotFixtureProvide
             resolver.removeFromCache(destination);
             context.getRouteController().startRoute(consumer.route().getId());
             runtime.afterPublish(messages -> {
-                await(() -> SnapshotJmsInitialContextFactory.lookupCount(PROVIDER_URL, destination) > previousLookups,
-                        "the generated consumer's invalid JNDI destination lookup");
-                await(listener(consumer)::isRecovering, "JMS listener recovery after a wrong JNDI destination type");
+                // A second lookup records a retry even when recovery finishes between polls.
+                await(() -> SnapshotJmsInitialContextFactory.lookupCount(PROVIDER_URL, destination) > previousLookups + 1,
+                        "the generated consumer's JNDI destination retry after a wrong-type binding");
                 runtime.assertNothingDelivered();
                 SnapshotJmsInitialContextFactory.applyBinding(PROVIDER_URL, destination,
                         Map.of("jndiBinding", Map.of("type", topic ? "Topic" : "Queue", "destination", destination)));

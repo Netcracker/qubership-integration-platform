@@ -42,12 +42,16 @@ fixtures:
   deployment: jms-sender
 scenarios:
 - id: publishes-message-types-and-propagates-context
+  expectedBehavior: >-
+    Deliver the configured JMS message types with their context settings and fan out topic publications to both
+    subscribers.
   reuseBroker: true
   scope: Short
   deployment: jms-sender
   endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
   invocations:
   - id: bytes-message
+    expectedBehavior: "Deliver one BytesMessage with the expected context, JMS headers, and queue destination."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: JMS message
     headers:
@@ -138,6 +142,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: text-unicode
+    expectedBehavior: "Deliver the Unicode text unchanged in a TextMessage."
     endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
     body: Order received - café
     headers:
@@ -222,6 +227,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: map-primitives
+    expectedBehavior: "Deliver a MapMessage containing the expected primitive values."
     endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
     body:
       order: A-42
@@ -321,6 +327,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: object-nested-value
+    expectedBehavior: "Deliver the nested serializable value in an ObjectMessage."
     endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
     body:
       order:
@@ -423,6 +430,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: stream-unicode
+    expectedBehavior: "Preserve Unicode data through the configured StreamMessage conversion."
     endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
     body: Stream - café
     headers:
@@ -507,6 +515,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: context-disabled
+    expectedBehavior: "Deliver the message without propagating request context to JMS properties."
     endpointUri: cip-chain:f8ee1b89-0131-5972-aa15-84e103f4cba1
     body: Disabled context
     headers:
@@ -591,6 +600,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: literal-context
+    expectedBehavior: "Apply the configured literal request-context override to the outgoing message."
     endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
     body:
       message: Literal context
@@ -678,6 +688,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: dynamic-context
+    expectedBehavior: "Evaluate the configured dynamic request-context override for this message."
     endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
     body: Dynamic context
     headers:
@@ -764,6 +775,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: topic-fanout
+    expectedBehavior: "Deliver the topic publication independently to both subscribers."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: Each subscriber receives this message
     headers:
@@ -848,11 +860,15 @@ scenarios:
           expectedJmsHeaders:
             JMSReplyTo: null
 - id: recovers-from-conversion-and-broker-failures
+  expectedBehavior: >-
+    Preserve JMS payloads, properties, and context, reject unsupported conversion and broker access, and recover
+    after each failure.
   scope: Long
   deployment: jms-sender
   endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
   invocations:
   - id: bytes-unicode
+    expectedBehavior: "Encode the Unicode text into the expected BytesMessage payload."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Bytes - café
     headers:
@@ -938,6 +954,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-empty-string
+    expectedBehavior: "Deliver an empty string as a BytesMessage with no payload bytes."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: ''
     headers:
@@ -1023,6 +1040,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-null
+    expectedBehavior: "Convert the null body into an empty BytesMessage payload."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: null
     headers:
@@ -1108,6 +1126,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-all-byte-values
+    expectedBehavior: "Preserve every byte value from 0 through 255 in the BytesMessage."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     driver:
       provider: binaryInput
@@ -1196,6 +1215,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-empty-bytes
+    expectedBehavior: "Deliver an empty byte array without inventing payload bytes."
     body: ''
     driver:
       provider: binaryInput
@@ -1284,6 +1304,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: stream-all-byte-values
+    expectedBehavior: "Preserve every byte value in the configured StreamMessage representation."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     driver:
       provider: binaryInput
@@ -1371,6 +1392,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: stream-empty-bytes
+    expectedBehavior: "Deliver the empty byte array through the StreamMessage sender."
     body: ''
     driver:
       provider: binaryInput
@@ -1458,6 +1480,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: text-empty
+    expectedBehavior: "Preserve an empty string in a TextMessage."
     endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
     body: ''
     headers:
@@ -1542,6 +1565,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: text-null
+    expectedBehavior: "Deliver a TextMessage whose text remains null."
     endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
     body: null
     headers:
@@ -1626,6 +1650,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: text-number
+    expectedBehavior: "Convert the numeric scalar into the expected TextMessage text."
     endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
     body: 42
     headers:
@@ -1710,6 +1735,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: map-empty
+    expectedBehavior: "Deliver an empty map through the MapMessage sender."
     endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
     body: {}
     headers:
@@ -1794,6 +1820,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: map-null
+    expectedBehavior: "Convert the null body into an empty MapMessage."
     endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
     body: null
     headers:
@@ -1878,6 +1905,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: map-rejects-nested-map
+    expectedBehavior: "Reject a nested MapMessage value with MessageFormatException and deliver no message."
     endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
     body:
       nested:
@@ -1968,6 +1996,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: map-recovers-after-nested-map
+    expectedBehavior: "Deliver a valid MapMessage after the nested map was rejected."
     endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
     body:
       message: Recovered
@@ -2058,6 +2087,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: context-literal-rejects-nested-map
+    expectedBehavior: "Reject the nested MapMessage value while restoring context after the failed send."
     endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
     body:
       nested:
@@ -2148,6 +2178,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: context-literal-recovers-after-nested-map
+    expectedBehavior: "Deliver a valid MapMessage with the literal context override after conversion failure."
     endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
     body:
       message: Recovered
@@ -2238,6 +2269,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: object-list
+    expectedBehavior: "Preserve the serializable list in an ObjectMessage."
     endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
     body:
     - café
@@ -2334,6 +2366,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: object-empty-string
+    expectedBehavior: "Deliver an empty string as an ObjectMessage value."
     endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
     body: ''
     headers:
@@ -2418,6 +2451,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: object-null
+    expectedBehavior: "Deliver an ObjectMessage whose object value remains null."
     endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
     body: null
     headers:
@@ -2502,6 +2536,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: stream-null
+    expectedBehavior: "Convert the null body into an empty StreamMessage payload."
     endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
     body: null
     headers:
@@ -2586,6 +2621,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: message-properties
+    expectedBehavior: "Preserve supported JMS message properties while excluding unsupported internal properties."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Message properties
     headers:
@@ -2703,6 +2739,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: jms-correlation-and-type
+    expectedBehavior: "Set the outgoing JMSCorrelationID and JMSType to their expected values."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: System headers
     headers:
@@ -2794,6 +2831,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: ignores-jmsQueue-reply-to
+    expectedBehavior: "Leave JMSReplyTo absent despite the incoming jmsQueue reply-to header."
     body: Send without waiting for a reply
     driver:
       provider: typedHeaders
@@ -2885,6 +2923,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: ignores-jmsTopic-reply-to
+    expectedBehavior: "Leave JMSReplyTo absent despite the incoming jmsTopic reply-to header."
     body: Send without waiting for a reply
     driver:
       provider: typedHeaders
@@ -2976,6 +3015,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-missing-request-id
+    expectedBehavior: "Generate a nonempty request ID and propagate it as the BytesMessage context property."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Generated request ID
     expectedBody: Generated request ID
@@ -3061,6 +3101,9 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: context-disabled-missing-request-id
+    expectedBehavior: >-
+      Retain a generated request ID internally while omitting it from the JMS message because propagation is
+      disabled.
     endpointUri: cip-chain:f8ee1b89-0131-5972-aa15-84e103f4cba1
     body: No propagated request ID
     expectedBody: No propagated request ID
@@ -3144,6 +3187,8 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: context-literal-missing-request-id
+    expectedBehavior: >-
+      Send the literal request-ID override and restore the internally generated request ID after publication.
     endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
     body:
       message: Override generated request ID
@@ -3230,6 +3275,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: dynamic-context-next-value
+    expectedBehavior: "Reevaluate the dynamic context override for the next input value."
     endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
     body: Second override
     headers:
@@ -3316,6 +3362,9 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: dynamic-context-missing-request-id
+    expectedBehavior: >-
+      Send the evaluated dynamic request-ID override and restore the internally generated request ID after
+      publication.
     endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
     body: Override generated request ID
     headers:
@@ -3402,6 +3451,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: topic-repeated-fanout
+    expectedBehavior: "Deliver every repeated topic publication to both subscribers."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: Every send reaches both subscribers
     headers:
@@ -3487,6 +3537,7 @@ scenarios:
           expectedJmsHeaders:
             JMSReplyTo: null
   - id: topic-null-body
+    expectedBehavior: "Deliver the topic's configured null-body representation to both subscribers."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: null
     headers:
@@ -3571,6 +3622,7 @@ scenarios:
           expectedJmsHeaders:
             JMSReplyTo: null
   - id: before-broker-failures
+    expectedBehavior: "Deliver a baseline BytesMessage before injecting broker faults."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Before broker failures
     headers:
@@ -3655,6 +3707,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: rejects-authentication
+    expectedBehavior: "Propagate JMS authentication rejection without delivering the message."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Rejected authentication
     headers:
@@ -3743,6 +3796,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: recovers-after-authentication
+    expectedBehavior: "Deliver a fresh message after restoring valid broker authentication."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Recovered authentication
     headers:
@@ -3827,6 +3881,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: rejects-permission
+    expectedBehavior: "Propagate denied JMS destination access without delivering the message."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Rejected permission
     headers:
@@ -3918,6 +3973,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: recovers-after-permission
+    expectedBehavior: "Deliver a fresh message after restoring JMS destination permission."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Recovered permission
     headers:
@@ -4002,6 +4058,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: rejects-connection-refused
+    expectedBehavior: "Propagate broker connection refusal and deliver no message."
     timeoutSeconds: 120
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Rejected connection-refused
@@ -4107,6 +4164,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: recovers-after-connection-refused
+    expectedBehavior: "Deliver a fresh message after the broker accepts connections again."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Recovered connection-refused
     headers:
@@ -4191,11 +4249,15 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
 - id: resolves-jndi-destinations-and-recovers-from-type-mismatches
+  expectedBehavior: >-
+    Reject the wrong JNDI destination type, recover with queue and topic aliases, and retain cached aliases
+    after binding removal.
   scope: Long
   deployment: jms-sender
   endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
   invocations:
   - id: bytes-rejects-wrong-jndi-type
+    expectedBehavior: "Reject a JNDI binding of the wrong type before sending to the queue."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Wrong destination type
     headers:
@@ -4281,6 +4343,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-recovers-with-jndi-alias
+    expectedBehavior: "Resolve the corrected JNDI queue alias and deliver the BytesMessage."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Bound destination
     headers:
@@ -4369,6 +4432,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: bytes-retains-cached-jndi-alias
+    expectedBehavior: "Continue sending to the cached queue alias after removing its JNDI binding."
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Cached destination
     headers:
@@ -4455,6 +4519,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: topic-rejects-wrong-jndi-type
+    expectedBehavior: "Reject a JNDI binding of the wrong type before publishing to the topic."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: Wrong destination type
     headers:
@@ -4540,6 +4605,7 @@ scenarios:
             destination: jms/snapshot/topic-alias
           expectedJndiLookupCount: 1
   - id: topic-recovers-with-jndi-alias
+    expectedBehavior: "Resolve the corrected JNDI topic alias and deliver to both subscribers."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: Bound destination
     headers:
@@ -4628,6 +4694,7 @@ scenarios:
             destination: jms/snapshot/topic-alias
           expectedJndiLookupCount: 2
   - id: topic-retains-cached-jndi-alias
+    expectedBehavior: "Continue publishing through the cached topic alias after removing its JNDI binding."
     endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
     body: Cached destination
     headers:

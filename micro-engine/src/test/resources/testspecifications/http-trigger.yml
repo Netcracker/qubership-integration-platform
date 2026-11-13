@@ -62,6 +62,8 @@ fixtures:
     deployment: session-deadline
 scenarios:
   - id: handles-empty-get-requests
+    expectedBehavior: >-
+      Complete GET requests with absent or empty bodies and clear HTTP session failure markers.
     scope: Short
     driver:
       provider: http-trigger
@@ -71,6 +73,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: absent-body
+        expectedBehavior: >-
+          Complete the GET request with no body and no HTTP session failure markers.
         expectedExchangeHeaders:
           CamelHttpMethod: GET
           CamelHttpQuery: null
@@ -90,6 +94,8 @@ scenarios:
             $match: non-empty
           internalProperty_chainSessionTimeoutAfter: null
       - id: empty-body
+        expectedBehavior: >-
+          Complete the GET request with an explicitly empty body and no HTTP session failure markers.
         body: ''
         expectedBody: Triggered
         expectedHeaders:
@@ -100,6 +106,9 @@ scenarios:
     deployment: basic
 
   - id: preserves-request-headers-and-query-without-response-filtering
+    expectedBehavior: >-
+      Preserve encoded, repeated, and empty request values without enabling response filtering on the
+      unfiltered route.
     scope: Short
     driver:
       provider: http-trigger
@@ -109,6 +118,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: encoded-repeated-and-empty-values
+        expectedBehavior: >-
+          Complete the request while preserving encoded, repeated, and empty header and query values.
         driver:
           provider: http-trigger
           sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
@@ -136,6 +147,9 @@ scenarios:
           internalProperty_responseFilterInclude: null
           internalProperty_responseFilterExclude: null
       - id: response-filter-parameters
+        expectedBehavior: >-
+          Accept filter query parameters without creating response-filter state on a route where filtering is
+          disabled.
         driver:
           provider: http-trigger
           sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
@@ -163,6 +177,9 @@ scenarios:
           internalProperty_responseFilterInclude: null
           internalProperty_responseFilterExclude: null
       - id: no-query-after-filter-parameters
+        expectedBehavior: >-
+          Complete the next request without retaining query or response-filter state from the previous
+          request.
         driver:
           provider: http-trigger
           sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
@@ -190,6 +207,8 @@ scenarios:
     deployment: basic
 
   - id: accepts-content-types-without-an-allowlist
+    expectedBehavior: >-
+      Accept the supplied content types without an allowlist and complete requests successfully.
     scope: Short
     driver:
       provider: http-trigger
@@ -199,6 +218,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: json
+        expectedBehavior: >-
+          Accept the request declaring JSON without content-type allowlist rejection.
         headers:
           Content-Type: application/json
         expectedExchangeHeaders:
@@ -210,6 +231,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: text-with-charset
+        expectedBehavior: >-
+          Accept the request declaring text with a charset parameter without content-type allowlist rejection.
         headers:
           Content-Type: text/plain; charset=UTF-8
         expectedExchangeHeaders:
@@ -221,6 +244,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: binary
+        expectedBehavior: >-
+          Accept the request declaring binary without content-type allowlist rejection.
         headers:
           Content-Type: application/octet-stream
         expectedExchangeHeaders:
@@ -232,6 +257,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: custom
+        expectedBehavior: >-
+          Accept the request declaring a custom media type without content-type allowlist rejection.
         headers:
           Content-Type: application/vnd.snapshot+json
         expectedExchangeHeaders:
@@ -243,6 +270,9 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: unparsed-content-type
+        expectedBehavior: >-
+          Accept the request declaring an unparsed content-type value without content-type allowlist
+          rejection.
         headers:
           Content-Type: snapshot-content
         expectedExchangeHeaders:
@@ -256,6 +286,8 @@ scenarios:
     deployment: basic
 
   - id: runs-validation-script-for-nonempty-bodies-and-recovers
+    expectedBehavior: >-
+      Reject nonempty bodies through the validation script with HTTP 400, then accept a fresh empty request.
     scope: Short
     driver:
       provider: http-trigger
@@ -265,6 +297,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: before-validation-failures
+        expectedBehavior: >-
+          Complete the empty baseline request before testing validation failures.
         expectedBody: Triggered
         expectedHeaders:
           CamelHttpResponseCode: 200
@@ -272,6 +306,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: text-body
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for nonempty text and mark the request as failed.
         body: not allowed
         headers:
           Content-Type: text/plain
@@ -300,6 +336,8 @@ scenarios:
             method: GET
             path: /routes/trigger-test?case=rejected&fields=name
       - id: whitespace-body
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for whitespace and mark the request as failed.
         body: " \t\r\n "
         headers:
           Content-Type: text/plain
@@ -322,6 +360,9 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: empty-json-object
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for an empty JSON object and mark the request as
+          failed.
         body: {}
         headers:
           Content-Type: application/json
@@ -344,6 +385,9 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: empty-json-array
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for an empty JSON array and mark the request as
+          failed.
         body: []
         headers:
           Content-Type: application/json
@@ -366,6 +410,9 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: json-null-literal
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for the JSON null literal and mark the request as
+          failed.
         body: 'null'
         headers:
           Content-Type: application/json
@@ -388,6 +435,8 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: json-zero
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for JSON zero and mark the request as failed.
         body: 0
         headers:
           Content-Type: application/json
@@ -410,6 +459,8 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: json-false
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for JSON false and mark the request as failed.
         body: false
         headers:
           Content-Type: application/json
@@ -432,6 +483,8 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: malformed-json
+        expectedBehavior: >-
+          Return the scripted HTTP 400 validation failure for malformed JSON and mark the request as failed.
         body: '{'
         headers:
           Content-Type: application/json
@@ -454,6 +507,8 @@ scenarios:
           internalProperty_sessionFailed: 'true'
           internalProperty_elementFailed: 'true'
       - id: after-validation-failures
+        expectedBehavior: >-
+          Accept a fresh empty request after validation failures and clear the session failure markers.
         expectedAbsentExchangeHeaders:
           - Content-Type
           - Authorization
@@ -468,6 +523,9 @@ scenarios:
     deployment: basic
 
   - id: captures-testing-session-id-per-request
+    expectedBehavior: >-
+      Capture each valid testing-session ID independently and avoid retaining missing or blank IDs after
+      success or validation failure.
     scope: Short
     driver:
       provider: http-trigger
@@ -477,6 +535,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: first-session
+        expectedBehavior: >-
+          Capture the first testing-session ID and complete the request successfully.
         headers:
           external-session-cip-id: snapshot-session-first
         expectedExchangeHeaders:
@@ -489,6 +549,8 @@ scenarios:
           internalProperty_elementFailed: null
           internalProperty_testingSessionId: snapshot-session-first
       - id: second-session
+        expectedBehavior: >-
+          Replace the testing-session ID with the second request's value.
         headers:
           external-session-cip-id: snapshot-session-second
         expectedExchangeHeaders:
@@ -501,6 +563,8 @@ scenarios:
           internalProperty_elementFailed: null
           internalProperty_testingSessionId: snapshot-session-second
       - id: missing-session
+        expectedBehavior: >-
+          Complete the request without retaining the previous testing-session ID when its header is absent.
         expectedBody: Triggered
         expectedHeaders:
           CamelHttpResponseCode: 200
@@ -509,6 +573,8 @@ scenarios:
           internalProperty_elementFailed: null
           internalProperty_testingSessionId: null
       - id: empty-session
+        expectedBehavior: >-
+          Treat the empty testing-session header as absent and leave the session ID unset.
         headers:
           external-session-cip-id: ''
         expectedBody: Triggered
@@ -519,6 +585,8 @@ scenarios:
           internalProperty_elementFailed: null
           internalProperty_testingSessionId: null
       - id: blank-session
+        expectedBehavior: >-
+          Treat a whitespace-only testing-session header as absent and leave the session ID unset.
         headers:
           external-session-cip-id: '   '
         expectedBody: Triggered
@@ -529,6 +597,8 @@ scenarios:
           internalProperty_elementFailed: null
           internalProperty_testingSessionId: null
       - id: captures-session-before-validation-failure
+        expectedBehavior: >-
+          Capture the request's testing-session ID before returning the HTTP 400 validation failure.
         body: rejected
         headers:
           external-session-cip-id: snapshot-session-rejected
@@ -550,6 +620,9 @@ scenarios:
           internalProperty_elementFailed: 'true'
           internalProperty_testingSessionId: snapshot-session-rejected
       - id: missing-session-after-validation-failure
+        expectedBehavior: >-
+          Complete a fresh request without retaining the failed request's testing-session ID or failure
+          markers.
         expectedAbsentExchangeHeaders:
           - external-session-cip-id
         expectedBody: Triggered
@@ -562,6 +635,8 @@ scenarios:
     deployment: basic
 
   - id: ignores-correlation-headers-when-disabled
+    expectedBehavior: >-
+      Complete requests without populating correlationId from headers when correlation extraction is disabled.
     scope: Short
     driver:
       provider: http-trigger
@@ -571,6 +646,9 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: first-correlation
+        expectedBehavior: >-
+          Complete the first request without populating correlationId from its header because extraction is
+          disabled.
         headers:
           X-Correlation-Id: correlation-first
         expectedExchangeHeaders:
@@ -583,6 +661,8 @@ scenarios:
           internalProperty_elementFailed: null
           correlationId: null
       - id: second-correlation
+        expectedBehavior: >-
+          Ignore the next correlation header and leave correlationId unset on the successful request.
         headers:
           X-Correlation-Id: correlation-second
         expectedExchangeHeaders:
@@ -595,6 +675,8 @@ scenarios:
           internalProperty_elementFailed: null
           correlationId: null
       - id: missing-correlation
+        expectedBehavior: >-
+          Complete the request with correlationId unset when no correlation header is supplied.
         expectedAbsentExchangeHeaders:
           - X-Correlation-Id
         expectedBody: Triggered
@@ -607,6 +689,8 @@ scenarios:
     deployment: basic
 
   - id: executes-repeated-idempotency-keys-when-disabled
+    expectedBehavior: >-
+      Execute repeated and missing idempotency keys normally when trigger idempotency is disabled.
     scope: Short
     driver:
       provider: http-trigger
@@ -616,6 +700,8 @@ scenarios:
         path: /routes/trigger-test
     invocations:
       - id: same-key-twice
+        expectedBehavior: >-
+          Execute both requests carrying the same key because idempotency is disabled.
         repeat: 2
         headers:
           X-Idempotency-Key: snapshot-repeat
@@ -628,6 +714,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_elementFailed: null
       - id: missing-key
+        expectedBehavior: >-
+          Complete the request normally when idempotency is disabled and no key is supplied.
         expectedAbsentExchangeHeaders:
           - X-Idempotency-Key
         expectedBody: Triggered
@@ -639,6 +727,9 @@ scenarios:
     deployment: basic
 
   - id: deduplicates-requests-by-json-body-id
+    expectedBehavior: >-
+      Use the JSON body ID as the business key, return HTTP 202 for duplicates, and execute only distinct
+      keys.
     scope: Short
     deployment: idempotency
     driver:
@@ -649,6 +740,8 @@ scenarios:
         path: /routes/test-w-body
     invocations:
       - id: first-key
+        expectedBehavior: >-
+          Acquire the first JSON body ID and execute downstream work once with HTTP 200.
         body:
           id: order-1
           value: first
@@ -675,6 +768,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:order-1
       - id: repeated-key
+        expectedBehavior: >-
+          Return HTTP 202 for the repeated JSON body ID without another downstream execution.
         body:
           id: order-1
           value: first
@@ -703,6 +798,8 @@ scenarios:
                 updatedKeys: []
         repeat: 2
       - id: same-key-with-different-payload-headers-and-query
+        expectedBehavior: >-
+          Return HTTP 202 for the same body ID despite changed payload, headers, and query values.
         body:
           id: order-1
           value: changed
@@ -737,6 +834,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:order-1
                 updatedKeys: []
       - id: different-body-key-with-reused-header
+        expectedBehavior: >-
+          Execute the distinct body ID even though an incoming header value was reused.
         body:
           id: order-2
         headers:
@@ -764,6 +863,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:order-2
       - id: original-key-still-reserved
+        expectedBehavior: >-
+          Keep the original JSON body ID reserved and suppress its later changed payload with HTTP 202.
         body:
           id: order-1
           value: latest
@@ -792,6 +893,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:order-2
                 updatedKeys: []
       - id: different-json-formatting
+        expectedBehavior: >-
+          Recognize the duplicate body ID despite changed JSON whitespace and field order.
         body: '{ "value": "formatting", "id": "order-1" }'
         headers:
           Content-Type: application/json
@@ -816,6 +919,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:order-2
                 updatedKeys: []
       - id: new-key-without-content-type
+        expectedBehavior: >-
+          Process the new JSON body ID successfully even when the request has no content-type header.
         body:
           id: order-3
         headers: {}
@@ -842,6 +947,9 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:order-3
       - id: duplicate-with-text-content-type
+        expectedBehavior: >-
+          Detect the repeated body ID and return HTTP 202 even when the duplicate declares a text content
+          type.
         body:
           id: order-3
         headers:
@@ -870,6 +978,9 @@ scenarios:
                 updatedKeys: []
 
   - id: uses-string-values-of-json-idempotency-keys
+    expectedBehavior: >-
+      Deduplicate equivalent string representations of JSON keys while preserving distinctions in whitespace,
+      case, and punctuation.
     scope: Short
     deployment: idempotency
     driver:
@@ -880,6 +991,8 @@ scenarios:
         path: /routes/test-w-body
     invocations:
       - id: numeric-zero
+        expectedBehavior: >-
+          Reserve and process the numeric-zero business key.
         body:
           id: 0
         headers:
@@ -905,6 +1018,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:0
       - id: equivalent-string-zero
+        expectedBehavior: >-
+          Treat the string zero as a duplicate of the earlier numeric-zero business key.
         body:
           id: '0'
         headers:
@@ -930,6 +1045,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:0
                 updatedKeys: []
       - id: boolean-false
+        expectedBehavior: >-
+          Reserve and process the boolean-false business key.
         body:
           id: false
         headers:
@@ -956,6 +1073,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:false
       - id: equivalent-string-false
+        expectedBehavior: >-
+          Treat the string false as a duplicate of the earlier boolean-false business key.
         body:
           id: 'false'
         headers:
@@ -982,6 +1101,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:false
                 updatedKeys: []
       - id: decimal-number
+        expectedBehavior: >-
+          Reserve and process the decimal-number business key.
         body:
           id: 1.5
         headers:
@@ -1009,6 +1130,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:1.5
       - id: equivalent-string-decimal
+        expectedBehavior: >-
+          Treat the equivalent decimal string as a duplicate of the numeric business key.
         body:
           id: '1.5'
         headers:
@@ -1036,6 +1159,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:false
                 updatedKeys: []
       - id: explicit-null
+        expectedBehavior: >-
+          Treat the null ID as an empty business key, process it once, and reserve that composite key.
         body: '{"id":null}'
         headers:
           Content-Type: application/json
@@ -1063,6 +1188,8 @@ scenarios:
                 updatedKeys:
                   - 'POST /qip-routes/test-w-body:'
       - id: empty-string
+        expectedBehavior: >-
+          Treat the empty-string ID as a duplicate of the key created from the earlier explicit-null ID.
         body:
           id: ''
         headers:
@@ -1091,6 +1218,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:false
                 updatedKeys: []
       - id: surrounding-whitespace
+        expectedBehavior: >-
+          Process and reserve the business key with its surrounding whitespace preserved.
         body:
           id: ' key '
         headers:
@@ -1120,6 +1249,8 @@ scenarios:
                 updatedKeys:
                   - 'POST /qip-routes/test-w-body: key '
       - id: without-whitespace
+        expectedBehavior: >-
+          Process the key without surrounding whitespace independently of the whitespace-bearing key.
         body:
           id: key
         headers:
@@ -1150,6 +1281,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:key
       - id: different-case
+        expectedBehavior: >-
+          Process the differently cased business key independently.
         body:
           id: KEY
         headers:
@@ -1181,6 +1314,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:KEY
       - id: punctuation
+        expectedBehavior: >-
+          Process and reserve the business key containing punctuation without changing its value.
         body:
           id: key:/?&=%
         headers:
@@ -1213,6 +1348,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:key:/?&=%
       - id: repeated-punctuation
+        expectedBehavior: >-
+          Return HTTP 202 for the repeated punctuation-bearing business key without downstream execution.
         body:
           id: key:/?&=%
         headers:
@@ -1246,6 +1383,8 @@ scenarios:
                 updatedKeys: []
 
   - id: reacquires-expired-idempotency-keys
+    expectedBehavior: >-
+      Execute an expired key again, renew its reservation, and retain other unexpired keys.
     scope: Short
     deployment: idempotency
     driver:
@@ -1256,6 +1395,8 @@ scenarios:
         path: /routes/test-w-body
     invocations:
       - id: stable-key
+        expectedBehavior: >-
+          Process and reserve the stable key before expiring a different key.
         body:
           id: stable
         headers:
@@ -1281,6 +1422,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:stable
       - id: expiring-key
+        expectedBehavior: >-
+          Process and reserve the key selected for the expiration check.
         body:
           id: expires
         headers:
@@ -1307,6 +1450,8 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:expires
       - id: duplicate-before-expiration
+        expectedBehavior: >-
+          Return HTTP 202 for the reserved key before its idempotency entry expires.
         body:
           id: expires
         headers:
@@ -1333,6 +1478,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:stable
                 updatedKeys: []
       - id: same-key-after-expiration
+        expectedBehavior: >-
+          Process the key again after its idempotency entry expires and create a new reservation.
         body:
           id: expires
         headers:
@@ -1373,6 +1520,8 @@ scenarios:
               properties:
                 expireKey: POST /qip-routes/test-w-body:expires
       - id: duplicate-after-renewal
+        expectedBehavior: >-
+          Return HTTP 202 for the key after its reservation has been renewed.
         body:
           id: expires
         headers:
@@ -1399,6 +1548,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:stable
                 updatedKeys: []
       - id: unexpired-key-still-reserved
+        expectedBehavior: >-
+          Keep the independent unexpired key reserved while the other key is expired and renewed.
         body:
           id: stable
         headers:
@@ -1426,6 +1577,9 @@ scenarios:
                 updatedKeys: []
 
   - id: rejects-missing-idempotency-keys-and-recovers
+    expectedBehavior: >-
+      Map missing-key extraction failures to HTTP 500 without downstream execution, then recover while
+      retaining earlier keys.
     scope: Short
     deployment: idempotency
     driver:
@@ -1436,6 +1590,8 @@ scenarios:
         path: /routes/test-w-body
     invocations:
       - id: reserves-existing-key
+        expectedBehavior: >-
+          Process and reserve the baseline key before testing body-key extraction failures.
         body:
           id: existing
         headers:
@@ -1461,6 +1617,9 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:existing
       - id: missing-id
+        expectedBehavior: >-
+          Return the structured HTTP 500 key-extraction error for the missing root ID field without reserving
+          a key or running downstream work.
         body: {}
         headers:
           Content-Type: application/json
@@ -1501,6 +1660,9 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                 updatedKeys: []
       - id: nested-id
+        expectedBehavior: >-
+          Return the structured HTTP 500 key-extraction error when the ID exists only in a nested object,
+          without downstream work.
         body:
           nested:
             id: unreserved
@@ -1543,6 +1705,9 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                 updatedKeys: []
       - id: null-json-body
+        expectedBehavior: >-
+          Return the structured HTTP 500 extraction error for a root JSON null body, without reserving a key
+          or executing downstream work.
         body: 'null'
         headers:
           Content-Type: application/json
@@ -1583,6 +1748,9 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                 updatedKeys: []
       - id: absent-body
+        expectedBehavior: >-
+          Return the structured HTTP 500 key-extraction error for an absent body without reserving a key or
+          running downstream work.
         body: null
         headers:
           Content-Type: application/json
@@ -1623,6 +1791,9 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                 updatedKeys: []
       - id: empty-body
+        expectedBehavior: >-
+          Return the structured HTTP 500 key-extraction error for an empty body without reserving a key or
+          running downstream work.
         body: ''
         headers:
           Content-Type: application/json
@@ -1663,6 +1834,8 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                 updatedKeys: []
       - id: valid-key-after-extraction-failures
+        expectedBehavior: >-
+          Process a fresh valid key after extraction failures and clear the request failure markers.
         body:
           id: unreserved
         headers:
@@ -1689,6 +1862,9 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:unreserved
       - id: existing-key-remains-reserved
+        expectedBehavior: >-
+          Return HTTP 202 for the key reserved before the extraction failures, without repeating downstream
+          work.
         body:
           id: existing
         headers:
@@ -1716,6 +1892,9 @@ scenarios:
                 updatedKeys: []
 
   - id: validates-json-schema-before-reserving-idempotency-keys
+    expectedBehavior: >-
+      Reject invalid JSON bodies with HTTP 400 before downstream work or idempotency reservation and accept a
+      corrected request.
     scope: Short
     deployment: schema
     driver:
@@ -1726,6 +1905,8 @@ scenarios:
         path: /routes/schema-test
     invocations:
       - id: valid-before-rejections
+        expectedBehavior: >-
+          Validate the baseline JSON request, acquire its key, and execute downstream work once.
         body:
           id: first
           value: 1
@@ -1751,6 +1932,8 @@ scenarios:
                 updatedKeys:
                   - http-schema:first
       - id: missing-required-value
+        expectedBehavior: >-
+          Reject a missing required value with HTTP 400 before downstream execution or key reservation.
         body:
           id: missing
         expectedBody: Invalid request
@@ -1775,6 +1958,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: wrong-value-type
+        expectedBehavior: >-
+          Reject the wrong value type with HTTP 400 before downstream execution or key reservation.
         body:
           id: wrong-type
           value: one
@@ -1800,6 +1985,9 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: negative-value
+        expectedBehavior: >-
+          Reject a value below the schema minimum with HTTP 400 before downstream execution or key
+          reservation.
         body:
           id: negative
           value: -1
@@ -1825,6 +2013,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: unexpected-field
+        expectedBehavior: >-
+          Reject an undeclared field with HTTP 400 before downstream execution or key reservation.
         body:
           id: extra
           value: 1
@@ -1851,6 +2041,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: malformed-json
+        expectedBehavior: >-
+          Reject malformed JSON with HTTP 400 before downstream execution or key reservation.
         body: '{"id":'
         expectedBody: Invalid request
         expectedHeaders:
@@ -1874,6 +2066,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: empty-json
+        expectedBehavior: >-
+          Reject an empty JSON request with HTTP 400 before downstream execution or key reservation.
         body: ''
         expectedBody: Invalid request
         expectedHeaders:
@@ -1897,6 +2091,9 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: valid-after-rejections
+        expectedBehavior: >-
+          Validate the corrected JSON request after rejection, execute downstream work once, and clear failure
+          markers.
         body:
           id: recovered
           value: 2
@@ -1926,6 +2123,9 @@ scenarios:
                 updatedKeys:
                   - http-schema:recovered
   - id: restricts-content-types-before-reserving-idempotency-keys
+    expectedBehavior: >-
+      Reject disallowed or invalid content types before downstream work or key reservation and accept allowed
+      JSON afterward.
     scope: Short
     deployment: schema
     driver:
@@ -1936,6 +2136,8 @@ scenarios:
         path: /routes/schema-test
     invocations:
       - id: valid-before-rejections
+        expectedBehavior: >-
+          Accept the allowed JSON content type and execute the baseline request once.
         body:
           id: first
           value: 1
@@ -1961,6 +2163,8 @@ scenarios:
                 updatedKeys:
                   - http-schema:first
       - id: text-content-type
+        expectedBehavior: >-
+          Reject the text content type with HTTP 400 before downstream execution or key reservation.
         body:
           id: text
           value: 1
@@ -1986,6 +2190,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: binary-content-type
+        expectedBehavior: >-
+          Reject the binary content type with HTTP 400 before downstream execution or key reservation.
         body:
           id: binary
           value: 1
@@ -2011,6 +2217,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: missing-content-type
+        expectedBehavior: >-
+          Reject the missing content-type header with HTTP 400 before downstream execution or key reservation.
         body:
           id: missing
           value: 1
@@ -2035,6 +2243,9 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: invalid-content-type
+        expectedBehavior: >-
+          Reject the malformed content-type header with HTTP 400 before downstream execution or key
+          reservation.
         body:
           id: invalid
           value: 1
@@ -2060,6 +2271,8 @@ scenarios:
                   - http-schema:first
                 updatedKeys: []
       - id: valid-after-rejections
+        expectedBehavior: >-
+          Accept the allowed JSON request after content-type rejections and clear failure markers.
         body:
           id: recovered
           value: 2
@@ -2089,6 +2302,9 @@ scenarios:
                 updatedKeys:
                   - http-schema:recovered
   - id: extracts-header-correlation-and-path-variables-without-leaking-state
+    expectedBehavior: >-
+      Extract path variables and header correlation for each request without retaining values from earlier
+      requests.
     scope: Short
     deployment: header-correlation
     driver:
@@ -2099,6 +2315,8 @@ scenarios:
         path: /routes/correlated/{tenant}/items/{itemId}
     invocations:
       - id: first-path
+        expectedBehavior: >-
+          Extract the first tenant and item path variables together with the supplied header correlation ID.
         expectedBody: Completed
         expectedHeaders:
           CamelHttpResponseCode: 200
@@ -2117,6 +2335,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: new-path-without-correlation
+        expectedBehavior: >-
+          Replace the path variables for the next request and clear correlationId when its header is missing.
         expectedBody: Completed
         expectedHeaders:
           CamelHttpResponseCode: 200
@@ -2133,6 +2353,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: punctuation-and-case
+        expectedBehavior: >-
+          Preserve punctuation and case in the new path variables and use the current header correlation
+          value.
         expectedBody: Completed
         expectedHeaders:
           CamelHttpResponseCode: 200
@@ -2151,6 +2374,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: extracts-body-correlation-and-preserves-the-request-body
+    expectedBehavior: >-
+      Extract and stringify the configured body correlation value while preserving the original request
+      payload.
     scope: Short
     deployment: body-correlation
     driver:
@@ -2161,6 +2387,8 @@ scenarios:
         path: /routes/body-correlation
     invocations:
       - id: string-id
+        expectedBehavior: >-
+          Extract the string correlation ID while returning the original JSON body unchanged.
         body:
           requestId: body-first
           value: 1
@@ -2176,6 +2404,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: missing-id
+        expectedBehavior: >-
+          Return the original JSON object without retaining correlationId when its configured body field is
+          missing.
         body:
           value: 2
         expectedBody:
@@ -2189,6 +2420,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: numeric-id
+        expectedBehavior: >-
+          Convert the numeric body correlation ID to its string value while preserving the numeric JSON field.
         body:
           requestId: 123
           value: 3
@@ -2204,6 +2437,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: empty-body
+        expectedBehavior: >-
+          Preserve the empty request body and leave correlationId unset.
         body: ''
         expectedBody: ''
         expectedHeaders:
@@ -2215,6 +2450,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: recovered-id
+        expectedBehavior: >-
+          Extract the fresh correlation ID after earlier missing or empty input.
         body:
           requestId: body-last
         expectedBody:
@@ -2228,6 +2465,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: filters-json-responses-through-the-production-http-binding
+    expectedBehavior: >-
+      Apply include and exclude selectors to JSON responses and reset filtering for later unfiltered requests.
     scope: Short
     deployment: response-filter
     driver:
@@ -2239,6 +2478,9 @@ scenarios:
         responseBinding: production
     invocations:
       - id: complete-response
+        expectedBehavior: >-
+          Return the complete JSON response and configured response headers when no filter selectors are
+          supplied.
         expectedBody:
           id: 7
           name: sample
@@ -2261,6 +2503,9 @@ scenarios:
           - trace-id
           - CamelHttpMethod
       - id: include-selected-fields
+        expectedBehavior: >-
+          Return only the selected top-level and nested JSON fields while preserving the configured response
+          headers.
         expectedBody:
           id: 7
           nested:
@@ -2280,6 +2525,8 @@ scenarios:
           - trace-id
           - CamelHttpMethod
       - id: exclude-private-fields
+        expectedBehavior: >-
+          Remove the selected private JSON fields while retaining the remaining response fields and headers.
         expectedBody:
           id: 7
           name: sample
@@ -2300,6 +2547,9 @@ scenarios:
           - trace-id
           - CamelHttpMethod
       - id: combined-selection
+        expectedBehavior: >-
+          Apply the configured include and exclude selectors together to produce the expected nested JSON
+          response.
         expectedBody:
           id: 7
           nested:
@@ -2319,6 +2569,8 @@ scenarios:
           - trace-id
           - CamelHttpMethod
       - id: unfiltered-after-filtered
+        expectedBehavior: >-
+          Return the complete response after filtered requests without retaining their selector state.
         expectedBody:
           id: 7
           name: sample
@@ -2341,6 +2593,9 @@ scenarios:
           - trace-id
           - CamelHttpMethod
   - id: maps-downstream-failure-with-script-and-recovers
+    expectedBehavior: >-
+      Use the generated script handler to return HTTP 503 for downstream failure and clear failure state on
+      the next request.
     scope: Short
     deployment: failure-script
     driver:
@@ -2352,6 +2607,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: before-failure
+        expectedBehavior: >-
+          Complete the baseline request successfully before exercising the generated error handler.
         body:
           value: before-failure
         expectedBody: Completed
@@ -2368,6 +2625,9 @@ scenarios:
         expectedAbsentExchangeHeaders:
           - snapshotFailureHandler
       - id: downstream-failure
+        expectedBehavior: >-
+          Preserve the downstream exception and use the generated script handler to return HTTP 503 and the
+          handled body.
         body:
           value: downstream-failure
         expectedBody: Handled chain failure
@@ -2386,6 +2646,8 @@ scenarios:
           message: HTTP snapshot downstream failure
           cause: null
       - id: after-failure
+        expectedBehavior: >-
+          Complete a fresh request successfully after the handled failure and clear request failure markers.
         body:
           value: after-failure
         expectedBody: Completed
@@ -2402,6 +2664,9 @@ scenarios:
         expectedAbsentExchangeHeaders:
           - snapshotFailureHandler
   - id: maps-downstream-failure-with-subchain-and-recovers
+    expectedBehavior: >-
+      Use the generated subchain handler to return HTTP 503 for downstream failure and recover on the existing
+      route.
     scope: Short
     deployment: failure-subchain
     driver:
@@ -2413,6 +2678,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: before-failure
+        expectedBehavior: >-
+          Complete the baseline request successfully before exercising the generated error handler.
         body:
           value: before-failure
         expectedBody: Completed
@@ -2429,6 +2696,9 @@ scenarios:
         expectedAbsentExchangeHeaders:
           - snapshotFailureHandler
       - id: downstream-failure
+        expectedBehavior: >-
+          Preserve the downstream exception and use the generated subchain handler to return HTTP 503 and the
+          handled body.
         body:
           value: downstream-failure
         expectedBody: Handled chain failure
@@ -2447,6 +2717,8 @@ scenarios:
           message: HTTP snapshot downstream failure
           cause: null
       - id: after-failure
+        expectedBehavior: >-
+          Complete a fresh request successfully after the handled failure and clear request failure markers.
         body:
           value: after-failure
         expectedBody: Completed
@@ -2463,6 +2735,9 @@ scenarios:
         expectedAbsentExchangeHeaders:
           - snapshotFailureHandler
   - id: handles-http-duplicates-with-throw-and-recovers
+    expectedBehavior: >-
+      Return the structured HTTP 500 duplicate error without downstream work, then accept a distinct business
+      key.
     scope: Short
     deployment: duplicate-throw
     driver:
@@ -2474,6 +2749,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: first-key
+        expectedBehavior: >-
+          Acquire the original business key and process its request once without duplicate handling.
         body:
           id: first
           value: first-key
@@ -2501,6 +2778,8 @@ scenarios:
                 updatedKeys:
                   - http-duplicate-throw:first
       - id: duplicate-key
+        expectedBehavior: >-
+          Raise DuplicateException and return the structured HTTP 500 error without downstream work.
         body:
           id: first
           value: duplicate-key
@@ -2539,6 +2818,8 @@ scenarios:
           message: Duplicated idempotency key
           cause: null
       - id: new-key-after-duplicate
+        expectedBehavior: >-
+          Process a distinct key after handling the duplicate and clear duplicate and failure markers.
         body:
           id: second
           value: new-key-after-duplicate
@@ -2567,6 +2848,8 @@ scenarios:
                 updatedKeys:
                   - http-duplicate-throw:second
   - id: handles-http-duplicates-with-subchain-and-recovers
+    expectedBehavior: >-
+      Handle duplicates only in the exported subchain with HTTP 209, then process a distinct key normally.
     scope: Short
     deployment: duplicate-subchain
     driver:
@@ -2578,6 +2861,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: first-key
+        expectedBehavior: >-
+          Acquire the original business key and process its request once without duplicate handling.
         body:
           id: first
           value: first-key
@@ -2618,6 +2903,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: duplicate-key
+        expectedBehavior: >-
+          Run only the duplicate-handler subchain and return its handled body with HTTP 209.
         body:
           id: first
           value: duplicate-key
@@ -2656,6 +2943,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotDuplicateHandler: true
       - id: new-key-after-duplicate
+        expectedBehavior: >-
+          Process a distinct key after handling the duplicate and clear duplicate and failure markers.
         body:
           id: second
           value: new-key-after-duplicate
@@ -2698,6 +2987,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: acquires-one-http-idempotency-key-under-concurrent-requests
+    expectedBehavior: >-
+      Allow one business execution per new key under concurrent requests and return independent duplicate
+      responses for the others.
     scope: Short
     deployment: idempotency
     driver:
@@ -2709,6 +3001,9 @@ scenarios:
         concurrentRequests: 4
     invocations:
       - id: racing-new-key
+        expectedBehavior: >-
+          Execute business work once for four concurrent requests, returning one HTTP 200 and three HTTP 202
+          responses.
         body: '{"id":"parallel"}'
         expectedBody:
           responses:
@@ -2738,6 +3033,9 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:parallel
       - id: racing-existing-key
+        expectedBehavior: >-
+          Return four independent HTTP 202 responses for the already reserved key without another business
+          execution.
         body: '{"id":"parallel"}'
         expectedBody:
           responses:
@@ -2766,6 +3064,9 @@ scenarios:
                   - POST /qip-routes/test-w-body:parallel
                 updatedKeys: []
       - id: racing-fresh-key
+        expectedBehavior: >-
+          Acquire a fresh key once under four concurrent requests and return one success plus three duplicate
+          responses.
         body: '{"id":"recovered"}'
         expectedBody:
           responses:
@@ -2796,6 +3097,9 @@ scenarios:
                 updatedKeys:
                   - POST /qip-routes/test-w-body:recovered
   - id: maps-schema-rejections-with-the-generated-mapper-handler
+    expectedBehavior: >-
+      Map schema rejection to the configured JSON HTTP 400 response without downstream work and accept the
+      next valid request.
     scope: Short
     deployment: schema-mapper
     driver:
@@ -2807,6 +3111,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: before-failure
+        expectedBehavior: >-
+          Complete the baseline request successfully before exercising the generated error handler.
         body:
           id: first
           value: 1
@@ -2830,6 +3136,9 @@ scenarios:
                 updatedKeys:
                   - http-schema-mapper:first
       - id: mapped-failure
+        expectedBehavior: >-
+          Return the mapper-produced validation JSON with HTTP 400 and skip downstream work for the invalid
+          request.
         body:
           id: first
           value: invalid
@@ -2853,6 +3162,8 @@ scenarios:
         expectedAbsentExchangeHeaders:
           - snapshotMainExecuted
       - id: after-failure
+        expectedBehavior: >-
+          Complete a fresh request successfully after the handled failure and clear request failure markers.
         body:
           id: second
           value: 1
@@ -2877,6 +3188,9 @@ scenarios:
                 updatedKeys:
                   - http-schema-mapper:second
   - id: maps-downstream-failure-with-the-generated-mapper-handler
+    expectedBehavior: >-
+      Map downstream failure to the configured JSON HTTP 500 response and recover without retaining failure
+      markers.
     scope: Short
     deployment: failure-mapper
     driver:
@@ -2888,6 +3202,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: before-failure
+        expectedBehavior: >-
+          Complete the baseline request successfully before exercising the generated error handler.
         body:
           id: first
           value: 1
@@ -2901,6 +3217,8 @@ scenarios:
           internalProperty_sessionFailed: null
           internalProperty_httpThreadFailed: null
       - id: mapped-failure
+        expectedBehavior: >-
+          Preserve the downstream exception and return the mapper-produced chain-failure JSON with HTTP 500.
         body:
           id: first
           value: 1
@@ -2919,6 +3237,8 @@ scenarios:
           message: HTTP snapshot downstream failure
           cause: null
       - id: after-failure
+        expectedBehavior: >-
+          Complete a fresh request successfully after the handled failure and clear request failure markers.
         body:
           id: second
           value: 1
@@ -2933,6 +3253,9 @@ scenarios:
           internalProperty_httpThreadFailed: null
 
   - id: preserves-non-object-bodies-during-correlation-extraction
+    expectedBehavior: >-
+      Preserve malformed and scalar or array bodies without correlation, then extract correlation from a later
+      valid object.
     scope: Short
     deployment: body-correlation
     driver:
@@ -2943,6 +3266,8 @@ scenarios:
         path: /routes/body-correlation
     invocations:
       - id: malformed-json
+        expectedBehavior: >-
+          Return the malformed JSON body unchanged with HTTP 200 and no correlationId.
         body: '{broken'
         headers:
           Content-Type: application/json
@@ -2954,6 +3279,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: json-array
+        expectedBehavior: >-
+          Preserve the root JSON array body without extracting a correlation ID from its items.
         body: '[{"requestId":"array-id"}]'
         headers:
           Content-Type: application/json
@@ -2965,6 +3292,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: json-string
+        expectedBehavior: >-
+          Preserve the root JSON string body and leave correlationId unset.
         body: '"scalar-value"'
         headers:
           Content-Type: application/json
@@ -2976,6 +3305,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: json-number
+        expectedBehavior: >-
+          Preserve the root JSON number body and leave correlationId unset.
         body: '17'
         headers:
           Content-Type: application/json
@@ -2987,6 +3318,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: json-boolean
+        expectedBehavior: >-
+          Preserve the root JSON boolean body and leave correlationId unset.
         body: 'true'
         headers:
           Content-Type: application/json
@@ -2998,6 +3331,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: valid-object-after-non-object
+        expectedBehavior: >-
+          Extract correlation from the fresh valid object after non-object inputs without stale state.
         body:
           requestId: recovered-correlation
         headers:
@@ -3011,6 +3346,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: extracts-correlation-from-json-value-boundaries
+    expectedBehavior: >-
+      Stringify null, boolean, object, and array correlation values without changing the request body.
     scope: Short
     deployment: body-correlation
     driver:
@@ -3021,6 +3358,8 @@ scenarios:
         path: /routes/body-correlation
     invocations:
       - id: explicit-null-id
+        expectedBehavior: >-
+          Preserve the explicit-null correlation field and expose its string value as correlationId.
         body: '{"requestId":null}'
         headers:
           Content-Type: application/json
@@ -3032,6 +3371,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: boolean-id
+        expectedBehavior: >-
+          Expose the boolean correlation value as a string while preserving the original JSON boolean.
         body:
           requestId: true
         headers:
@@ -3045,6 +3386,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: object-id
+        expectedBehavior: >-
+          Expose the object correlation value in its configured string representation while preserving the
+          original JSON object.
         body:
           requestId:
             part: value
@@ -3060,6 +3404,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: array-id
+        expectedBehavior: >-
+          Expose the array correlation value in its configured string representation while preserving the
+          original JSON array.
         body:
           requestId:
             - first
@@ -3077,6 +3424,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: recovered-string-id
+        expectedBehavior: >-
+          Replace the prior non-string correlation state with the fresh string value.
         body:
           requestId: final-id
         headers:
@@ -3090,6 +3439,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: preserves-json-null-body-during-correlation-extraction
+    expectedBehavior: >-
+      Preserve a root JSON null body without correlation and recover extraction for the next valid object.
     scope: Short
     deployment: body-correlation
     driver:
@@ -3100,6 +3451,8 @@ scenarios:
         path: /routes/body-correlation
     invocations:
       - id: json-null-body
+        expectedBehavior: >-
+          Preserve the literal root JSON null body without extracting or retaining correlationId.
         body: 'null'
         headers:
           Content-Type: application/json
@@ -3111,6 +3464,8 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
       - id: valid-object-after-null
+        expectedBehavior: >-
+          Extract the new correlation ID from a valid object after the root-null request.
         body:
           requestId: after-null
         headers:
@@ -3124,6 +3479,9 @@ scenarios:
         expectedExchangeHeaders:
           snapshotMainExecuted: true
   - id: filters-response-shapes-and-recovers-after-non-json-content
+    expectedBehavior: >-
+      Filter supported JSON response shapes, preserve non-JSON content, and apply fresh selectors after
+      malformed output.
     scope: Short
     deployment: response-filter-shapes
     driver:
@@ -3135,6 +3493,8 @@ scenarios:
         responseBinding: production
     invocations:
       - id: array-includes
+        expectedBehavior: >-
+          Apply include selectors to each JSON array element and preserve the expected response headers.
         body:
           - id: 1
             secret: one
@@ -3158,6 +3518,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: array-excludes
+        expectedBehavior: >-
+          Remove the selected fields from every JSON array element and preserve the expected response headers.
         body:
           - id: 1
             secret: one
@@ -3181,6 +3543,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: json-null
+        expectedBehavior: >-
+          Preserve the root JSON null response while retaining its configured headers.
         body: 'null'
         headers:
           Content-Type: application/json
@@ -3198,6 +3562,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: empty-response
+        expectedBehavior: >-
+          Return the empty HTTP 204 response with the expected response headers.
         body: ''
         headers:
           Content-Type: application/json
@@ -3215,6 +3581,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: plain-text
+        expectedBehavior: >-
+          Preserve the non-JSON text response instead of applying JSON field filtering.
         body: plain response
         headers:
           Content-Type: application/json
@@ -3232,6 +3600,8 @@ scenarios:
           Content-Type: text/plain
           X-Snapshot-Response: visible
       - id: malformed-json
+        expectedBehavior: >-
+          Preserve malformed JSON response text without losing its configured response headers.
         body: '{broken'
         headers:
           Content-Type: application/json
@@ -3249,6 +3619,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: unknown-selector
+        expectedBehavior: >-
+          Return an empty JSON object when the include selector matches no response field.
         body:
           id: 3
           secret: hidden
@@ -3268,6 +3640,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: empty-selectors
+        expectedBehavior: >-
+          Return all JSON response fields when the include and exclude selectors are empty.
         body:
           id: 4
           secret: visible
@@ -3289,6 +3663,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: whitespace-and-repeated-selectors
+        expectedBehavior: >-
+          Normalize whitespace and repeated selectors to return only the selected JSON field.
         body:
           id: 5
           secret: hidden
@@ -3309,6 +3685,9 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
       - id: valid-object-after-malformed
+        expectedBehavior: >-
+          Filter a fresh valid JSON object after malformed response content without retaining stale filter
+          state.
         body:
           id: 6
           secret: hidden
@@ -3329,6 +3708,8 @@ scenarios:
           Content-Type: application/json
           X-Snapshot-Response: visible
   - id: routes-real-servlet-requests-and-rejects-unknown-paths-and-methods
+    expectedBehavior: >-
+      Reject unknown servlet paths and methods, answer OPTIONS, and process the next valid POST request.
     scope: Short
     deployment: servlet-wire
     driver:
@@ -3340,6 +3721,8 @@ scenarios:
         path: /routes/servlet-wire/value
     invocations:
       - id: missing-path
+        expectedBehavior: >-
+          Return HTTP 404 for an unregistered native servlet path.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3351,6 +3734,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 404
       - id: wrong-method
+        expectedBehavior: >-
+          Return HTTP 405 when the request method does not match the registered servlet consumer.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3362,6 +3747,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 405
       - id: options
+        expectedBehavior: >-
+          Answer OPTIONS with an empty HTTP 200 response and the configured POST,OPTIONS Allow header.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3375,6 +3762,8 @@ scenarios:
           Allow: POST,OPTIONS
         expectedBody: ''
       - id: valid-after-rejections
+        expectedBehavior: >-
+          Process the valid POST request after path and method rejections without stale request data.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3388,6 +3777,9 @@ scenarios:
         expectedBody: '{"value":"value","query":null,"headers":null,"tags":null,"body":"accepted"}'
         body: accepted
   - id: parses-servlet-header-values-and-encoded-paths-and-queries
+    expectedBehavior: >-
+      Preserve repeated headers, query values, and encoded path data through the native servlet without
+      request-state leakage.
     scope: Short
     deployment: servlet-wire
     driver:
@@ -3399,6 +3791,9 @@ scenarios:
         path: /routes/servlet-wire/value
     invocations:
       - id: separate-header-values
+        expectedBehavior: >-
+          Preserve repeated header and query values, encoded path text, and UTF-8 request bytes through the
+          native servlet.
         body: request café
         headers:
           Content-Type: text/plain; charset=UTF-8
@@ -3435,6 +3830,9 @@ scenarios:
         expectedProperties:
           value: caf%C3%A9%20menu
       - id: clean-request-after-encoded-values
+        expectedBehavior: >-
+          Process a fresh plain request without retaining the previous encoded path, repeated headers, or
+          query parameters.
         body: fresh
         driver:
           provider: http-trigger
@@ -3454,6 +3852,8 @@ scenarios:
           - path
           - word
   - id: writes-http11-chunked-and-buffered-responses-through-the-servlet
+    expectedBehavior: >-
+      Return exact UTF-8 response bytes with native HTTP/1.1 chunked or buffered framing as configured.
     scope: Short
     deployment: servlet-wire
     driver:
@@ -3465,6 +3865,8 @@ scenarios:
         path: /routes/servlet-streaming
     invocations:
       - id: chunked-response
+        expectedBehavior: >-
+          Return exact UTF-8 response bytes with HTTP/1.1 chunked transfer encoding.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3480,6 +3882,8 @@ scenarios:
         expectedAbsentHeaders:
           - Content-Length
       - id: buffered-response
+        expectedBehavior: >-
+          Return the same UTF-8 response bytes with the exact buffered Content-Length.
         driver:
           provider: http-trigger
           sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
@@ -3495,6 +3899,9 @@ scenarios:
         expectedAbsentHeaders:
           - Transfer-Encoding
   - id: prefers-exact-servlet-paths-and-the-newest-active-consumer
+    expectedBehavior: >-
+      Prefer exact paths and the newest active servlet consumer, fall back after stop, and recover after
+      redeployment.
     scope: Short
     deployment: servlet-wire
     driver:
@@ -3506,6 +3913,8 @@ scenarios:
         path: /routes/servlet-overlap/static
     invocations:
       - id: exact-before-wildcard
+        expectedBehavior: >-
+          Select the exact servlet route ahead of the wildcard route for its matching path.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3517,6 +3926,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 200
       - id: wildcard-for-another-path
+        expectedBehavior: >-
+          Select the wildcard servlet route for another path and extract its dynamic item variable.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3530,6 +3941,8 @@ scenarios:
         expectedProperties:
           item: dynamic
       - id: newest-after-redeploy
+        expectedBehavior: >-
+          Dispatch the request to the newest active consumer after redeployment.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3542,6 +3955,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 200
       - id: older-after-newest-stops
+        expectedBehavior: >-
+          Fall back to the older active consumer after the newest consumer stops.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3554,6 +3969,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 200
       - id: absent-after-both-stop
+        expectedBehavior: >-
+          Return HTTP 404 once both matching servlet consumers have stopped.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3566,6 +3983,8 @@ scenarios:
         expectedHeaders:
           CamelHttpResponseCode: 404
       - id: newest-serves-after-redeploy
+        expectedBehavior: >-
+          Dispatch requests to the newly redeployed consumer after the previous consumers have stopped.
         driver:
           provider: http-trigger
           sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
@@ -3579,6 +3998,9 @@ scenarios:
           CamelHttpResponseCode: 200
 
   - id: stops-after-the-current-processor-when-the-session-deadline-passes
+    expectedBehavior: >-
+      Finish the current processor after deadline expiry, skip later work, return the timeout response, and
+      recover on the same route.
     scope: Long
     deployment: session-deadline
     driver:
@@ -3590,6 +4012,9 @@ scenarios:
         path: /routes/session-deadline
     invocations:
       - id: finishes-current-processor-and-skips-following-processor
+        expectedBehavior: >-
+          Finish the current processor, skip later processing after deadline expiry, and return the structured
+          HTTP 500 timeout error.
         headers:
           X-Snapshot-Cross-Deadline: 'true'
         expectedFailure:
@@ -3620,6 +4045,9 @@ scenarios:
             expectedRequest:
               count: 1
       - id: completes-a-fresh-request-on-the-existing-route
+        expectedBehavior: >-
+          Complete a fresh request on the existing route with HTTP 200 and cleared timeout and failure
+          markers.
         expectedBody: Deadline recovered
         expectedHeaders:
           CamelHttpResponseCode: 200

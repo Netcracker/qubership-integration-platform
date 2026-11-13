@@ -180,6 +180,8 @@ fixtures:
   sourceElementId: bc501bcb-65cf-5037-a30d-69499871244d
 scenarios:
 - id: consumes-values-keys-headers-and-isolates-exchanges
+  expectedBehavior: >-
+    Consume text, empty values, tombstones, keys, and headers while keeping each record exchange independent.
   reuseBroker: true
   scope: Short
   driver:
@@ -190,6 +192,7 @@ scenarios:
       partition: 0
   invocations:
   - id: plain-text
+    expectedBehavior: Consume the plain text value and preserve its Kafka key and content type.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -220,6 +223,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: json-text
+    expectedBehavior: Deliver JSON text unchanged without parsing its fields in the trigger.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -250,6 +254,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: malformed-json-without-schema
+    expectedBehavior: Accept malformed JSON as text when the chain declares no input schema.
     body: '{invalid json'
     expectedBody: Triggered
     expectedHeaders:
@@ -273,6 +278,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: empty-value-and-key
+    expectedBehavior: Preserve an empty Kafka value and an empty key as empty strings.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -303,6 +309,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: tombstone-and-null-key
+    expectedBehavior: Deliver a tombstone as a null body and retain a null key.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -333,6 +340,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: utf8-value-key-and-header
+    expectedBehavior: Preserve UTF-8 characters in the value, Kafka key, and custom header.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -367,6 +375,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: custom-content-type
+    expectedBehavior: Keep the incoming XML content type instead of applying the JSON default.
     body: <order id="3"/>
     headers:
       Content-Type: application/xml; charset=UTF-8
@@ -390,6 +399,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: empty-content-type
+    expectedBehavior: Keep an explicitly empty content type as an empty string.
     body: empty-content-type
     headers:
       Content-Type: ''
@@ -413,6 +423,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: null-content-type
+    expectedBehavior: Apply the configured JSON content type when the incoming content type is null.
     body: null-content-type
     headers:
       Content-Type: null
@@ -436,6 +447,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: repeated-and-empty-headers
+    expectedBehavior: Map repeated and empty custom headers while preserving the declared null-header behavior.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -480,6 +492,8 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: protected-kafka-and-camel-headers
+    expectedBehavior: >-
+      Retain actual Kafka metadata and allowed headers while filtering protected Kafka and Camel header names.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -539,6 +553,7 @@ scenarios:
           - org.apache.camel.snapshot
           - kafka.snapshot
   - id: repeated-key-first
+    expectedBehavior: Deliver the first record with a repeated key and its request-specific header.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -573,6 +588,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
   - id: repeated-key-second
+    expectedBehavior: Deliver another record with the same key without inheriting the previous record header.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -607,6 +623,7 @@ scenarios:
           expectedAbsentHeaders:
           - X-Snapshot-Previous
   - id: fresh-exchange-after-custom-headers
+    expectedBehavior: Create a fresh record exchange with none of the preceding custom headers or failure markers.
     body: clean-input
     expectedBody: Triggered
     expectedHeaders:
@@ -645,6 +662,9 @@ scenarios:
           - X-Snapshot-Previous
   deployment: basic
 - id: consumes-beyond-poll-limit-from-two-topics-in-partition-order
+  expectedBehavior: >-
+    Drain records from both subscribed topics beyond a single poll, preserve partition order, and exclude other
+    topics.
   reuseBroker: true
   scope: Long
   driver:
@@ -655,6 +675,8 @@ scenarios:
       partition: 0
   invocations:
   - id: six-hundred-records-across-both-topics
+    expectedBehavior: >-
+      Consume and commit all 600 queued records from both subscribed topics in their declared partition order.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -727,6 +749,7 @@ scenarios:
             X-Snapshot-Batch: bulk
     timeoutSeconds: 60
   - id: ignores-an-unsubscribed-topic
+    expectedBehavior: Consume the subscribed record while leaving the record on the unsubscribed topic unprocessed.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -764,6 +787,7 @@ scenarios:
           expectedAbsentHeaders:
           - X-Snapshot-Batch
   - id: fresh-record-after-bulk
+    expectedBehavior: Consume and commit a fresh record after the bulk delivery without inheriting batch headers.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -793,6 +817,7 @@ scenarios:
           awaitCommit: true
   deployment: basic
 - id: starts-at-latest-and-skips-existing-records
+  expectedBehavior: Start new group assignments at the log end and consume only records published after assignment.
   reuseBroker: true
   scope: Short
   driver:
@@ -803,6 +828,7 @@ scenarios:
       partition: 0
   invocations:
   - id: first-record-after-assignment
+    expectedBehavior: Skip records that predate the initial assignment and consume the first new record.
     body: after-initial-assignment
     expectedBody: Triggered
     expectedHeaders:
@@ -849,6 +875,7 @@ scenarios:
             body: before-initial-assignment
             key: old-record
   - id: second-topic-after-assignment
+    expectedBehavior: Consume a fresh record from the second subscribed topic after assignment.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -877,6 +904,7 @@ scenarios:
             internalProperty_elementFailed: null
   deployment: basic
 - id: resumes-from-committed-offsets-after-consumer-restart
+  expectedBehavior: Resume from committed Kafka offsets after restarting the consumer and drain the intervening backlog.
   reuseBroker: true
   scope: Long
   driver:
@@ -887,6 +915,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-stop
+    expectedBehavior: Consume and commit a record before stopping the consumer.
     body: committed-before-stop
     expectedBody: Triggered
     expectedHeaders:
@@ -909,6 +938,7 @@ scenarios:
             internalProperty_elementFailed: null
           awaitCommit: true
   - id: consumes-backlog-after-restart
+    expectedBehavior: Restart the consumer and consume the queued backlog from its committed position.
     body: published-while-stopped
     expectedBody: Triggered
     expectedHeaders:
@@ -932,6 +962,7 @@ scenarios:
           consumerAction: stop-until-published
           awaitCommit: true
   - id: consumes-new-record-after-restart
+    expectedBehavior: Consume and commit a newly published record after consumer restart recovery.
     body: published-after-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -955,6 +986,7 @@ scenarios:
           awaitCommit: true
   deployment: basic
 - id: recovers-after-consumer-connection-loss
+  expectedBehavior: Reconnect the running consumer after transport loss and continue from its committed offsets.
   scope: Long
   driver:
     provider: kafka-trigger
@@ -964,6 +996,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-disconnect
+    expectedBehavior: Consume and commit a record before disconnecting the consumer transport.
     body: before-disconnect
     expectedBody: Triggered
     expectedHeaders:
@@ -986,6 +1019,7 @@ scenarios:
             internalProperty_elementFailed: null
           awaitCommit: true
   - id: consumes-backlog-after-reconnect
+    expectedBehavior: Restore the connection and consume the records queued during the outage.
     body: published-while-disconnected
     expectedBody: Triggered
     expectedHeaders:
@@ -1009,6 +1043,7 @@ scenarios:
           consumerAction: disconnect-until-published
           awaitCommit: true
   - id: consumes-new-record-after-reconnect
+    expectedBehavior: Consume and commit a fresh record after reconnecting.
     body: published-after-reconnect
     expectedBody: Triggered
     expectedHeaders:
@@ -1032,6 +1067,9 @@ scenarios:
           awaitCommit: true
   deployment: basic
 - id: continues-after-script-failure-and-commits-offsets
+  expectedBehavior: >-
+    Report a script failure, commit the failed delivery, and keep consuming without replaying that committed
+    failure.
   reuseBroker: true
   scope: Long
   driver:
@@ -1042,6 +1080,7 @@ scenarios:
       partition: 0
   invocations:
   - id: valid-before-script-failure
+    expectedBehavior: Consume and commit a valid record before the script failure.
     body: before-script-failure
     expectedBody: Triggered
     expectedHeaders:
@@ -1064,6 +1103,7 @@ scenarios:
             internalProperty_elementFailed: null
           awaitCommit: true
   - id: script-failure
+    expectedBehavior: Report the configured script exception and commit the failed record offset.
     body: failed-record
     headers:
       snapshotFail: 'true'
@@ -1093,6 +1133,7 @@ scenarios:
       message: Kafka snapshot failure
       cause: null
   - id: valid-after-script-failure
+    expectedBehavior: Consume the next valid record without retaining script-failure headers.
     body: after-script-failure
     expectedBody: Triggered
     expectedHeaders:
@@ -1119,6 +1160,7 @@ scenarios:
           expectedAbsentHeaders:
           - snapshotFail
   - id: does-not-replay-committed-failure-after-restart
+    expectedBehavior: Restart consumption without replaying the already committed failed record.
     body: after-failure-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -1147,6 +1189,9 @@ scenarios:
           - snapshotFail
   deployment: basic
 - id: continues-and-commits-after-script-failure-in-one-partition-batch
+  expectedBehavior: >-
+    Process valid, failed, and valid records in one partition batch in order and commit progress through the
+    failure.
   reuseBroker: true
   scope: Long
   deployment: basic
@@ -1158,6 +1203,9 @@ scenarios:
       partition: 0
   invocations:
   - id: processes-valid-failed-valid-backlog-in-order
+    expectedBehavior: >-
+      Process the queued valid-failed-valid sequence in order, report the script exception, and commit the batch
+      offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -1240,6 +1288,7 @@ scenarios:
               internalProperty_sessionFailed: null
               internalProperty_elementFailed: null
   - id: does-not-replay-failed-batch-after-restart
+    expectedBehavior: Restart without replaying any record from the committed batch, including its failed record.
     body: after-queued-failure-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -1267,6 +1316,7 @@ scenarios:
             internalProperty_elementFailed: null
           consumerAction: stop-until-published
   - id: consumes-new-record-after-batch-restart
+    expectedBehavior: Consume and commit a fresh record after the batch restart without stale failure headers.
     body: new-after-queued-failure-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -1293,6 +1343,8 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
 - id: consumes-existing-records-from-earliest-and-resumes-after-restart
+  expectedBehavior: >-
+    Read initial backlog with earliest offset reset and use committed progress on later consumer restarts.
   reuseBroker: true
   scope: Long
   deployment: offsets
@@ -1304,6 +1356,8 @@ scenarios:
       partition: 0
   invocations:
   - id: consumes-existing-records-from-initial-offsets
+    expectedBehavior: >-
+      Consume the three existing partition records from the earliest offsets and keep the inactive branch unused.
     driver:
       provider: kafka-trigger
       sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
@@ -1365,6 +1419,7 @@ scenarios:
     - Triggered
     - Triggered
   - id: consumes-new-record-after-earliest-backlog
+    expectedBehavior: Consume a new record after the earliest backlog without inheriting startup headers.
     body: after-earliest-backlog
     expectedBody: Triggered
     expectedHeaders:
@@ -1395,6 +1450,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: resumes-earliest-from-committed-offsets
+    expectedBehavior: Restart from committed offsets rather than replaying the earliest backlog.
     body: after-earliest-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -1426,6 +1482,8 @@ scenarios:
       expectedRequest:
         count: 0
 - id: resumes-none-from-existing-committed-offsets
+  expectedBehavior: >-
+    Use existing committed offsets with offset reset set to none and retain those offsets across restart.
   reuseBroker: true
   scope: Long
   deployment: offsets
@@ -1437,6 +1495,7 @@ scenarios:
       partition: 0
   invocations:
   - id: consumes-existing-records-from-initial-offsets
+    expectedBehavior: Consume only the backlog following the pre-existing committed partition offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
@@ -1515,6 +1574,7 @@ scenarios:
     - Triggered
     - Triggered
   - id: consumes-new-record-with-existing-offsets
+    expectedBehavior: Consume a fresh record while retaining the configured none offset-reset policy.
     body: after-none-backlog
     expectedBody: Triggered
     expectedHeaders:
@@ -1545,6 +1605,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: resumes-none-after-consumer-restart
+    expectedBehavior: Restart with none offset reset and continue from committed progress without replay.
     body: after-none-restart
     expectedBody: Triggered
     expectedHeaders:
@@ -1576,6 +1637,8 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-the-group-has-no-committed-offsets
+  expectedBehavior: >-
+    Reject none offset reset when group offsets are absent without consuming records or creating committed progress.
   reuseBroker: true
   scope: Long
   deployment: offsets
@@ -1586,6 +1649,7 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: reports-missing-offsets-without-consuming-or-committing
+    expectedBehavior: Report NoOffsetForPartitionException, deliver no records, and leave all group offsets uncommitted.
     expectedFailure:
       type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
       ignoreMessage: true
@@ -1623,6 +1687,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-only-some-partitions-have-committed-offsets
+  expectedBehavior: Reject missing partition offsets under none reset and preserve the commits that already exist.
   reuseBroker: true
   scope: Long
   deployment: offsets
@@ -1633,6 +1698,8 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: reports-missing-offsets-without-changing-partial-commits
+    expectedBehavior: >-
+      Report missing partition offsets without delivering records or changing the partially committed offsets.
     expectedFailure:
       type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
       ignoreMessage: true
@@ -1674,6 +1741,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-a-committed-offset-is-beyond-the-log-end
+  expectedBehavior: Reject an out-of-range committed offset under none reset instead of resetting group progress.
   reuseBroker: true
   scope: Long
   deployment: offsets
@@ -1684,6 +1752,8 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: reports-offset-out-of-range-without-resetting-commits
+    expectedBehavior: >-
+      Report OffsetOutOfRangeException without consuming records or replacing the invalid committed offset.
     expectedFailure:
       type: org.apache.kafka.clients.consumer.OffsetOutOfRangeException
       ignoreMessage: true
@@ -1731,6 +1801,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: reassigns-partitions-between-competing-consumers-without-loss
+  expectedBehavior: Rebalance subscribed partitions when group members leave and rejoin without losing queued records.
   scope: Long
   deployment: group
   driver:
@@ -1740,6 +1811,7 @@ scenarios:
       partition: 0
   invocations:
   - id: consumes-with-three-group-members
+    expectedBehavior: Consume and commit records with all three native consumer group members present.
     body: record
     interactions:
     - fixture: kafka-group
@@ -1768,6 +1840,7 @@ scenarios:
           key: key-2
           messageCount: 2
   - id: remaining-consumers-drain-all-partitions
+    expectedBehavior: Let the two remaining members drain all 90 queued partition records after a peer stops.
     body: record
     interactions:
     - fixture: kafka-group
@@ -1794,6 +1867,7 @@ scenarios:
           partition: 2
           messageCount: 30
   - id: peer-rejoins-the-group
+    expectedBehavior: Rejoin the stopped peer and consume new records with three group members again.
     body: record
     interactions:
     - fixture: kafka-group
@@ -1817,6 +1891,8 @@ scenarios:
         - body: after-rejoin-2
           partition: 2
 - id: rejoins-after-processing-exceeds-max-poll-interval
+  expectedBehavior: >-
+    Recover group membership after slow processing exceeds max.poll.interval and continue committed delivery.
   scope: Long
   deployment: slow
   driver:
@@ -1826,6 +1902,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-slow-processing
+    expectedBehavior: Consume and commit the baseline record with one group member.
     body: record
     expectedBody: Triggered
     interactions:
@@ -1838,6 +1915,9 @@ scenarios:
           awaitCommit: true
           expectedMembers: 1
   - id: finishes-processing-after-leaving-the-group
+    expectedBehavior: >-
+      Finish the held record after exceeding the poll interval and regain group membership, allowing declared
+      redelivery.
     body: slow-record
     expectedBody: Triggered
     interactions:
@@ -1852,6 +1932,7 @@ scenarios:
           awaitCommit: true
           expectedMembers: 1
   - id: consumes-after-rejoining
+    expectedBehavior: Consume and commit a fresh record after the consumer rejoins its group.
     body: after-slow
     expectedBody: Triggered
     interactions:
@@ -1864,6 +1945,8 @@ scenarios:
           awaitCommit: true
           expectedMembers: 1
 - id: waits-for-in-flight-processing-before-graceful-shutdown
+  expectedBehavior: >-
+    Finish and commit in-flight processing before stopping, then resume without replaying the completed record.
   scope: Long
   deployment: lifecycle
   driver:
@@ -1873,6 +1956,7 @@ scenarios:
       partition: 0
   invocations:
   - id: stops-with-a-record-in-progress
+    expectedBehavior: Wait for the held record to finish and commit before completing graceful consumer stop.
     body: in-flight
     expectedBody: Triggered
     interactions:
@@ -1885,6 +1969,7 @@ scenarios:
           consumerAction: stop-during-processing
           awaitCommit: true
   - id: continues-after-graceful-shutdown
+    expectedBehavior: Consume and commit a new record after graceful shutdown recovery.
     body: after-shutdown
     expectedBody: Triggered
     interactions:
@@ -1896,6 +1981,7 @@ scenarios:
           expectedCompletionBody: Triggered
           awaitCommit: true
   - id: does-not-replay-after-another-restart
+    expectedBehavior: Restart once more without replaying records already committed before shutdown.
     body: after-restart
     expectedBody: Triggered
     interactions:
@@ -1908,6 +1994,7 @@ scenarios:
           consumerAction: stop-until-published
           awaitCommit: true
 - id: resumes-after-the-broker-restarts-with-persistent-offsets
+  expectedBehavior: Reconnect after a broker restart while preserving the group offsets stored by the broker.
   scope: Long
   deployment: lifecycle
   driver:
@@ -1917,6 +2004,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-broker-restart
+    expectedBehavior: Consume and commit a baseline record before restarting the broker.
     body: before-broker-restart
     expectedBody: Triggered
     interactions:
@@ -1928,6 +2016,7 @@ scenarios:
           expectedCompletionBody: Triggered
           awaitCommit: true
   - id: consumes-after-broker-restart
+    expectedBehavior: Reconnect to the restarted broker and consume from its persistent committed position.
     timeoutSeconds: 60
     body: after-broker-restart
     expectedBody: Triggered
@@ -1941,6 +2030,7 @@ scenarios:
           consumerAction: restart-broker
           awaitCommit: true
   - id: preserves-position-after-route-restart
+    expectedBehavior: Restart the route and retain the position established after broker recovery.
     body: after-route-restart
     expectedBody: Triggered
     interactions:
@@ -1953,6 +2043,7 @@ scenarios:
           consumerAction: stop-until-published
           awaitCommit: true
 - id: recovers-when-the-broker-is-unreachable-at-consumer-start
+  expectedBehavior: Recover the existing consumer after startup connectivity returns and drain the retained backlog.
   scope: Long
   deployment: lifecycle
   driver:
@@ -1962,6 +2053,8 @@ scenarios:
       consumeStartup: true
   invocations:
   - id: consumes-backlog-after-startup-connectivity-returns
+    expectedBehavior: >-
+      Consume all three startup backlog records once broker connectivity becomes available and commit their offsets.
     expectedBody:
     - Triggered
     - Triggered
@@ -1983,6 +2076,7 @@ scenarios:
             partition: 2
           awaitCommit: true
   - id: consumes-new-record-after-startup-recovery
+    expectedBehavior: Consume and commit a fresh record through the consumer that recovered from startup unavailability.
     body: after-startup
     expectedBody: Triggered
     interactions:
@@ -1999,6 +2093,7 @@ scenarios:
       parameters:
         partition: 0
 - id: consumes-exact-binary-types-and-values
+  expectedBehavior: Preserve Kafka byte array values, key types, empty values where applicable, and tombstones.
   reuseBroker: true
   scope: Short
   deployment: typed-binary
@@ -2007,6 +2102,7 @@ scenarios:
     sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
   invocations:
   - id: exact-binary-record
+    expectedBehavior: Consume the exact binary value and key without changing any byte values.
     driver:
       provider: kafka-trigger
       sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
@@ -2033,6 +2129,7 @@ scenarios:
         properties:
           expectedCompletionBody: bytes:AID/wyg=|key:/wB/
   - id: empty-binary-record
+    expectedBehavior: Preserve an empty binary value separately from a null value.
     driver:
       provider: kafka-trigger
       sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
@@ -2051,6 +2148,7 @@ scenarios:
         properties:
           expectedCompletionBody: 'bytes:|key:'
   - id: binary-tombstone
+    expectedBehavior: Deliver a binary tombstone as null and commit its offset.
     driver:
       provider: kafka-trigger
       sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
@@ -2070,6 +2168,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: bytes:null|key:null
 - id: consumes-exact-integer-types-and-values
+  expectedBehavior: Preserve Kafka Integer values, key types, empty values where applicable, and tombstones.
   reuseBroker: true
   scope: Short
   deployment: typed-integer
@@ -2078,6 +2177,7 @@ scenarios:
     sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
   invocations:
   - id: minimum-integer
+    expectedBehavior: Preserve the minimum Integer value and its declared key type.
     driver:
       provider: kafka-trigger
       sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
@@ -2096,6 +2196,7 @@ scenarios:
         properties:
           expectedCompletionBody: java.lang.Integer:-2147483648|key:java.lang.Integer:2147483647
   - id: maximum-integer
+    expectedBehavior: Preserve the maximum Integer value and its declared key type.
     driver:
       provider: kafka-trigger
       sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
@@ -2114,6 +2215,7 @@ scenarios:
         properties:
           expectedCompletionBody: java.lang.Integer:2147483647|key:java.lang.Integer:-2147483648
   - id: integer-tombstone
+    expectedBehavior: Deliver an Integer tombstone as null and commit its offset.
     driver:
       provider: kafka-trigger
       sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
@@ -2133,6 +2235,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: null|key:null
 - id: consumes-exact-long-types-and-values
+  expectedBehavior: Preserve Kafka Long values, key types, empty values where applicable, and tombstones.
   reuseBroker: true
   scope: Short
   deployment: typed-long
@@ -2141,6 +2244,7 @@ scenarios:
     sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
   invocations:
   - id: minimum-long
+    expectedBehavior: Preserve the minimum Long value and its declared key type without numeric narrowing.
     driver:
       provider: kafka-trigger
       sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
@@ -2159,6 +2263,7 @@ scenarios:
         properties:
           expectedCompletionBody: java.lang.Long:-9223372036854775808|key:java.lang.Long:9223372036854775807
   - id: maximum-long
+    expectedBehavior: Preserve the maximum Long value and its declared key type without numeric narrowing.
     driver:
       provider: kafka-trigger
       sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
@@ -2177,6 +2282,7 @@ scenarios:
         properties:
           expectedCompletionBody: java.lang.Long:9223372036854775807|key:java.lang.Long:-9223372036854775808
   - id: long-tombstone
+    expectedBehavior: Deliver a Long tombstone as null and commit its offset.
     driver:
       provider: kafka-trigger
       sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
@@ -2196,6 +2302,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: null|key:null
 - id: reports-malformed-integer-value-and-blocks-following-records
+  expectedBehavior: Report malformed integer value deserialization and keep later records blocked at the poison offset.
   reuseBroker: true
   scope: Long
   deployment: typed-integer
@@ -2206,6 +2313,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: poison-and-following-valid-record
+    expectedBehavior: >-
+      Report RecordDeserializationException for the poison record and prevent the following valid record from
+      reaching the chain.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0. If needed,
@@ -2253,6 +2363,7 @@ scenarios:
             partition: 2
             offset: 0
   - id: later-valid-record-stays-blocked
+    expectedBehavior: Keep later valid records blocked by the same poison offset without advancing committed progress.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0. If needed,
@@ -2283,6 +2394,7 @@ scenarios:
               cause: null
           resetConsumerFailure: true
 - id: reports-malformed-long-key-and-blocks-following-records
+  expectedBehavior: Report malformed long key deserialization and keep later records blocked at the poison offset.
   reuseBroker: true
   scope: Long
   deployment: typed-long
@@ -2293,6 +2405,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: poison-and-following-valid-record
+    expectedBehavior: >-
+      Report RecordDeserializationException for the poison record and prevent the following valid record from
+      reaching the chain.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
@@ -2340,6 +2455,7 @@ scenarios:
             partition: 2
             offset: 0
   - id: later-valid-record-stays-blocked
+    expectedBehavior: Keep later valid records blocked by the same poison offset without advancing committed progress.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
@@ -2370,6 +2486,7 @@ scenarios:
               cause: null
           resetConsumerFailure: true
 - id: consumes-authenticated-records-over-sasl-ssl
+  expectedBehavior: Consume records through successful SASL authentication and TLS on the exported consumer.
   scope: Long
   deployment: sasl-ssl
   driver:
@@ -2380,6 +2497,7 @@ scenarios:
       partition: 0
   invocations:
   - id: first-authenticated-record
+    expectedBehavior: Consume the first record and observe successful SASL authentication and TLS.
     body: first authenticated Kafka trigger record
     headers:
       X-Snapshot-Security: first
@@ -2409,6 +2527,7 @@ scenarios:
         partition: 0
         key: first
   - id: second-authenticated-record
+    expectedBehavior: Consume and commit the next record while preserving successful SASL authentication and TLS.
     body: second authenticated Kafka trigger record
     headers:
       X-Snapshot-Security: second
@@ -2439,6 +2558,7 @@ scenarios:
         partition: 0
         key: second
 - id: consumes-authenticated-records-over-sasl-plaintext
+  expectedBehavior: Consume records through successful SASL authentication on the exported consumer.
   scope: Long
   deployment: sasl-plaintext
   driver:
@@ -2449,6 +2569,7 @@ scenarios:
       partition: 0
   invocations:
   - id: first-authenticated-record
+    expectedBehavior: Consume the first record and observe successful SASL authentication.
     body: first authenticated Kafka trigger record
     headers:
       X-Snapshot-Security: first
@@ -2477,6 +2598,7 @@ scenarios:
         partition: 0
         key: first
   - id: second-authenticated-record
+    expectedBehavior: Consume and commit the next record while preserving successful SASL authentication.
     body: second authenticated Kafka trigger record
     headers:
       X-Snapshot-Security: second
@@ -2506,6 +2628,7 @@ scenarios:
         partition: 0
         key: second
 - id: rejects-invalid-consumer-credentials-over-tls
+  expectedBehavior: Reject invalid SASL credentials over TLS before business delivery or committed offset progress.
   scope: Long
   deployment: sasl-ssl-invalid-credentials
   driver:
@@ -2515,6 +2638,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: rejects-credentials-before-entering-the-chain
+    expectedBehavior: >-
+      Report SaslAuthenticationException, observe the failed authentication, and consume no records with invalid
+      credentials.
     expectedFailure:
       type: org.apache.kafka.common.errors.SaslAuthenticationException
       message: 'Authentication failed: Invalid username or password'
@@ -2536,6 +2662,9 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           minFailedAuthentications: 1
 - id: restores-topic-read-access-on-the-running-consumer
+  expectedBehavior: >-
+    Reject denied topic read access, then drain protected backlog after authorization is restored on the same
+    consumer.
   scope: Long
   deployment: sasl-ssl
   driver:
@@ -2545,6 +2674,8 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: rejects-read-access-without-delivery-or-offset-progress
+    expectedBehavior: >-
+      Report TopicAuthorizationException without delivering protected records or advancing committed offsets.
     expectedFailure:
       type: org.apache.kafka.common.errors.TopicAuthorizationException
       ignoreMessage: true
@@ -2586,6 +2717,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           minSuccessfulAuthentications: 1
   - id: consumes-protected-backlog-after-restoring-access
+    expectedBehavior: Restore read access, consume all protected backlog records, and commit their offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -2606,6 +2738,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: consumes-new-record-after-access-recovery
+    expectedBehavior: Consume and commit a fresh record after authorization recovery.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -2628,6 +2761,9 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: restores-group-read-access-on-the-running-consumer
+  expectedBehavior: >-
+    Reject denied group read access, then drain protected backlog after authorization is restored on the same
+    consumer.
   scope: Long
   deployment: sasl-ssl
   driver:
@@ -2637,6 +2773,8 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: rejects-read-access-without-delivery-or-offset-progress
+    expectedBehavior: >-
+      Report GroupAuthorizationException without delivering protected records or advancing committed offsets.
     expectedFailure:
       type: org.apache.kafka.common.errors.GroupAuthorizationException
       ignoreMessage: true
@@ -2678,6 +2816,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           minSuccessfulAuthentications: 1
   - id: consumes-protected-backlog-after-restoring-access
+    expectedBehavior: Restore read access, consume all protected backlog records, and commit their offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -2698,6 +2837,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: consumes-new-record-after-access-recovery
+    expectedBehavior: Consume and commit a fresh record after authorization recovery.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -2720,6 +2860,9 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: deduplicates-kafka-business-keys-with-ignore
+  expectedBehavior: >-
+    Apply business-key idempotency to skip duplicate business work, separate contexts, expire keys, and retain keys
+    across restart.
   reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
@@ -2731,6 +2874,7 @@ scenarios:
       key: transport-original
   invocations:
   - id: first-business-key
+    expectedBehavior: Acquire the first business key and execute the main business branch once.
     body: first-payload
     headers:
       businessContext: orders
@@ -2782,6 +2926,9 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: same-business-key-new-payload-key-and-partition
+    expectedBehavior: >-
+      Recognize the existing business key despite changed payload, Kafka key, and partition, and skip duplicate
+      business work.
     body: changed-payload
     headers:
       businessContext: orders
@@ -2838,6 +2985,9 @@ scenarios:
         partition: 1
         key: transport-changed
   - id: repeated-duplicate-records
+    expectedBehavior: >-
+      Recognize every repeated duplicate record and skip duplicate business work without repeating main business
+      work.
     body: repeated-duplicate
     headers:
       businessContext: orders
@@ -2898,6 +3048,7 @@ scenarios:
         key: transport-batch
         messageCount: 3
   - id: same-key-independent-context
+    expectedBehavior: Acquire the same business key independently in a distinct idempotency context.
     body: independent-context
     headers:
       businessContext: invoices
@@ -2955,6 +3106,7 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: fresh-key-after-duplicates
+    expectedBehavior: Execute main business work for a fresh key after duplicate handling.
     body: fresh-key
     headers:
       businessContext: orders
@@ -3018,6 +3170,7 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: reacquires-expired-business-key
+    expectedBehavior: Reacquire the expired business key and execute main business work again.
     body: expired-key
     headers:
       businessContext: orders
@@ -3084,6 +3237,8 @@ scenarios:
         properties:
           expireKey: orders:order-1
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the acquired key across consumer restart and skip duplicate business work for the next duplicate.
     body: after-restart
     headers:
       businessContext: orders
@@ -3147,6 +3302,9 @@ scenarios:
             keyExpiry: 600
             active: true
 - id: deduplicates-kafka-business-keys-with-throw-exception
+  expectedBehavior: >-
+    Apply business-key idempotency to reject duplicate keys with DuplicateException, separate contexts, expire keys,
+    and retain keys across restart.
   reuseBroker: true
   scope: Long
   deployment: idempotency-throw
@@ -3158,6 +3316,7 @@ scenarios:
       key: transport-original
   invocations:
   - id: first-business-key
+    expectedBehavior: Acquire the first business key and execute the main business branch once.
     body: first-payload
     headers:
       businessContext: orders
@@ -3209,6 +3368,9 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: same-business-key-new-payload-key-and-partition
+    expectedBehavior: >-
+      Recognize the existing business key despite changed payload, Kafka key, and partition, and reject duplicate
+      keys with DuplicateException.
     body: changed-payload
     headers:
       businessContext: orders
@@ -3284,6 +3446,9 @@ scenarios:
         partition: 1
         key: transport-changed
   - id: repeated-duplicate-records
+    expectedBehavior: >-
+      Recognize every repeated duplicate record and reject duplicate keys with DuplicateException without repeating
+      main business work.
     body: repeated-duplicate
     headers:
       businessContext: orders
@@ -3363,6 +3528,7 @@ scenarios:
         key: transport-batch
         messageCount: 3
   - id: same-key-independent-context
+    expectedBehavior: Acquire the same business key independently in a distinct idempotency context.
     body: independent-context
     headers:
       businessContext: invoices
@@ -3420,6 +3586,7 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: fresh-key-after-duplicates
+    expectedBehavior: Execute main business work for a fresh key after duplicate handling.
     body: fresh-key
     headers:
       businessContext: orders
@@ -3483,6 +3650,7 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: reacquires-expired-business-key
+    expectedBehavior: Reacquire the expired business key and execute main business work again.
     body: expired-key
     headers:
       businessContext: orders
@@ -3549,6 +3717,9 @@ scenarios:
         properties:
           expireKey: orders:order-1
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the acquired key across consumer restart and reject duplicate keys with DuplicateException for the next
+      duplicate.
     body: after-restart
     headers:
       businessContext: orders
@@ -3631,6 +3802,9 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
 - id: deduplicates-kafka-business-keys-with-execute-subchain
+  expectedBehavior: >-
+    Apply business-key idempotency to route duplicate keys to their configured handler, separate contexts, expire
+    keys, and retain keys across restart.
   reuseBroker: true
   scope: Long
   deployment: idempotency-subchain
@@ -3642,6 +3816,7 @@ scenarios:
       key: transport-original
   invocations:
   - id: first-business-key
+    expectedBehavior: Acquire the first business key and execute the main business branch once.
     body: first-payload
     headers:
       businessContext: orders
@@ -3696,6 +3871,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: same-business-key-new-payload-key-and-partition
+    expectedBehavior: >-
+      Recognize the existing business key despite changed payload, Kafka key, and partition, and route duplicate
+      keys to their configured handler.
     body: changed-payload
     headers:
       businessContext: orders
@@ -3755,6 +3933,9 @@ scenarios:
         partition: 1
         key: transport-changed
   - id: repeated-duplicate-records
+    expectedBehavior: >-
+      Recognize every repeated duplicate record and route duplicate keys to their configured handler without
+      repeating main business work.
     body: repeated-duplicate
     headers:
       businessContext: orders
@@ -3818,6 +3999,7 @@ scenarios:
         key: transport-batch
         messageCount: 3
   - id: same-key-independent-context
+    expectedBehavior: Acquire the same business key independently in a distinct idempotency context.
     body: independent-context
     headers:
       businessContext: invoices
@@ -3878,6 +4060,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: fresh-key-after-duplicates
+    expectedBehavior: Execute main business work for a fresh key after duplicate handling.
     body: fresh-key
     headers:
       businessContext: orders
@@ -3944,6 +4127,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: reacquires-expired-business-key
+    expectedBehavior: Reacquire the expired business key and execute main business work again.
     body: expired-key
     headers:
       businessContext: orders
@@ -4013,6 +4197,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the acquired key across consumer restart and route duplicate keys to their configured handler for the
+      next duplicate.
     body: after-restart
     headers:
       businessContext: orders
@@ -4079,6 +4266,8 @@ scenarios:
       expectedRequest:
         count: 1
 - id: recovers-after-live-topic-read-revocation
+  expectedBehavior: >-
+    Reject live topic-read revocation without delivery and drain queued records after restoring authorization.
   scope: Long
   deployment: sasl-ssl
   driver:
@@ -4088,6 +4277,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-live-revocation
+    expectedBehavior: Consume and commit a record before live topic-read permission is revoked.
     body: before-live-revocation
     expectedBody: Triggered
     interactions:
@@ -4100,6 +4290,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: rejects-live-read-revocation
+    expectedBehavior: Report TopicAuthorizationException without delivering records or advancing committed offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4135,6 +4326,7 @@ scenarios:
             cause: null
           minSuccessfulAuthentications: 1
   - id: consumes-queued-records-after-restoring-access
+    expectedBehavior: Restore topic-read permission, consume the three queued records, and commit their offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4154,6 +4346,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: commits-new-record-after-access-recovery
+    expectedBehavior: Consume and commit a fresh record after topic authorization recovery.
     body: after-live-revocation
     expectedBody: Triggered
     interactions:
@@ -4166,6 +4359,8 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: recovers-after-live-group-read-revocation
+  expectedBehavior: >-
+    Preserve committed offsets while group-read permission blocks commits and commit progress once access returns.
   scope: Long
   deployment: sasl-ssl
   driver:
@@ -4175,6 +4370,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-live-revocation
+    expectedBehavior: Consume and commit a record before live group-read permission is revoked.
     body: before-live-revocation
     expectedBody: Triggered
     interactions:
@@ -4187,6 +4383,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: consumes-without-committing-while-group-read-is-revoked
+    expectedBehavior: Process three records while OffsetCommit is denied and preserve the previously committed offsets.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4219,6 +4416,7 @@ scenarios:
           expectedCompletionBody: Triggered
           minSuccessfulAuthentications: 1
   - id: commits-progress-after-restoring-group-access
+    expectedBehavior: Restore group-read permission and commit progress while consuming the next record.
     body: after-live-revocation
     expectedBody: Triggered
     interactions:
@@ -4232,6 +4430,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: excludes-committed-records-after-restart
+    expectedBehavior: Restart without replaying records covered by the restored committed offsets.
     body: after-recovery-restart
     expectedBody: Triggered
     interactions:
@@ -4246,6 +4445,8 @@ scenarios:
           expectedCompletionBody: Triggered
 - id: rejects-invalid-consumer-tls-and-recovers-on-the-existing-route
   scope: Long
+  expectedBehavior: >-
+    Reject invalid TLS certificates without consuming records or advancing offsets, then recover on the same route.
   deployment: sasl-ssl
   driver:
     provider: kafka-trigger
@@ -4254,6 +4455,7 @@ scenarios:
       partition: 0
   invocations:
   - id: consumes-before-certificate-rotation
+    expectedBehavior: Consume and commit the record through a successful TLS connection.
     body: before-certificate-rotation
     expectedBody: Triggered
     interactions:
@@ -4266,6 +4468,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulTlsHandshakes: 1
   - id: rejects-untrusted-certificate
+    expectedBehavior: >-
+      Reject the untrusted certificate, preserve committed offsets, consume no records, and observe a failed TLS handshake.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4315,6 +4519,8 @@ scenarios:
             key: untrusted
           minFailedTlsHandshakes: 1
   - id: consumes-backlog-after-untrusted
+    expectedBehavior: >-
+      After restoring a trusted certificate, consume and commit the record queued during the TLS failure.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4333,6 +4539,7 @@ scenarios:
           expectedCompletionBody: Triggered
           minSuccessfulTlsHandshakes: 2
   - id: rejects-expired-certificate
+    expectedBehavior: Reject the expired certificate, preserve committed offsets, and consume no records.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4387,6 +4594,8 @@ scenarios:
             key: expired
           minFailedTlsHandshakes: 1
   - id: consumes-backlog-after-expired
+    expectedBehavior: >-
+      After restoring a trusted certificate, consume and commit the record queued during the TLS failure.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4405,6 +4614,8 @@ scenarios:
           expectedCompletionBody: Triggered
           minSuccessfulTlsHandshakes: 2
   - id: rejects-wrong-hostname-certificate
+    expectedBehavior: >-
+      Reject the certificate with a mismatched hostname, preserve committed offsets, and consume no records.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4444,6 +4655,8 @@ scenarios:
             key: wrong-hostname
           minFailedTlsHandshakes: 1
   - id: consumes-backlog-after-wrong-hostname
+    expectedBehavior: >-
+      After restoring a trusted certificate, consume and commit the record queued during the TLS failure.
     driver:
       provider: kafka-trigger
       sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
@@ -4462,6 +4675,7 @@ scenarios:
           expectedCompletionBody: Triggered
           minSuccessfulTlsHandshakes: 2
   - id: consumes-after-trusted-certificate-renewal
+    expectedBehavior: Consume and commit a fresh record after renewing the trusted certificate.
     body: after-certificate-renewal
     expectedBody: Triggered
     interactions:
@@ -4476,6 +4690,9 @@ scenarios:
           minSuccessfulTlsHandshakes: 2
           expectedCompletionBody: Triggered
 - id: discovers-expanded-partitions-without-losing-existing-partitions
+  expectedBehavior: >-
+    Discover new partitions on both subscribed topics and retain consumption and committed progress on existing
+    partitions.
   reuseBroker: true
   scope: Long
   deployment: basic
@@ -4486,6 +4703,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-topic-expansion
+    expectedBehavior: Consume and commit the baseline record before expanding the subscribed topics.
     body: before-expansion
     expectedBody: Triggered
     interactions:
@@ -4498,6 +4716,7 @@ scenarios:
           awaitCommit: true
           metadataRefreshMillis: 1000
   - id: consumes-from-new-partitions-on-both-topics
+    expectedBehavior: Discover the expanded topics and consume and commit all four records on their new partitions.
     driver:
       provider: kafka-trigger
       sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
@@ -4535,6 +4754,8 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: continues-on-existing-partition-after-rebalance
+    expectedBehavior: >-
+      Continue consuming and committing from an existing partition after the metadata refresh and rebalance.
     body: after-expansion
     expectedBody: Triggered
     interactions:
@@ -4547,6 +4768,7 @@ scenarios:
           awaitCommit: true
           expectedMembers: 1
 - id: handles-real-log-truncation-with-earliest-offset-reset
+  expectedBehavior: Apply earliest offset-reset behavior when real log truncation removes the committed position.
   scope: Long
   deployment: offsets
   driver:
@@ -4557,6 +4779,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-log-truncation
+    expectedBehavior: Establish committed progress before deleting the beginning of the Kafka log.
     body: before-log-truncation
     expectedBody: Triggered
     interactions:
@@ -4583,6 +4806,7 @@ scenarios:
             partition: 2
             offset: 0
   - id: handles-committed-offset-below-new-log-start
+    expectedBehavior: Reset the truncated committed offset to the new log start and consume both retained records.
     driver:
       provider: kafka-trigger
       sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
@@ -4622,6 +4846,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: consumes-fresh-record-after-log-recovery
+    expectedBehavior: Consume and commit a fresh record after earliest log-truncation recovery.
     body: after-log-recovery
     expectedBody: Triggered
     interactions:
@@ -4637,6 +4862,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: handles-real-log-truncation-with-latest-offset-reset
+  expectedBehavior: Apply latest offset-reset behavior when real log truncation removes the committed position.
   scope: Long
   deployment: basic
   driver:
@@ -4647,6 +4873,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-log-truncation
+    expectedBehavior: Establish committed progress before deleting the beginning of the Kafka log.
     body: before-log-truncation
     expectedBody: Triggered
     interactions:
@@ -4658,6 +4885,7 @@ scenarios:
         properties:
           awaitCommit: true
   - id: handles-committed-offset-below-new-log-start
+    expectedBehavior: Reset the truncated committed offset to the log end and consume only the new sentinel record.
     body: fresh-after-latest-reset
     expectedBody: Triggered
     interactions:
@@ -4692,6 +4920,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: consumes-fresh-record-after-log-recovery
+    expectedBehavior: Consume and commit a fresh record after latest log-truncation recovery.
     body: after-log-recovery
     expectedBody: Triggered
     interactions:
@@ -4704,6 +4933,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: handles-real-log-truncation-with-none-offset-reset
+  expectedBehavior: Apply none offset-reset behavior when real log truncation removes the committed position.
   scope: Long
   deployment: offsets
   driver:
@@ -4714,6 +4944,7 @@ scenarios:
       partition: 0
   invocations:
   - id: commits-before-log-truncation
+    expectedBehavior: Establish committed progress before deleting the beginning of the Kafka log.
     body: before-log-truncation
     expectedBody: Triggered
     interactions:
@@ -4738,6 +4969,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: handles-committed-offset-below-new-log-start
+    expectedBehavior: >-
+      Report OffsetOutOfRangeException without consuming retained records or resetting the committed offset.
     driver:
       provider: kafka-trigger
       sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
@@ -4773,6 +5006,7 @@ scenarios:
       expectedRequest:
         count: 0
   - id: consumes-fresh-record-after-log-recovery
+    expectedBehavior: Repair the committed position explicitly, restart, and consume and commit a fresh record.
     body: after-log-recovery
     expectedBody: Triggered
     interactions:
@@ -4793,6 +5027,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-a-missing-maas-topic-before-starting-the-consumer
+  expectedBehavior: Fail deployment when MaaS cannot resolve the requested topic and start no business consumer.
   scope: Short
   deployment: maas
   driver:
@@ -4809,6 +5044,7 @@ scenarios:
       cause: null
   invocations:
   - id: missing-classifier-resolution
+    expectedBehavior: Report the missing MaaS topic resolution at startup without delivering any records.
     body: must-not-be-published
     interactions:
     - fixture: kafka-maas
@@ -4821,6 +5057,9 @@ scenarios:
           maasTopic: snapshot.kafka.trigger.maas
           maasMissingTopic: true
 - id: resolves-maas-topic-and-consumes-after-successful-deployment
+  expectedBehavior: >-
+    Resolve the MaaS topic and broker settings at deployment and consume and commit records through the generated
+    endpoint.
   scope: Short
   deployment: maas
   driver:
@@ -4830,6 +5069,7 @@ scenarios:
       partition: 0
   invocations:
   - id: consumes-from-resolved-topic
+    expectedBehavior: Resolve the configured MaaS classifier and consume and commit a record from the resolved topic.
     body: maas-resolved
     expectedBody: Triggered
     interactions:
@@ -4845,6 +5085,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: continues-after-maas-bootstrap
+    expectedBehavior: Continue consuming and committing fresh records after the MaaS-backed consumer starts.
     body: maas-following
     expectedBody: Triggered
     interactions:
@@ -4857,6 +5098,8 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: filters-versioned-records-through-sibling-promotion-and-rollback
+  expectedBehavior: >-
+    Apply version filtering as the active deployment becomes legacy and returns to active during rollback.
   scope: Long
   deployment: lifecycle
   driver:
@@ -4866,6 +5109,7 @@ scenarios:
       partition: 0
   invocations:
   - id: active-rejects-candidate-version
+    expectedBehavior: Accept active-version and unversioned work while excluding the sibling candidate version.
     body: active-rejects-candidate-version
     expectedBody: Triggered
     interactions:
@@ -4892,6 +5136,8 @@ scenarios:
     headers:
       X-Version: v1
   - id: legacy-retains-only-its-own-version
+    expectedBehavior: >-
+      After sibling promotion, accept only the legacy deployment version and exclude active or unversioned work.
     body: legacy-retains-only-its-own-version
     expectedBody: Triggered
     interactions:
@@ -4921,6 +5167,7 @@ scenarios:
     headers:
       X-Version: v1
   - id: rollback-restores-unversioned-active-delivery
+    expectedBehavior: After rollback, accept unversioned work again while excluding the old sibling version.
     body: rollback-restores-unversioned-active-delivery
     expectedBody: Triggered
     interactions:
@@ -4945,6 +5192,9 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: promotes-a-candidate-with-real-versioned-group-offsets
+  expectedBehavior: >-
+    Filter candidate-version records and restore active delivery after promotion using native versioned group
+    offsets.
   scope: Long
   deployment: lifecycle
   driver:
@@ -4954,6 +5204,8 @@ scenarios:
       partition: 0
   invocations:
   - id: candidate-accepts-only-candidate-version
+    expectedBehavior: >-
+      Consume only candidate-version records and exclude active-version and unversioned records before promotion.
     body: candidate-accepts-only-candidate-version
     expectedBody: Triggered
     interactions:
@@ -4983,6 +5235,7 @@ scenarios:
     headers:
       X-Version: v2
   - id: promoted-candidate-accepts-unversioned-records
+    expectedBehavior: Promote the candidate, consume unversioned work, and exclude the now-legacy sibling version.
     body: promoted-candidate-accepts-unversioned-records
     expectedBody: Triggered
     interactions:
@@ -5007,6 +5260,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
   - id: promoted-active-retains-versioned-delivery
+    expectedBehavior: Continue consuming and committing records for the promoted deployment version.
     body: promoted-active-retains-versioned-delivery
     expectedBody: Triggered
     interactions:
@@ -5021,6 +5275,7 @@ scenarios:
     headers:
       X-Version: v2
 - id: consumes-exact-buffer-types-and-values
+  expectedBehavior: Preserve native ByteBuffer value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-buffer
@@ -5034,6 +5289,7 @@ scenarios:
       keyEncoding: buffer
   invocations:
   - id: typed-value-1
+    expectedBehavior: Preserve the exact ByteBuffer body [0, 127, 128, 255] and key null, including their native types.
     body:
     - 0
     - 127
@@ -5056,6 +5312,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Preserve the exact ByteBuffer body empty and key [1, 2, 3], including their native types.
     body: []
     driver:
       provider: kafka-trigger
@@ -5077,6 +5334,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: Preserve the exact ByteBuffer body [1, 2, 3] and key empty, including their native types.
     body:
     - 1
     - 2
@@ -5098,6 +5356,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-4
+    expectedBehavior: Preserve the exact ByteBuffer body null and key [0, 127, 128, 255], including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5121,6 +5380,7 @@ scenarios:
         properties:
           awaitCommit: true
 - id: consumes-exact-kafka-bytes-types-and-values
+  expectedBehavior: Preserve native Kafka Bytes value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-kafka-bytes
@@ -5134,6 +5394,7 @@ scenarios:
       keyEncoding: kafka-bytes
   invocations:
   - id: typed-value-1
+    expectedBehavior: Preserve the exact Kafka Bytes body [0, 127, 128, 255] and key null, including their native types.
     body:
     - 0
     - 127
@@ -5156,6 +5417,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Preserve the exact Kafka Bytes body empty and key [1, 2, 3], including their native types.
     body: []
     driver:
       provider: kafka-trigger
@@ -5177,6 +5439,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: Preserve the exact Kafka Bytes body [1, 2, 3] and key empty, including their native types.
     body:
     - 1
     - 2
@@ -5198,6 +5461,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-4
+    expectedBehavior: Preserve the exact Kafka Bytes body null and key [0, 127, 128, 255], including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5221,6 +5485,7 @@ scenarios:
         properties:
           awaitCommit: true
 - id: consumes-exact-short-types-and-values
+  expectedBehavior: Preserve native Short value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-short
@@ -5234,6 +5499,7 @@ scenarios:
       keyEncoding: short
   invocations:
   - id: typed-value-1
+    expectedBehavior: Preserve the exact Short body -32768 and key null, including their native types.
     body: -32768
     driver:
       provider: kafka-trigger
@@ -5252,6 +5518,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Preserve the exact Short body 32767 and key 0, including their native types.
     body: 32767
     driver:
       provider: kafka-trigger
@@ -5270,6 +5537,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: Preserve the exact Short body 0 and key 32767, including their native types.
     body: 0
     driver:
       provider: kafka-trigger
@@ -5288,6 +5556,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-4
+    expectedBehavior: Preserve the exact Short body null and key -32768, including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5307,6 +5576,9 @@ scenarios:
         properties:
           awaitCommit: true
 - id: rejects-malformed-short-without-advancing-offsets
+  expectedBehavior: >-
+    Reject a malformed short payload at the consumer boundary without delivering records or advancing committed
+    offsets.
   reuseBroker: true
   scope: Long
   deployment: typed-short
@@ -5317,6 +5589,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: blocks-on-invalid-value
+    expectedBehavior: >-
+      Report RecordDeserializationException for the malformed short value and keep subsequent records blocked at the
+      same offset.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.short-0 at offset 0. If needed,
@@ -5358,6 +5633,7 @@ scenarios:
               message: Size of data received by ShortDeserializer is not 2
               cause: null
 - id: consumes-exact-float-types-and-values
+  expectedBehavior: Preserve native Float value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-float
@@ -5371,6 +5647,7 @@ scenarios:
       keyEncoding: float
   invocations:
   - id: typed-value-1
+    expectedBehavior: Preserve the exact Float body 3.4028235E38 and key null, including their native types.
     body: 3.4028235E38
     driver:
       provider: kafka-trigger
@@ -5389,6 +5666,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Preserve the exact Float body 1.4E-45 and key -Infinity, including their native types.
     body: '1.4E-45'
     driver:
       provider: kafka-trigger
@@ -5407,6 +5685,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: Preserve the exact Float body -0.0 and key Infinity, including their native types.
     body: '-0.0'
     driver:
       provider: kafka-trigger
@@ -5425,6 +5704,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-4
+    expectedBehavior: Preserve the exact Float body NaN and key NaN, including their native types.
     body: NaN
     driver:
       provider: kafka-trigger
@@ -5443,6 +5723,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-5
+    expectedBehavior: Preserve the exact Float body Infinity and key -0.0, including their native types.
     body: Infinity
     driver:
       provider: kafka-trigger
@@ -5461,6 +5742,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-6
+    expectedBehavior: Preserve the exact Float body -Infinity and key 1.4E-45, including their native types.
     body: -Infinity
     driver:
       provider: kafka-trigger
@@ -5479,6 +5761,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-7
+    expectedBehavior: Preserve the exact Float body null and key 3.4028235E38, including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5498,6 +5781,9 @@ scenarios:
         properties:
           awaitCommit: true
 - id: rejects-malformed-float-without-advancing-offsets
+  expectedBehavior: >-
+    Reject a malformed float payload at the consumer boundary without delivering records or advancing committed
+    offsets.
   reuseBroker: true
   scope: Long
   deployment: typed-float
@@ -5508,6 +5794,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: blocks-on-invalid-value
+    expectedBehavior: >-
+      Report RecordDeserializationException for the malformed float value and keep subsequent records blocked at the
+      same offset.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.float-0 at offset 0. If needed,
@@ -5549,6 +5838,7 @@ scenarios:
               message: Size of data received by Deserializer is not 4
               cause: null
 - id: consumes-exact-double-types-and-values
+  expectedBehavior: Preserve native Double value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-double
@@ -5562,6 +5852,7 @@ scenarios:
       keyEncoding: double
   invocations:
   - id: typed-value-1
+    expectedBehavior: Preserve the exact Double body 1.7976931348623157E308 and key null, including their native types.
     body: 1.7976931348623157E308
     driver:
       provider: kafka-trigger
@@ -5580,6 +5871,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Preserve the exact Double body 4.9E-324 and key -Infinity, including their native types.
     body: '4.9E-324'
     driver:
       provider: kafka-trigger
@@ -5598,6 +5890,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: Preserve the exact Double body -0.0 and key Infinity, including their native types.
     body: '-0.0'
     driver:
       provider: kafka-trigger
@@ -5616,6 +5909,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-4
+    expectedBehavior: Preserve the exact Double body NaN and key NaN, including their native types.
     body: NaN
     driver:
       provider: kafka-trigger
@@ -5634,6 +5928,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-5
+    expectedBehavior: Preserve the exact Double body Infinity and key -0.0, including their native types.
     body: Infinity
     driver:
       provider: kafka-trigger
@@ -5652,6 +5947,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-6
+    expectedBehavior: Preserve the exact Double body -Infinity and key 4.9E-324, including their native types.
     body: -Infinity
     driver:
       provider: kafka-trigger
@@ -5670,6 +5966,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-7
+    expectedBehavior: Preserve the exact Double body null and key 1.7976931348623157E308, including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5689,6 +5986,9 @@ scenarios:
         properties:
           awaitCommit: true
 - id: rejects-malformed-double-without-advancing-offsets
+  expectedBehavior: >-
+    Reject a malformed double payload at the consumer boundary without delivering records or advancing committed
+    offsets.
   reuseBroker: true
   scope: Long
   deployment: typed-double
@@ -5699,6 +5999,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: blocks-on-invalid-value
+    expectedBehavior: >-
+      Report RecordDeserializationException for the malformed double value and keep subsequent records blocked at
+      the same offset.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.double-0 at offset 0. If needed,
@@ -5740,6 +6043,7 @@ scenarios:
               message: Size of data received by DoubleDeserializer is not 8
               cause: null
 - id: consumes-exact-uuid-types-and-values
+  expectedBehavior: Preserve native UUID value and key types, boundary values, and nulls during Kafka delivery.
   reuseBroker: true
   scope: Long
   deployment: typed-uuid
@@ -5753,6 +6057,8 @@ scenarios:
       keyEncoding: uuid
   invocations:
   - id: typed-value-1
+    expectedBehavior: >-
+      Preserve the exact UUID body 00000000-0000-0000-0000-000000000000 and key null, including their native types.
     body: 00000000-0000-0000-0000-000000000000
     driver:
       provider: kafka-trigger
@@ -5771,6 +6077,9 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: >-
+      Preserve the exact UUID body ffffffff-ffff-ffff-ffff-ffffffffffff and key ffffffff-ffff-ffff-ffff-
+      ffffffffffff, including their native types.
     body: ffffffff-ffff-ffff-ffff-ffffffffffff
     driver:
       provider: kafka-trigger
@@ -5789,6 +6098,8 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-3
+    expectedBehavior: >-
+      Preserve the exact UUID body null and key 00000000-0000-0000-0000-000000000000, including their native types.
     body: null
     driver:
       provider: kafka-trigger
@@ -5808,6 +6119,9 @@ scenarios:
         properties:
           awaitCommit: true
 - id: rejects-malformed-uuid-without-advancing-offsets
+  expectedBehavior: >-
+    Reject a malformed uuid payload at the consumer boundary without delivering records or advancing committed
+    offsets.
   reuseBroker: true
   scope: Long
   deployment: typed-uuid
@@ -5818,6 +6132,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: blocks-on-invalid-value
+    expectedBehavior: >-
+      Report RecordDeserializationException for the malformed uuid value and keep subsequent records blocked at the
+      same offset.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.uuid-0 at offset 0. If needed,
@@ -5864,6 +6181,7 @@ scenarios:
                 message: 'Invalid UUID string: invalid-uuid'
                 cause: null
 - id: consumes-exact-void-types-and-values
+  expectedBehavior: Deliver Void-deserialized Kafka records as null bodies and null keys.
   reuseBroker: true
   scope: Long
   deployment: typed-void
@@ -5877,6 +6195,7 @@ scenarios:
       keyEncoding: void
   invocations:
   - id: typed-value-1
+    expectedBehavior: Deliver the record on partition zero with a null body and null key through the Void deserializers.
     body: null
     driver:
       provider: kafka-trigger
@@ -5895,6 +6214,7 @@ scenarios:
       response:
         properties: {}
   - id: typed-value-2
+    expectedBehavior: Deliver and commit the record on partition one with a null body and null key.
     body: null
     driver:
       provider: kafka-trigger
@@ -5914,6 +6234,9 @@ scenarios:
         properties:
           awaitCommit: true
 - id: rejects-malformed-void-without-advancing-offsets
+  expectedBehavior: >-
+    Reject a malformed void payload at the consumer boundary without delivering records or advancing committed
+    offsets.
   reuseBroker: true
   scope: Long
   deployment: typed-void
@@ -5924,6 +6247,9 @@ scenarios:
       awaitConsumerFailure: true
   invocations:
   - id: blocks-on-invalid-value
+    expectedBehavior: >-
+      Report RecordDeserializationException for the malformed void value and keep subsequent records blocked at the
+      same offset.
     expectedFailure:
       type: org.apache.kafka.common.errors.RecordDeserializationException
       message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.void-0 at offset 0. If needed,
@@ -5965,6 +6291,7 @@ scenarios:
               message: Data should be null for a VoidDeserializer.
               cause: null
 - id: authenticates-and-recovers-over-ssl-only
+  expectedBehavior: Consume through SSL without SASL and recover the same consumer after a transport outage.
   scope: Long
   deployment: ssl-only
   driver:
@@ -5975,6 +6302,7 @@ scenarios:
       partition: 0
   invocations:
   - id: initial-secure-record
+    expectedBehavior: Consume and commit a record through a successful SSL handshake without SASL authentication.
     body: initial-secure-record
     expectedBody: Triggered
     interactions:
@@ -5986,6 +6314,7 @@ scenarios:
           awaitCommit: true
           minSuccessfulTlsHandshakes: 1
   - id: backlog-during-connection-outage
+    expectedBehavior: Reconnect through SSL and consume and commit the record queued during the connection outage.
     body: after-ssl-disconnect
     expectedBody: Triggered
     interactions:
@@ -5998,6 +6327,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulTlsHandshakes: 2
 - id: authenticates-and-recovers-over-scram-256
+  expectedBehavior: >-
+    Authenticate with SCRAM-SHA-256, reject a revoked credential, and recover after the credential is restored.
   scope: Long
   deployment: scram-256
   driver:
@@ -6008,6 +6339,7 @@ scenarios:
       partition: 0
   invocations:
   - id: initial-secure-record
+    expectedBehavior: Consume and commit the initial record over TLS with SCRAM-SHA-256 authentication.
     body: initial-secure-record
     expectedBody: Triggered
     interactions:
@@ -6019,6 +6351,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulTlsHandshakes: 1
   - id: denies-revoked-scram-credential
+    expectedBehavior: >-
+      Reject the revoked SCRAM-SHA-256 credential without business delivery or committed offset progress.
     driver:
       provider: kafka-trigger
       sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
@@ -6046,6 +6380,7 @@ scenarios:
             cause: null
           minFailedAuthentications: 1
   - id: consumes-backlog-after-restoring-scram-credential
+    expectedBehavior: Restore the SCRAM-SHA-256 credential, reauthenticate, and consume and commit the queued record.
     driver:
       provider: kafka-trigger
       sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
@@ -6063,6 +6398,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulAuthentications: 2
 - id: authenticates-and-recovers-over-scram-512
+  expectedBehavior: >-
+    Authenticate with SCRAM-SHA-512, reject a revoked credential, and recover after the credential is restored.
   scope: Long
   deployment: scram-512
   driver:
@@ -6073,6 +6410,7 @@ scenarios:
       partition: 0
   invocations:
   - id: initial-secure-record
+    expectedBehavior: Consume and commit the initial record over TLS with SCRAM-SHA-512 authentication.
     body: initial-secure-record
     expectedBody: Triggered
     interactions:
@@ -6084,6 +6422,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulTlsHandshakes: 1
   - id: denies-revoked-scram-credential
+    expectedBehavior: >-
+      Reject the revoked SCRAM-SHA-512 credential without business delivery or committed offset progress.
     driver:
       provider: kafka-trigger
       sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
@@ -6111,6 +6451,7 @@ scenarios:
             cause: null
           minFailedAuthentications: 1
   - id: consumes-backlog-after-restoring-scram-credential
+    expectedBehavior: Restore the SCRAM-SHA-512 credential, reauthenticate, and consume and commit the queued record.
     driver:
       provider: kafka-trigger
       sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
@@ -6128,6 +6469,8 @@ scenarios:
           awaitCommit: true
           minSuccessfulAuthentications: 2
 - id: limits-each-native-poll-to-exported-max-poll-records
+  expectedBehavior: >-
+    Drain all queued records while each native poll respects the max.poll.records value exported in the chain.
   reuseBroker: true
   scope: Long
   deployment: poll-limit
@@ -6138,6 +6481,9 @@ scenarios:
       consumeStartup: true
   invocations:
   - id: drains-seven-records-in-bounded-batches
+    expectedBehavior: >-
+      Consume and commit all seven queued records while every observed native poll stays within the configured
+      limit.
     expectedBody:
     - Triggered
     - Triggered
@@ -6184,8 +6530,12 @@ scenarios:
     parameters:
       partition: 0
   id: promotes-a-candidate-with-divergent-offsets-and-unread-backlog
+  expectedBehavior: >-
+    Promote a candidate with divergent offsets using active progress and replay the retained unread suffix.
   invocations:
   - id: candidate-progress-ahead-of-active
+    expectedBehavior: >-
+      Establish candidate progress ahead of the active group while retaining unread records for the transition.
     body: candidate-already-processed
     expectedBody: Triggered
     interactions:
@@ -6221,6 +6571,8 @@ scenarios:
     headers:
       X-Version: v2
   - id: promotes-from-active-offset-and-replays-retained-suffix
+    expectedBehavior: >-
+      Promote from the active group offset and process the declared replay records and retained unread backlog.
     driver:
       provider: kafka-trigger
       sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
@@ -6253,6 +6605,7 @@ scenarios:
             body: new-record-published-during-transition
           awaitCommit: true
   - id: new-record-after-promotion
+    expectedBehavior: Consume and commit a fresh record after promotion without stale transition state.
     body: after-promotion
     expectedBody: Triggered
     interactions:
@@ -6270,8 +6623,11 @@ scenarios:
     parameters:
       partition: 0
   id: rolls-back-with-divergent-offsets-and-unread-backlog
+  expectedBehavior: >-
+    Restore the legacy deployment as active using current active offsets and consume the retained unread suffix.
   invocations:
   - id: legacy-progress-ahead-of-active
+    expectedBehavior: Establish legacy progress ahead of the active group while excluding records for the other version.
     body: legacy-already-processed
     expectedBody: Triggered
     interactions:
@@ -6307,6 +6663,7 @@ scenarios:
     headers:
       X-Version: v1
   - id: rollback-inherits-active-offset-and-processes-unread-suffix
+    expectedBehavior: Roll back to the active group offset and process the declared replay record and unread suffix.
     driver:
       provider: kafka-trigger
       sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
@@ -6336,6 +6693,7 @@ scenarios:
             body: unversioned-backlog-after-rollback
           awaitCommit: true
   - id: new-record-after-rollback
+    expectedBehavior: Consume and commit a fresh record after rollback without stale transition state.
     body: after-rollback
     expectedBody: Triggered
     interactions:
@@ -6353,8 +6711,11 @@ scenarios:
     parameters:
       partition: 0
   id: preserves-in-flight-record-and-commits-after-broker-process-loss
+  expectedBehavior: >-
+    Finish in-flight work through broker process loss, recover commits, and avoid replay after consumer restart.
   invocations:
   - id: establishes-committed-progress
+    expectedBehavior: Consume and commit the baseline record before losing the broker process.
     body: before-crash
     expectedBody: Triggered
     interactions:
@@ -6365,6 +6726,8 @@ scenarios:
         properties:
           awaitCommit: true
   - id: kills-broker-before-processing-completes
+    expectedBehavior: >-
+      Finish held processing through broker loss and recover its commit, allowing the declared redelivery.
     body: held-during-crash
     expectedBody: Triggered
     interactions:
@@ -6378,6 +6741,7 @@ scenarios:
           allowRedelivery: true
     timeoutSeconds: 180
   - id: excludes-committed-record-after-consumer-restart
+    expectedBehavior: Restart the consumer without replaying the record whose commit completed after broker recovery.
     body: after-crash-restart
     expectedBody: Triggered
     interactions:

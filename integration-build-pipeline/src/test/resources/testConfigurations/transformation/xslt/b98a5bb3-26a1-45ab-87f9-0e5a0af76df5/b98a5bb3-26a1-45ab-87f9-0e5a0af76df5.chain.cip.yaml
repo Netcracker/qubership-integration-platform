@@ -15,9 +15,44 @@ content:
     type: "xslt"
     properties:
       templateName: "transform.xslt"
+  - id: "e3bbe9ff-7292-5f07-983c-6b53ad59266d"
+    name: "Namespace parameters"
+    type: "xslt"
+    properties:
+      templateName: "xslt/namespace-parameters.xslt"
+  - id: "55b9f1e6-ca18-5483-b0ca-6792d0dd7290"
+    name: "Included text template"
+    type: "xslt"
+    properties:
+      templateName: "xslt/included-text.xslt"
+  - id: "d9a69e12-9dce-5b10-99a2-0eb1525fdcd0"
+    name: "Missing stylesheet"
+    type: "xslt"
+    properties:
+      templateName: "xslt/missing-component-stylesheet.xslt"
+  - id: "fa30fc3b-b97a-54c7-a1d3-ae3aded27cf2"
+    name: "Invalid stylesheet"
+    type: "xslt"
+    properties:
+      templateName: "xslt/invalid-template.xslt"
+  - id: "77b80a5b-968a-5ae5-ba09-56da563e19b4"
+    name: "Terminating stylesheet"
+    type: "xslt"
+    properties:
+      templateName: "xslt/terminating-template.xslt"
   dependencies:
   - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
     to: "85718c16-bb01-47d6-8eeb-f3046ff0a318"
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "e3bbe9ff-7292-5f07-983c-6b53ad59266d"
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "55b9f1e6-ca18-5483-b0ca-6792d0dd7290"
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "d9a69e12-9dce-5b10-99a2-0eb1525fdcd0"
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "fa30fc3b-b97a-54c7-a1d3-ae3aded27cf2"
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "77b80a5b-968a-5ae5-ba09-56da563e19b4"
   deployments:
   - domain: "default"
   deployAction: "DEPLOY"

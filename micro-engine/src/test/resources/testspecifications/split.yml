@@ -26,6 +26,9 @@ fixtures:
     sourceElementId: "1b04978c-98dc-4fc9-89ed-0a4d58bd416e"
 scenarios:
   - id: "executes-branches-in-parallel-and-aggregates-results"
+    expectedBehavior: >-
+      Execute both branches concurrently, aggregate both result bodies, and propagate the configured branch
+      headers and properties.
     scope: Short
     endpointUri: "cip-chain:1a029906-e0f8-457f-9a2e-d805e0f933e6"
     body: "Original"
@@ -68,10 +71,16 @@ scenarios:
         expectedExchanges: []
 
   - id: "stops-after-secondary-branch-failure-when-stop-on-exception-is-enabled"
+    expectedBehavior: >-
+      Propagate the secondary branch failure as CamelExchangeException and skip processing after Split when
+      stop-on-exception is enabled.
     scope: Short
     endpointUri: "cip-chain:94985917-7854-4148-bb30-9a6245a76c94"
     invocations:
       - id: "fails-without-continuing-after-split"
+        expectedBehavior: >-
+          Propagate the secondary branch failure as CamelExchangeException and skip processing after Split when
+          stop-on-exception is enabled.
         body: "Original"
         expectedFailure:
           type: "org.apache.camel.CamelExchangeException"
@@ -95,6 +104,7 @@ scenarios:
             expectedExchanges: []
 
   - id: "continues-after-secondary-branch-failure-when-stop-on-exception-is-disabled"
+    expectedBehavior: "Return the successful main branch and continue after Split despite the secondary branch failure."
     scope: Short
     endpointUri: "cip-chain:2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
     body: "Original"
@@ -118,6 +128,9 @@ scenarios:
         expectedExchanges: []
 
   - id: "propagates-secondary-headers-and-properties-only-when-enabled"
+    expectedBehavior: >-
+      Aggregate all branch results while copying secondary headers and properties only for branches whose
+      propagation options enable them.
     scope: Short
     endpointUri: "cip-chain:9a569606-e358-409f-ae18-cdd32ed3858e"
     body: "Original"
@@ -151,6 +164,9 @@ scenarios:
         expectedExchanges: []
 
   - id: "continues-after-timeout-before-secondary-branch-completes"
+    expectedBehavior: >-
+      Return the main branch and continue after the Split timeout, then observe the delayed secondary branch
+      finish independently.
     scope: Long
     endpointUri: "cip-chain:4382af5b-9143-4139-9a77-8b3546a96e08"
     body: "Original"
