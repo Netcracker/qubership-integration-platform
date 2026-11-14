@@ -31,6 +31,9 @@ import (
 	koanfenv "github.com/knadh/koanf/providers/env"
 	koanffile "github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+	"github.com/netcracker/qubership-core-lib-go/v3/configloader"
+	"github.com/netcracker/qubership-core-lib-go/v3/security"
+	"github.com/netcracker/qubership-core-lib-go/v3/serviceloader"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
@@ -102,6 +105,9 @@ type appConfig struct {
 		Schema         string `koanf:"schema"`
 		MaxConnections int    `koanf:"maxconnections"`
 	} `koanf:"postgres"`
+	DbaaS struct {
+		Enabled bool `koanf:"enabled"`
+	} `koanf:"dbaas"`
 	Catalog struct {
 		Address string `koanf:"address"`
 	} `koanf:"catalog"`
@@ -132,6 +138,10 @@ type appConfig struct {
 	// CIP_TESTING_ variable sets it. It is left unset when the variable is, and
 	// the library reads that as production.
 	Production *bool `koanf:"-"`
+}
+
+func init() {
+	serviceloader.Register(1, &security.DummyToken{})
 }
 
 // defaultAppConfig covers only the settings this binary owns. The rest stays
@@ -227,6 +237,16 @@ func newHealthHandler(ping func(context.Context) error) fiber.Handler {
 				JSON(fiber.Map{"status": "DOWN", "error": err.Error()})
 		}
 		return c.JSON(fiber.Map{"status": "UP"})
+	}
+}
+
+func databasePing(database testingservice.DB) func(context.Context) error {
+	return func(ctx context.Context) error {
+		bunDB, err := database.GetBunDb(ctx)
+		if err != nil {
+			return err
+		}
+		return bunDB.PingContext(ctx)
 	}
 }
 
@@ -407,6 +427,48 @@ func prepareDatabase(ctx context.Context, bunDB *bun.DB, schema string, logger *
 	return nil
 }
 
+func openDatabase(cfg appConfig) (testingservice.DB, func() error, error) {
+	if cfg.DbaaS.Enabled {
+		if err := validateDbaaSEnvironment(); err != nil {
+			return nil, nil, err
+		}
+		if !configloader.IsConfigLoaderInited() {
+			configloader.Init(configloader.EnvPropertySource())
+		}
+		database, err := db.NewDbaaS()
+		return database, func() error { return nil }, err
+	}
+
+	if cfg.Postgres.DSN == "" {
+		return nil, nil, errors.New("postgres.dsn is not set")
+	}
+	database, err := db.New(db.Options{
+		DSN:             cfg.Postgres.DSN,
+		User:            cfg.Postgres.User,
+		Password:        cfg.Postgres.Password,
+		ApplicationName: serviceName,
+		MaxOpenConns:    cfg.Postgres.MaxConnections,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return database, database.Close, nil
+}
+
+func validateDbaaSEnvironment() error {
+	required := []string{"MICROSERVICE_NAME", "MICROSERVICE_NAMESPACE"}
+	var missing []string
+	for _, name := range required {
+		if strings.TrimSpace(os.Getenv(name)) == "" {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf("DBaaS requires environment variables: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("The testing service stopped", "error", err)
@@ -425,21 +487,12 @@ func run() error {
 	logger := newLogger(os.Stdout, cfg.Log.Level, cfg.Log.Format)
 	slog.SetDefault(logger)
 
-	if cfg.Postgres.DSN == "" {
-		return errors.New("postgres.dsn is not set")
-	}
-	database, err := db.New(db.Options{
-		DSN:             cfg.Postgres.DSN,
-		User:            cfg.Postgres.User,
-		Password:        cfg.Postgres.Password,
-		ApplicationName: serviceName,
-		MaxOpenConns:    cfg.Postgres.MaxConnections,
-	})
+	database, closeDatabase, err := openDatabase(cfg)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := database.Close(); err != nil {
+		if err := closeDatabase(); err != nil {
 			logger.Error("Cannot close the database", "error", err)
 		}
 	}()
@@ -449,14 +502,19 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	pingDatabase := databasePing(database)
+	if err := waitForPostgres(ctx, pingDatabase, sleepContext, logger); err != nil {
+		return err
+	}
 	bunDB, err := database.GetBunDb(ctx)
 	if err != nil {
 		return err
 	}
-	if err := waitForPostgres(ctx, bunDB.PingContext, sleepContext, logger); err != nil {
-		return err
+	schema := cfg.Postgres.Schema
+	if cfg.DbaaS.Enabled {
+		schema = ""
 	}
-	if err := prepareDatabase(ctx, bunDB, cfg.Postgres.Schema, logger); err != nil {
+	if err := prepareDatabase(ctx, bunDB, schema, logger); err != nil {
 		return err
 	}
 
@@ -482,7 +540,7 @@ func run() error {
 		BodyLimit:             cfg.Server.BodyLimit,
 	})
 	app.Use(fiberrecover.New())
-	app.Get("/health", newHealthHandler(bunDB.PingContext))
+	app.Get("/health", newHealthHandler(pingDatabase))
 	app.Get("/prometheus", adaptor.HTTPHandler(promhttp.Handler()))
 	svc.Mount(app.Group(apiPrefix))
 	// The UI and the spec sit under the API prefix, since that is the only path
