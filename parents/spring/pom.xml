@@ -56,7 +56,7 @@
     <amqp-client.version>5.34.0</amqp-client.version>
     <antlr4.version>4.13.2</antlr4.version>
     <atlasmap.version>2.5.2</atlasmap.version>
-    <camel.version>4.18.2</camel.version>
+    <camel.version>4.22.2</camel.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <commons-collections4.version>4.5.0</commons-collections4.version>
     <commons-io.version>2.22.0</commons-io.version>
@@ -65,6 +65,7 @@
     <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
+    <google-auth.version>1.50.0</google-auth.version>
     <google-guava.version>33.7.2-jre</google-guava.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
     <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
@@ -90,6 +91,7 @@
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <postgresql.version>42.7.11</postgresql.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
+    <protobuf-engine.version>4.33.6</protobuf-engine.version>
     <reflections.version>0.10.2</reflections.version>
     <snappy-java.version>1.1.10.9</snappy-java.version>
     <soa-model-core.version>1.6.4</soa-model-core.version>
