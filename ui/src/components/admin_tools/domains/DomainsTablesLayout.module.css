@@ -41,5 +41,4 @@
 .nestedTable {
   width: 100%;
   min-width: 0;
-  background: var(--vscode-editor-background);
 }

@@ -62,19 +62,17 @@ export const DeploymentsTable: React.FC<Props> = ({
   );
 
   return (
-    <div className={layoutStyles.nestedTableHost}>
-      <Spin spinning={isLoading}>
-        <Table
-          rowKey="id"
-          className={layoutStyles.nestedTable}
-          columns={columnsWithResize}
-          dataSource={deployments}
-          pagination={false}
-          size="small"
-          tableLayout="fixed"
-          components={components}
-        />
-      </Spin>
-    </div>
+    <Spin spinning={isLoading}>
+      <Table
+        rowKey="id"
+        className={layoutStyles.nestedTable}
+        columns={columnsWithResize}
+        dataSource={deployments}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        components={components}
+      />
+    </Spin>
   );
 };

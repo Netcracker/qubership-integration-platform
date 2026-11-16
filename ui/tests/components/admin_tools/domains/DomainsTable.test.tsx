@@ -178,7 +178,7 @@ describe("DomainsTable", () => {
     expect(main).toHaveClass(layoutStyles.mainTable);
   });
 
-  test("wraps expanded row content with nestedExpandWrap", () => {
+  test("renders the engines table in the expanded row", () => {
     const { container } = render(<DomainsTable domains={[nativeDomain]} />);
 
     const expander = container.querySelector(
@@ -187,9 +187,7 @@ describe("DomainsTable", () => {
     expect(expander).toBeTruthy();
     fireEvent.click(expander!);
 
-    const wrap = document.querySelector(`.${layoutStyles.nestedExpandWrap}`);
-    expect(wrap).toBeInTheDocument();
-    expect(wrap).toContainElement(screen.getByTestId("engine-table-stub"));
+    expect(screen.getByTestId("engine-table-stub")).toBeInTheDocument();
   });
 
   test("expanded row shows engines load error and calls retry", async () => {
@@ -228,7 +226,7 @@ describe("DomainsTable", () => {
   test("table scroll omits y when search filters out all domains", async () => {
     render(<DomainsTable domains={[nativeDomain]} />);
 
-    fireEvent.change(screen.getByPlaceholderText("Search domains..."), {
+    fireEvent.change(screen.getByPlaceholderText("Search domains"), {
       target: { value: "no-such-domain-zzz" },
     });
 
@@ -249,7 +247,7 @@ describe("DomainsTable", () => {
       />,
     );
 
-    const search = screen.getByPlaceholderText("Search domains...");
+    const search = screen.getByPlaceholderText("Search domains");
     const allNames = [
       "alpha-domain",
       "beta-domain",

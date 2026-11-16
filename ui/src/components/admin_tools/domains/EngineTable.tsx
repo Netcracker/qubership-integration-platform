@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Flex, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Flex, Spin, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Engine, RunningStatus } from "../../../api/apiTypes.ts";
 import { DeploymentsTable } from "./DeploymentsTable";
@@ -7,8 +7,8 @@ import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
 import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
-import { TableToolbar } from "../../table/TableToolbar";
 import layoutStyles from "./DomainsTablesLayout.module.css";
+import { PodStatusValue } from "./PodStatusValue.tsx";
 
 interface Props {
   onRefresh?: () => Promise<void>;
@@ -31,32 +31,22 @@ const columns: ColumnsType<Engine> = [
     render: (text) => (
       <Typography.Text type="secondary">{text}</Typography.Text>
     ),
-    align: "right",
   },
   {
     title: "State",
     dataIndex: "runningStatus",
     key: "runningStatus",
     render: (status: RunningStatus) => (
-      <Flex align={"center"} justify={"flex-end"}>
         <RunningStatusValue status={status} />
-      </Flex>
     ),
-    align: "right",
   },
   {
     title: "Pod status",
     dataIndex: "ready",
     key: "ready",
     render: (ready: boolean) => {
-      const statusText = ready ? "Ready" : "Not Ready";
-      return (
-        <Flex align={"center"} justify={"flex-end"}>
-          <Tag color={ready ? "green" : "red"}>{statusText.toUpperCase()}</Tag>
-        </Flex>
-      );
+      return <PodStatusValue ready={ready} />;
     },
-    align: "right",
   },
 ];
 
@@ -71,9 +61,7 @@ const DeploymentsForEngine: React.FC<{
   if (error) {
     return (
       <Flex align="center" gap={8} wrap="wrap">
-        <Typography.Text type="danger" style={{ margin: 0 }}>
-          Error while loading engines list {engine.name}.
-        </Typography.Text>
+        <Alert title={`Error while loading engines list ${engine.name}`} />
         <Button onClick={() => void retry()}>Retry</Button>
       </Flex>
     );
@@ -84,7 +72,6 @@ const DeploymentsForEngine: React.FC<{
 
 export const EngineTable: React.FC<Props> = ({
   engines,
-  onRefresh,
   isLoading = false,
   domainName,
 }) => {
@@ -103,10 +90,6 @@ export const EngineTable: React.FC<Props> = ({
   );
 
   return (
-    <div className={layoutStyles.nestedTableHost}>
-      <TableToolbar
-        refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}
-      />
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
@@ -120,9 +103,7 @@ export const EngineTable: React.FC<Props> = ({
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (engine) => (
-              <div className={layoutStyles.nestedExpandWrap}>
                 <DeploymentsForEngine engine={engine} domainName={domainName} />
-              </div>
             ),
             expandedRowKeys: expandedRowKeys,
             onExpandedRowsChange: (expandedKeys) =>
@@ -131,6 +112,5 @@ export const EngineTable: React.FC<Props> = ({
           }}
         />
       </Spin>
-    </div>
   );
 };

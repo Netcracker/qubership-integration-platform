@@ -142,19 +142,16 @@ const DomainsTable: React.FC<Props> = ({
         title: "Version",
         dataIndex: "version",
         key: "version",
-        align: "right",
       },
       {
         title: "Desired engines",
         dataIndex: "replicas",
         key: "replicas",
-        align: "right",
       },
       {
         title: "Namespace",
         dataIndex: "namespace",
         key: "namespace",
-        align: "right",
       },
     ],
     [confirmDeleteMicroDomain],
@@ -198,7 +195,7 @@ const DomainsTable: React.FC<Props> = ({
             search={{
               value: searchTerm,
               onChange: setSearchTerm,
-              placeholder: "Search domains...",
+              placeholder: "Search domains",
             }}
             columnSettingsButton={columnSettingsButton}
           />
@@ -218,11 +215,7 @@ const DomainsTable: React.FC<Props> = ({
           onChange={handleConfiguredTableChange}
           expandable={{
             expandIcon: treeExpandIcon(),
-            expandedRowRender: (record) => (
-              <div className={layoutStyles.nestedExpandWrap}>
-                <EnginesForDomain domain={record} />
-              </div>
-            ),
+            expandedRowRender: (record) => <EnginesForDomain domain={record} />,
             expandedRowKeys: expandedRowKeys,
             onExpandedRowsChange: (expandedKeys) =>
               setExpandedRowKeys(expandedKeys as React.Key[]),
