@@ -19,7 +19,8 @@ Application parameters can be set by environment variables.
 | ROOT_LOG_LEVEL                          | INFO                 | Logging level                                                                                                                |
 | LOG_FORMAT                              | json                 | Logging format. Values: json, text                                                                                                                 |
 | CONSUL_URL                              | `http://consul:8500` | Consul URL                                                                                                                   |
-| CONSUL_ADMIN_TOKEN                      |                      | Consul assess token                                                                                                          |
+| CONSUL_ADMIN_TOKEN_FILE                 | `/etc/secrets/pod-secrets/consul_admin_token` | Path of the file that holds the Consul admin token. The service uses the file content when the file is readable and not empty, and falls back to `CONSUL_ADMIN_TOKEN` otherwise. |
+| CONSUL_ADMIN_TOKEN                      |                      | Deprecated, use `CONSUL_ADMIN_TOKEN_FILE`. Consul admin token, used when the token file is missing, unreadable, or empty. The service logs a warning when it takes the token from this variable. |
 | MAX_UPLOAD_MULTIPART_FILE_SIZE          | 25                   | Maximum file size to upload, MB. Limits data size for upload operations like sessions import.                                |
 | MICROSERVICE_NAME                       |                      | Microservice name.                                                                                                           |
 | DEPLOYMENT_VERSION                      | v1                   | Deployment version for bluegreen.                                                                                            |

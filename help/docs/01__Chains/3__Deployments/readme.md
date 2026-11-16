@@ -50,7 +50,7 @@ Click **"Create deployment"** button marked with ![plus](img/plus.svg). The wind
 - **Domains** - choose one or more engine domains to deploy the snapshot on. Select from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain (tagged with **`micro`**). Availability of each domain type depends on configuration — see [Domains](../../03__Admin_Tools/1__Domains/readme.md). Selecting several domains at once creates a separate deployment entry for each one.
 - **Snapshot** - version of chain you want to deploy.
 
-> ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/readme.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.
+> ℹ️  **After manual [snapshot](../2__Snapshots/readme.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.
 
 ### Delete Deployment
 If you want to **delete deployment**, click ![delete](img/delete.svg) on the right side of deployment.

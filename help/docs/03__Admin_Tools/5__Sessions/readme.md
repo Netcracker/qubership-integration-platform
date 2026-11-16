@@ -41,7 +41,7 @@ Table contains sessions, aggregated by correlation identifier, if it is availabl
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
-  > ℹ️ **Note:** When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
+  > ℹ️  When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
   - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter sessions by **Chain**, **Status**, **Start Time**, **Finish Time**, and **Engine**.
   - ![Settings|20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **ID**.
   - ![Delete|20](img/delete.svg) - deletes selected session(s).
@@ -49,7 +49,7 @@ At the top of the table the following options are available:
   - ![Upload|20](img/cloud-upload.svg) - opens pop-up for session import.
   - ![Redo|20](img/redo.svg) - refreshes session table.
 
-> ℹ️ **Note:** Imported sessions will be highlighted in the table. For such sessions, references to the chain and chain elements won't be available.
+> ℹ️  Imported sessions will be highlighted in the table. For such sessions, references to the chain and chain elements won't be available.
 
 Additionally, at the top of the table there is search box providing ability to find particular session(s) by body field name, body field value, header name or header value.
 
@@ -76,7 +76,7 @@ Next information is available, when element's name clicked and window with its d
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
 - **Body** tab - contains before/after states of request body, participated in the processing.  Slider **"View diff"** highlights payloads differences.
 - **Headers** tab - contains the list of headers and their before/after values.
-    > ℹ️ **Note:** For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
+    > ℹ️  For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
 - **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../05__How_To/1__Build_Logic_Around_Failed_Elements/readme.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that has been received by the chain.
 

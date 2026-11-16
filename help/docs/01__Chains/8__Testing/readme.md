@@ -13,7 +13,7 @@ The **Testing** tab collects everything needed to exercise a single chain withou
 
 Test cases and endpoint mocks are handled by a separate testing service, which reads the chain configuration from the runtime catalog and calls the deployed chain through the engine. The chain therefore has to be [deployed](../3__Deployments/readme.md) before a test case can run, and the trigger a test case points at has to be an **HTTP Trigger** with a configured context path - no other trigger type can be activated.
 
-> ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode).
+> ℹ️  The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode).
 > On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
 
 ## User Interface
@@ -53,7 +53,7 @@ Rows are loaded page by page as the table is scrolled. When some rows are still 
 
 Click anywhere in a row except a link cell to open the **Test Case Details** side panel, which repeats the fields above in read-only form. The link cells navigate instead: **Name** opens the test case editor and **Element** opens the element in the chain graph.
 
-> ℹ️ **Note:** Importing test cases is available only from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md); creating one is available only here, because a new test case needs a chain to pick its trigger from.
+> ℹ️  Importing test cases is available only from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md); creating one is available only here, because a new test case needs a chain to pick its trigger from.
 
 ### Create a Test Case
 Click **Create a test case** and fill in the dialog:
@@ -155,27 +155,27 @@ Both editors use the same table. A row is one rule, and it has the following col
 
 The toolbar above the table adds a rule, deletes the checked rules, and enables or disables them in bulk. A local search filters the rows already in the table; typing in it clears the checked rows, so a bulk action never reaches a row the search has hidden.
 
-> ℹ️ **Note:** Press **Enter** or click outside the **Name** or **Description** cell to apply a valid edit to the test case or endpoint mock draft. Click **Save** to save the draft.
+> ℹ️  Press **Enter** or click outside the **Name** or **Description** cell to apply a valid edit to the test case or endpoint mock draft. Click **Save** to save the draft.
 
 Conditions and the parameters they take:
 
-| Condition | Parameters | Description |
-|---|---|---|
-| **Empty** | none | the value is empty |
-| **Exists** | none | the value is present |
-| **Equals** | value | the value equals the parameter. For **HTTP response status code** the parameter is picked from a list of status codes |
-| **Contains** | value | the value contains the parameter |
-| **Matches pattern** | pattern | the value matches the regular expression |
-| **Starts with** | value | the value starts with the parameter |
-| **Ends with** | value | the value ends with the parameter |
-| **Matches JSON Schema** | path, schema | the JSON at the given path validates against the schema |
-| **Matches JSON** | path, sample | the JSON at the given path matches the sample |
+| Condition               | Parameters   | Description                                                                                                           |
+|-------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| **Empty**               | none         | the value is empty                                                                                                    |
+| **Exists**              | none         | the value is present                                                                                                  |
+| **Equals**              | value        | the value equals the parameter. For **HTTP response status code** the parameter is picked from a list of status codes |
+| **Contains**            | value        | the value contains the parameter                                                                                      |
+| **Matches pattern**     | pattern      | the value matches the regular expression                                                                              |
+| **Starts with**         | value        | the value starts with the parameter                                                                                   |
+| **Ends with**           | value        | the value ends with the parameter                                                                                     |
+| **Matches JSON Schema** | path, schema | the JSON at the given path validates against the schema                                                               |
+| **Matches JSON**        | path, sample | the JSON at the given path matches the sample                                                                         |
 
 The last two open a dedicated editor with a **Path** field, holding a JSON path and defaulting to `$`, and a code editor for the schema or the sample.
 
 Changing the **Condition** of a rule clears its parameters, because the parameters of one condition never fit another. Changing the **Entity Type** to one that needs no name clears the entity name. A rule that is missing a name, an entity name or a parameter is marked in the table, and the editor's **Save** stays disabled until it is completed.
 
-> ℹ️ **Note:** A rule that cannot be evaluated at run time does not stop the work around it. A mock carrying such a rule is passed over, and the call falls through to the next mock; a broken response validation rule is recorded as a validation error and the test case run still finishes.
+> ℹ️  A rule that cannot be evaluated at run time does not stop the work around it. A mock carrying such a rule is passed over, and the call falls through to the next mock; a broken response validation rule is recorded as a validation error and the test case run still finishes.
 
 ### Run Test Cases
 Select test cases in the table and click **Run selected test cases**. The service creates a **test run** over them and reports it with a notification naming the run identifier. The notification links to the run only when the cases were started from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md), because that is where the runs list lives and chain rights alone do not open it.
@@ -220,7 +220,7 @@ The table lists the case runs of the chain, sorted by start time descending. The
 
 Case runs cannot be deleted on their own; they are removed with the test run that holds them.
 
-> ℹ️ **Note:** Canceling reaches only the case runs that have not started yet. A case run already in **_Running_** keeps running, and the confirmation says so.
+> ℹ️  Canceling reaches only the case runs that have not started yet. A case run already in **_Running_** keeps running, and the confirmation says so.
 
 Clicking a row opens the **Test Case Run Details** side panel.
 
@@ -275,11 +275,11 @@ Calls that are intercepted:
 
 A Service Call over Kafka, AMQP or gRPC is never intercepted, and neither is an **HTTP Trigger**, which receives calls rather than making them.
 
-> ℹ️ **Note:** A **GraphQL Sender**, and a **Service Call** over GraphQL, are not intercepted either: a mock cannot be bound to them in the first place, and the engine cannot tell which run a GraphQL call belongs to, because the Camel producer behind those elements builds its own client call and passes no exchange. They reach their real endpoint during a test case run, so a test that exercises a chain with a GraphQL element calls the live system.
+> ℹ️  A **GraphQL Sender**, and a **Service Call** over GraphQL, are not intercepted either: a mock cannot be bound to them in the first place, and the engine cannot tell which run a GraphQL call belongs to, because the Camel producer behind those elements builds its own client call and passes no exchange. They reach their real endpoint during a test case run, so a test that exercises a chain with a GraphQL element calls the live system.
 
 The switch and the testing service address are engine settings, described under [Engine Settings](#engine-settings).
 
-> ℹ️ **Note:** Whatever the element sends, the testing service receives - authorization headers, API keys, cookies and secrets in the query string included. Enable mocking only where the testing service is trusted with that traffic.
+> ℹ️  Whatever the element sends, the testing service receives - authorization headers, API keys, cookies and secrets in the query string included. Enable mocking only where the testing service is trusted with that traffic.
 
 ## Configuration
 
@@ -321,7 +321,7 @@ config/<NAMESPACE>/cip-engine/cip/testing/address = http://<TESTING_SERVICE_HOST
 
 A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`. A key under the engine path takes precedence over the same key under `application`.
 
-> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `cip/testing/enabled` or `cip/testing/address` in Consul.
+> ℹ️  The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `cip/testing/enabled` or `cip/testing/address` in Consul.
 
 ## Constraints
 

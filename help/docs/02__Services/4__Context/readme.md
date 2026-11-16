@@ -4,7 +4,7 @@
 ---
 Context Services are being used as a temporary storage of chain contexts. Chain context lifetime is limited and configurable, please check [Context Storage](../../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/readme.md) to get more details.
 
-> ⚠️ **Warning:** Context services **shall NOT be used** to store/manage sensitive data.
+> ⚠️ Context services **shall NOT be used** to store/manage sensitive data.
 
 ## Process Initialization
 
@@ -24,7 +24,7 @@ Table with **Context** services is accessible by navigating to **Services** → 
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-- **Used By** - shows the chains using this service.
+- **Used By** - shows chains that use the service.
 - **Created At** - datetime of entity creation (hidden by default).
 - **Created By** - shows the user, who created an entity (hidden by default).
 - **Modified At** - datetime of entity modifying (hidden by default).
@@ -85,7 +85,7 @@ To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), 
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
-> ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
+> ℹ️  If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specific: for all new services system will increment standard UUID, so it is possible to operate with it in order to maintain services uniqueness.
 
 When import is completed, system displays import result table with the following columns:

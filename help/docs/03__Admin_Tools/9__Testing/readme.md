@@ -9,7 +9,7 @@ The **Testing** group is the cross-chain view of the testing feature. Where the 
 
 A **test run** is a set of test cases started together. It is created whenever test cases are run - from a chain, or from the cross-chain list here - and it records one **test case run** per test case it holds. Because the cross-chain list is not limited to a single chain, a run started from it can hold test cases of several different chains.
 
-> ℹ️ **Note:** The **Testing** group appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the group hidden until an operator switches the mode, as described under [Testing Service Mode](../../01__Chains/8__Testing/readme.md#testing-service-mode).
+> ℹ️  The **Testing** group appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the group hidden until an operator switches the mode, as described under [Testing Service Mode](../../01__Chains/8__Testing/readme.md#testing-service-mode).
 > On a production installation the group is hidden, the chain-level **Testing** tab is hidden with it, and a direct link to a testing address lands on the "not found" page. Testing is a development and verification feature; it is not intended for production installations.
 
 ## User Interface
@@ -32,7 +32,7 @@ The same table as on the chain tab, with one column added and two toolbar differ
 
 The remaining columns - **Name**, **Description**, **Element**, **Enabled**, **Readiness**, **Rules**, **Active Rules** and the audit fields - and the remaining toolbar actions - **Refresh**, **Run selected test cases**, **Export selected test cases** and **Delete selected test cases** - are described in [Testing](../../01__Chains/8__Testing/readme.md), including the unsortable **Readiness**.
 
-> ℹ️ **Note:** A test case opened from this list is **read-only**. Its tabs, its fields and its validation rules table are all disabled, and there is no save toolbar. To change a test case, open it from the **Testing** tab of its chain.
+> ℹ️  A test case opened from this list is **read-only**. Its tabs, its fields and its validation rules table are all disabled, and there is no save toolbar. To change a test case, open it from the **Testing** tab of its chain.
 
 ### Endpoint Mocks Table View
 The cross-chain list of endpoint mocks, with the same **Chain** column and the same asymmetry: **Import endpoint mocks** is available here, **Create an endpoint mock** is not. Mocks opened from this list are read-only as well.
@@ -77,7 +77,7 @@ A run therefore reads **_Finished_** as soon as its first case run finishes, whi
 - **Export selected test runs** - downloads the checked runs as a CSV file.
 - **Delete selected test runs** - deletes the checked runs after a confirmation. A run is deleted whatever its state, and its test case runs go with it.
 
-> ℹ️ **Note:** Canceling reaches only the case runs that have not started yet. A case run already in progress keeps running, and the confirmation says so.
+> ℹ️  Canceling reaches only the case runs that have not started yet. A case run already in progress keeps running, and the confirmation says so.
 
 Clicking a row opens the **Test Run Details** side panel.
 
@@ -104,7 +104,7 @@ Test case runs are executed by the testing service, which processes several of t
 - **Test cases inside one run execute sequentially.** The service hands out at most one case run per run, in the order the run recorded them, and takes the next one only when the previous one has finished. A run therefore never calls two of its own chains at once.
 - **Separate runs execute in parallel.** Different runs progress at the same time, up to the number of concurrent case runs the service is configured for.
 
-> ℹ️ **Note:** Runs are isolated from each other, but test cases are not. The sequential guarantee holds **within** a run, keyed on the run itself. If the same test case is placed in two different runs and both are executing, its two case runs can therefore execute at the same time, and the chain is called twice concurrently. Keep a test case that cannot tolerate that in one run at a time.
+> ℹ️  Runs are isolated from each other, but test cases are not. The sequential guarantee holds **within** a run, keyed on the run itself. If the same test case is placed in two different runs and both are executing, its two case runs can therefore execute at the same time, and the chain is called twice concurrently. Keep a test case that cannot tolerate that in one run at a time.
 
 A case run that stops making progress - because the worker that held it went away - is returned to the queue and executed again, and the validation errors of the abandoned attempt are discarded with it.
 

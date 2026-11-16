@@ -113,6 +113,14 @@ and an engine that starts before OpenSearch records no session until it restarts
 `cip-runtime-catalog.serviceAliases` lists extra ClusterIP Service names for the catalog's port
 8080, for a caller that addresses the catalog by another name.
 
+`global.consul.adminToken` is the Consul ACL initial management token. The default is the
+development token in `values.yaml`. The engine, the catalog, and sessions management read it from
+a file: the chart puts it under the key `consul_admin_token` in Secrets
+`<release>-engine-pod-secrets`, `<release>-runtime-catalog-pod-secrets`, and
+`<release>-sessions-management-pod-secrets`, mounts each at `/etc/secrets/pod-secrets` in its pod,
+and sets `CONSUL_ADMIN_TOKEN_FILE` to the file. ConfigMap `<release>-env` still carries
+`CONSUL_ADMIN_TOKEN`, which the catalog passes to the micro domains it creates.
+
 `cip-engine.trustedCerts` maps a file name to a PEM certificate. The chart puts the map in Secret
 `<release>-engine-certs` and mounts it at `/app/cert/defaultsslcertificate`, where the engine's
 `development` profile reads the certificates it trusts. From this directory:

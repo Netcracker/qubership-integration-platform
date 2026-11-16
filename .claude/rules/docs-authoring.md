@@ -1,8 +1,7 @@
 ---
 paths:
-  - "help/docs/**/*.md"
+  - "help/docs/**"
 ---
 
-When writing or updating product documentation under `help/docs/` for a
-feature — after implementing it, or when asked to "update the docs" or
-"document issue #N" — apply the `docs-authoring` skill.
+When creating or maintaining product documentation under `help/docs/`, including
+assets and structural changes, apply the `docs-authoring` skill.

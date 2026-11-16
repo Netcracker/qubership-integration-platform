@@ -29,6 +29,7 @@ Table with Inner Cloud services is accessible by navigating to **Services** → 
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Used By** - chains that use the service, specification group, or specification. A row with chains shows their number, such as "2 chains", and clicking it lists the chains. Each chain name opens its graph. A row that no chain uses shows "No chains".
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying (hidden by default).
@@ -168,7 +169,7 @@ At the top of the table the following options are available:
   - **To Specifications** - returns to the list of specifications in the current group.
   - **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
 
-    > ℹ️ **Note:** In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+    > ℹ️  In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
 
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
   - ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
@@ -185,7 +186,7 @@ To find all available Inner Services, there is a specific button ![cloud-sync](i
 
 For inner services, that are discovered in K8S namespace, system uses their names as unique IDs.
 
-> ℹ️ **Note:** Depending on the capacity, network and environment state, Discovery process might take some time to complete.
+> ℹ️  Depending on the capacity, network and environment state, Discovery process might take some time to complete.
 
 ### Add Inner Cloud Service
 <ins>Web UI</ins>
@@ -220,7 +221,7 @@ To add specification group to Inner Cloud service:
 1. Select ![plus](img/plus.svg) "**Add Specification Group**" option.
 2. Specify the **name** of the specification group on the opened pop-up.
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-> ℹ️ **Note:**
+> ℹ️ **Notes:**
 > - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 > - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 4. Confirm operation with **"Import File"** button.
@@ -231,7 +232,7 @@ When API specification is added you will see the specification group with respec
 To add API specification into existing specification group:
 1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-> ℹ️ **Note:**
+> ℹ️ **Notes:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
 > - For a **Kafka** operation in an **AsyncAPI 3.0** specification, the MaaS classifier name is the value of the operation's `x-maas-classifier-name` extension. When the operation has none, the extension on its channel is used, and a reply operation (declared with `reply`) takes the extension from its reply channel. An **AsyncAPI 2.x** specification takes the extension from the operation only.
@@ -277,18 +278,18 @@ Default properties are unique for different protocols and described below:
 
 #### kafka
 
-| Parameter               | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                     | Sample                                                                                              |
-|-------------------------|:----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                                   | key_sample                                                                                          |
-| sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                           | TLSv1.2                                                                                             |
-| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                              | GSSAPI                                                                                              |
-| saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                                        | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
-| securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                            | PLAINTEXT                                                                                           |
-| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ **Note:** This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
-| sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise (assuming both support at least TLSv1.2). This default should be fine for most cases.                                 | TLSv1,TLSv1.1,TLSv1.2                                                                               |
-| sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                                                                                     | HTTPS                                                                                               |
+| Parameter               | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                            | Sample                                                                                              |
+|-------------------------|:----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                          | key_sample                                                                                          |
+| sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                  | TLSv1.2                                                                                             |
+| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                     | GSSAPI                                                                                              |
+| saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                               | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
+| securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                   | PLAINTEXT                                                                                           |
+| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️  This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
+| sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise (assuming both support at least TLSv1.2). This default should be fine for most cases.                        | TLSv1,TLSv1.1,TLSv1.2                                                                               |
+| sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                                                                            | HTTPS                                                                                               |
 
-> ℹ️ **Note:** When message processing is slow, it could lead to interruption due to reached timeout.
+> ℹ️  When message processing is slow, it could lead to interruption due to reached timeout.
 > In such cases, it is recommended to specify parameter **maxPollIntervalMs**
 > (The maximum delay between invocations of polls when using consumer group management.)
 > with value **higher**, than default **300000** and parameter **maxPollRecords**
@@ -329,7 +330,7 @@ During the import, system follows next logic:
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
-> ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
+> ℹ️  If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
 
 - **"Discovered"** status of API specification for Inner Cloud Service will be switched to **"Manually uploaded"** as the result of manual import of the specification with the same ID.
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
@@ -337,7 +338,7 @@ During the import, system follows next logic:
   - For **Swagger** and **AsyncAPI** system will build specification version from "version" parameter in specification file.
   - For **WSDL**, **GraphQL** and **Protobuf** API specification's, their versions will be generated by autoincrement (1.0.0, 2.0.0, etc.), but it is also possible to manually rename specifications before import.
 
-> ⚠️ **Warning:** When importing **grpc** services, it is absolutely required to have protobuf files properly
+> ⚠️  When importing **grpc** services, it is absolutely required to have protobuf files properly
 > structured within the archive, according to the native logic, described in public
 > **Protocol Buffers Documentation Language Guide (proto 3)**. Following this logic, protobuf files must be placed
 > to the folders, fully corresponding to the path, described in **"import"** statements of the files.

@@ -38,3 +38,7 @@ and `bytea` rather than a Large Object. The reasoning is in
 
 The repository is Apache 2.0. Existing sources carry the NetCracker copyright header; a file
 you create does not need it.
+
+After changing reader-visible behavior or UI icons, assess whether product documentation
+needs updating and apply `docs-authoring` when it does. No update is needed when the
+existing documentation is sufficient.
