@@ -15,7 +15,6 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.DecisionTrace;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
-import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
@@ -33,7 +32,6 @@ class PlanPresentationFactsServiceTest {
   @BeforeEach
   void setUp() {
     service = new PlanPresentationFactsService();
-    PlanCompilationTestSupport.Runtime runtime = PlanCompilationTestSupport.memory();
     workspaceStore =
         new InMemorySkillWorkspaceStore(new org.qubership.integration.platform.ai.plan.ChainPlanStore());
     workspace = workspaceStore.getOrCreate(CONVERSATION_ID);
@@ -119,19 +117,6 @@ class PlanPresentationFactsServiceTest {
     assertTrue(summary.contains("Core flow:"));
     assertTrue(summary.contains("Compiler additions:"));
     assertTrue(summary.contains("Implement it"));
-  }
-
-  @Test
-  void formatPlanReviewSummaryOmitsImplementCta() {
-    PlanPresentationFacts facts = service.build(workspaceWithGreetingsAndEh());
-
-    String review = service.formatPlanReviewSummary(facts);
-    String fallback = service.formatFallbackSummary(facts);
-
-    assertTrue(review.contains("Plan captured (not built in the catalog yet)"));
-    assertFalse(review.contains("Implement it"));
-    assertTrue(fallback.startsWith(review));
-    assertTrue(fallback.contains("Implement it"));
   }
 
   @Test

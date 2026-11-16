@@ -9,8 +9,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 /**
  * Merges knowledge-pack product profile versions into a pipeline compatibility report.
  *
- * <p>The {@link CompilerPipelineCompatibilityAnalyzer} certifies {@code create-chain@1} and
- * {@code create-chain@2} against the compiler index. Pack-shipped profiles are validated against the
+ * <p>The {@link CompilerPipelineCompatibilityAnalyzer} certifies {@code create-chain@2} against the
+ * compiler index. Pack-shipped profiles are validated against the
  * active compiler index even when they override an already-listed version (for example a pack
  * {@code create-chain@2} with a stricter {@code compilerPipeline} policy).
  */
@@ -29,13 +29,10 @@ public final class PipelineCompatibilityReportAugmenter {
     if (!report.activationAllowed()) {
       return report;
     }
-    if (packShippedProfileKeys == null || packShippedProfileKeys.isEmpty()) {
-      return report;
-    }
     LinkedHashSet<String> merged = new LinkedHashSet<>(report.compatibleProfileVersions());
-    boolean changed = false;
-    for (String key : packShippedProfileKeys) {
-      if (key == null || key.isBlank()) {
+    boolean changed = merged.remove("create-chain@1");
+    for (String key : packShippedProfileKeys == null ? List.<String>of() : packShippedProfileKeys) {
+      if (key == null || key.isBlank() || "create-chain@1".equals(key)) {
         continue;
       }
       ProductPipelineProfile profile = profilesByKey.get(key);

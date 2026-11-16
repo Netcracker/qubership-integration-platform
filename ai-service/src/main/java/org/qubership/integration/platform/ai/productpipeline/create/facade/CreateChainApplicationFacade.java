@@ -342,6 +342,7 @@ public class CreateChainApplicationFacade {
     rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
+    bindingStore.load(taskId);
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -434,6 +435,7 @@ public class CreateChainApplicationFacade {
     rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
+    bindingStore.load(taskId);
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -516,6 +518,7 @@ public class CreateChainApplicationFacade {
     rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
+    bindingStore.load(taskId);
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -555,6 +558,7 @@ public class CreateChainApplicationFacade {
     rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
+    bindingStore.load(taskId);
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -589,6 +593,7 @@ public class CreateChainApplicationFacade {
    */
   public Optional<String> pendingCreationHash(String taskId) {
     Objects.requireNonNull(taskId, "taskId");
+    bindingStore.load(taskId);
     return runStore
         .loadByConversation(taskId)
         .filter(doc -> doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT)
@@ -605,6 +610,7 @@ public class CreateChainApplicationFacade {
   public Multi<CreateChainEvent> streamCreateChain(String taskId, String planHash, long revision) {
     rockySkills.requireAvailable();
     Objects.requireNonNull(taskId, "taskId");
+    bindingStore.load(taskId);
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -748,6 +754,7 @@ public class CreateChainApplicationFacade {
    */
   public boolean approvalAlreadyApplied(ApproveCreateChainArtifactCommand command) {
     Objects.requireNonNull(command, "command");
+    bindingStore.load(command.taskId());
     return runStore
         .loadByConversation(command.taskId())
         .map(doc -> approveAlreadyApplied(doc, command))
@@ -779,6 +786,10 @@ public class CreateChainApplicationFacade {
   public Optional<CreateChainExecutionSnapshot> snapshot(String taskId) {
     Objects.requireNonNull(taskId, "taskId");
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
+  }
+
+  public void ensureSupportedBinding(String taskId) {
+    bindingStore.load(Objects.requireNonNull(taskId, "taskId"));
   }
 
   /** Offer on the latest requirement wait, or empty when that wait has no offer. */

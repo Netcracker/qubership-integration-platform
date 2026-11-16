@@ -33,11 +33,15 @@ fixtures:
   sourceElementId: ec738992-9f5b-4368-92d2-0e4c461b7bb6
 scenarios:
 - id: times-out-without-consumer-and-recovers-after-start
+  expectedBehavior: >-
+    Time out while the child consumer is stopped without delivering a request, then resume delivery after the
+    consumer starts.
   scope: Long
   deployment: wait
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: healthy-before-stop
+    expectedBehavior: "Deliver one request to the running child and return its body and propagated metadata."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -60,6 +64,9 @@ scenarios:
         properties:
           testProperty: property-value
   - id: absent-consumer-times-out
+    expectedBehavior: >-
+      Report the configured consumer-availability timeout while the child is stopped, with zero child
+      deliveries.
     body: Original
     headers:
       X-Test-Request: request-value
@@ -82,6 +89,7 @@ scenarios:
           consumerAction: stop
     timeoutSeconds: 5
   - id: consumer-start-restores-delivery
+    expectedBehavior: "Start the child consumer and successfully deliver the next request with its original metadata."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -107,11 +115,17 @@ scenarios:
         properties:
           consumerAction: start
 - id: waits-for-consumer-start-and-retains-payload
+  expectedBehavior: >-
+    Keep a caller waiting for child consumer availability, deliver its original input when the consumer starts,
+    and accept a fresh call.
   scope: Short
   deployment: wait
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: caller-waits-until-consumer-starts
+    expectedBehavior: >-
+      Deliver the waiting call once the child starts, retaining the body, headers, and property submitted before
+      the wait.
     body: Original
     headers:
       X-Test-Request: request-value
@@ -137,6 +151,7 @@ scenarios:
         properties:
           consumerAction: start-when-caller-waits
   - id: next-call-uses-fresh-input
+    expectedBehavior: "Deliver the next call using its fresh request metadata rather than values retained from the waiting call."
     body: Fresh
     headers:
       X-Test-Request: second-request
@@ -159,11 +174,15 @@ scenarios:
           testProperty: second-property
           failChild: null
 - id: restarts-chain-consumer-without-losing-calls
+  expectedBehavior: >-
+    Deliver independent calls before and after restarting the same child consumer, preserving each call's
+    metadata.
   scope: Short
   deployment: wait
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: first-call
+    expectedBehavior: "Deliver the first child call and return the corresponding result and metadata."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -186,6 +205,7 @@ scenarios:
         properties:
           testProperty: property-value
   - id: call-after-consumer-restart
+    expectedBehavior: "Restart the child consumer and successfully deliver the next independent call."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -211,6 +231,7 @@ scenarios:
         properties:
           consumerAction: restart
   - id: third-call
+    expectedBehavior: "Continue delivering fresh child calls after restart without reusing previous request metadata."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -234,11 +255,15 @@ scenarios:
           testProperty: property-value
 
 - id: selects-newest-chain-consumer-and-restores-the-previous-deployment
+  expectedBehavior: >-
+    Route calls only to the newest available child consumer, fall back when it stops, and time out when no
+    consumer remains.
   scope: Long
   deployment: overlap
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: newest-consumer-wins
+    expectedBehavior: "Deliver only to the newly restarted consumer while the older registered consumer receives no request."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -268,6 +293,7 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
   - id: stopping-inactive-old-keeps-new
+    expectedBehavior: "Stop the inactive older consumer without interrupting delivery to the currently selected newer consumer."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -297,6 +323,7 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
   - id: restarted-old-becomes-newest
+    expectedBehavior: "Select the older deployment after restarting it makes its consumer the newest registration."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -325,6 +352,7 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
   - id: stopping-newest-restores-previous
+    expectedBehavior: "Stop the selected newest consumer and deliver through the other still-registered consumer."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -354,6 +382,7 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
   - id: no-remaining-consumer-times-out
+    expectedBehavior: "Time out without child delivery after the last available consumer is stopped."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -382,6 +411,7 @@ scenarios:
     expectedProperties:
       afterCallReached: null
   - id: old-consumer-restores-delivery
+    expectedBehavior: "Restart the old deployment and deliver only to its consumer while the other deployment remains stopped."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -410,6 +440,9 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
 - id: isolates-concurrent-chain-callers-and-child-failures
+  expectedBehavior: >-
+    Keep four concurrent calls and their metadata independent, isolate one child failure, and accept four
+    subsequent successful calls.
   scope: Long
   deployment: wait
   driver:
@@ -419,6 +452,9 @@ scenarios:
       requests: 4
   invocations:
   - id: one-child-failure-is-isolated
+    expectedBehavior: >-
+      Deliver all four concurrent calls with independent contexts, returning three successes and only the
+      declared child failure.
     body: Concurrent
     properties:
       testProperty: original-property
@@ -477,6 +513,7 @@ scenarios:
           concurrentEntries: 4
           applicationClassLoaderMarker: true
   - id: all-following-calls-recover
+    expectedBehavior: "Complete all four subsequent concurrent calls successfully with their own bodies and metadata."
     body: Concurrent
     properties:
       testProperty: original-property
@@ -531,11 +568,15 @@ scenarios:
           concurrentEntries: 4
           applicationClassLoaderMarker: true
 - id: finishes-inflight-chain-call-before-graceful-stop
+  expectedBehavior: "Allow a held child call to finish during graceful consumer stop and restore delivery after restart."
   scope: Long
   deployment: wait
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: held-call-finishes-before-stop
+    expectedBehavior: >-
+      Keep graceful stop waiting until the held child call completes and return its result without losing
+      metadata.
     body: Original
     headers:
       X-Test-Request: request-value
@@ -556,6 +597,7 @@ scenarios:
         properties:
           consumerAction: stop-while-processing
   - id: delivery-resumes-after-start
+    expectedBehavior: "Restart the stopped child consumer and complete the next request normally."
     body: Original
     headers:
       X-Test-Request: request-value
@@ -576,11 +618,17 @@ scenarios:
         properties:
           consumerAction: start
 - id: drains-old-chain-deployment-during-overlapping-replacement
+  expectedBehavior: >-
+    Complete the in-flight call on the old deployment while its replacement starts, then send fresh calls only
+    to the replacement.
   scope: Long
   deployment: overlap
   endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
   invocations:
   - id: old-call-drains-while-replacement-starts
+    expectedBehavior: >-
+      Finish the held call on the old consumer while starting its replacement, with no delivery of that call to
+      the replacement.
     body: Original
     headers:
       X-Test-Request: request-value
@@ -614,6 +662,7 @@ scenarios:
       testProperty: child-property
       afterCallReached: true
   - id: fresh-call-uses-only-new-consumer
+    expectedBehavior: "Deliver the fresh call only to the replacement consumer after the old deployment has drained."
     body: Original
     headers:
       X-Test-Request: request-value

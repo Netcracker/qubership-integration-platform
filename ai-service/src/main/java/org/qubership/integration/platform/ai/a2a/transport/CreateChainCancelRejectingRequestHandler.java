@@ -42,6 +42,7 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisit
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 
 /**
@@ -176,7 +177,6 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     } catch (TaskAccessDeniedException denied) {
       throw A2aProtocolErrorMapper.fromAccessDenied(denied);
     }
-
     Task task =
         snapshotPersister
             .loadSdkTask(params.id())
@@ -347,13 +347,20 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     } catch (TaskAccessDeniedException denied) {
       throw A2aProtocolErrorMapper.fromAccessDenied(denied);
     }
+    try {
+      facade.ensureSupportedBinding(receipt.get().taskId());
+    } catch (UnsupportedCreateRunBindingException unsupported) {
+      throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
+    }
     if (receipt.get().incomplete()) {
       var durable = snapshotPersister.loadDurable(receipt.get().taskId());
       if (durable.isEmpty() || !isTerminal(durable.get().task())) {
         return Optional.empty();
       }
       String commandId = A2aCommandId.derive(caller.tenantId(), caller.subjectId(), message.messageId());
-      boolean applied = command instanceof InboundCommand.ClarifyText clarify
+      boolean applied;
+      try {
+        applied = command instanceof InboundCommand.ClarifyText clarify
           ? facade.inputAlreadyApplied(receipt.get().taskId(), commandId, clarify.text())
           : command instanceof InboundCommand.PolicyChoice choice
               ? decisionService.policyChoiceContinuation(receipt.get().taskId(), choice.decision(), commandId)
@@ -362,6 +369,9 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
           : command instanceof InboundCommand.Approve approve && facade.approvalAlreadyApplied(
               new org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand(
                   receipt.get().taskId(), approve.artifactType(), approve.artifactHash(), approve.revision(), commandId));
+      } catch (UnsupportedCreateRunBindingException unsupported) {
+        throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
+      }
       if (!applied) { return Optional.empty(); }
       // The command committed before the response did. Finalize under the existing lease protocol;
       // a live owner can finish its receipt while this retry returns the same committed result.

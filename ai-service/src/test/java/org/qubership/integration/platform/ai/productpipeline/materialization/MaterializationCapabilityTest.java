@@ -602,7 +602,7 @@ class MaterializationCapabilityTest {
             RUN_ID,
             "attempt-1",
             null,
-            runManifest(),
+            runManifestV2(),
             List.of(),
             Map.of());
 
@@ -661,34 +661,6 @@ class MaterializationCapabilityTest {
   }
 
   @Test
-  void returnsContractFailureWhenApprovalDigestDoesNotMatchGraphDigest() {
-    PreparedInputs prepared = appendHappyPathInputs();
-    ApprovalRecordV2 mismatchedApproval =
-        new ApprovalRecordV2(
-            prepared.implementationPlanRef(),
-            "different-digest",
-            prepared.approvedCandidates(),
-            "user",
-            null,
-            FIXED,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    Reference mismatchedApprovalRef = append(Kind.APPROVAL_RECORD, "2", mismatchedApproval, List.of());
-    StageExecutionContext context = contextWith(prepared, mismatchedApprovalRef);
-
-    CapabilitySignal.Completed completed = completed(capability.execute(context));
-
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
-    verify(materializer, never()).resume(any(), any());
-  }
-
-  @Test
   void configuredRecoveryFaultStopsBeforeV2CatalogWrite() {
     PreparedV2Inputs prepared = appendHappyPathV2Inputs();
     capability =
@@ -715,245 +687,11 @@ class MaterializationCapabilityTest {
   }
 
   @Test
-  void readableLegacyInputsRequireNewApprovalBeforeCatalogWrites() {
-    PreparedInputs prepared = appendHappyPathInputs();
-    var before = artifactStore.get(RUN_ID, prepared.graphRef()).orElseThrow().payload().deepCopy();
-    var outcome = completed(capability.execute(contextWith(prepared, prepared.approvalRef()))).outcome();
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
-    assertEquals(RecoveryCauseCode.CONTRACT_SHAPE, outcome.recoveryCause().causeCode());
-    assertTrue(outcome.message().contains("create-chain@2"), outcome.message());
-    verify(materializer, never()).resume(any(), any());
-    assertEquals(before, artifactStore.get(RUN_ID, prepared.graphRef()).orElseThrow().payload());
-  }
-
-  @Test
-  void legacyV1FilledCopyCannotResumeCatalogWrites() {
-    PreparedInputs prepared = appendHappyPathInputs("exchange.in.body = [processId: exchange.in.body.processId]");
-    var before = artifactStore.get(RUN_ID, prepared.graphRef()).orElseThrow().payload().deepCopy();
-    var outcome = completed(capability.execute(contextWith(prepared, prepared.approvalRef()))).outcome();
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
-    assertTrue(outcome.message().contains("Recapture"), outcome.message());
-    verify(materializer, never()).resume(any(), any());
-    assertEquals(before, artifactStore.get(RUN_ID, prepared.graphRef()).orElseThrow().payload());
-  }
-
-  @Test
   void runtimeRegistryContainsCompletedMaterializationCapability() {
     StageCapabilityRegistry registry = new StageCapabilityRegistry(List.of(capability));
     assertInstanceOf(
         MaterializationCapability.class,
         registry.require(MaterializationCapability.CAPABILITY_ID));
-  }
-
-  @Test
-  void returnsContractFailureWhenGraphBytesDifferFromAssemblyDigest() {
-    PreparedInputs prepared = appendHappyPathInputs();
-    ChainPlanGraph differentGraph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("other", "Other"),
-            List.of(new ChainPlanNode("only", "script", "Only", null, null, List.of())),
-            List.of());
-    GraphAssemblyResult mismatched =
-        new GraphAssemblyResult(
-            1, differentGraph, prepared.graphDigest(), List.of(), List.of(), List.of());
-    Reference badAssembly = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", mismatched, List.of(prepared.graphRef()));
-    List<Reference> candidates =
-        List.of(
-            prepared.implementationPlanRef(),
-            prepared.validationRef(),
-            prepared.graphRef(),
-            badAssembly,
-            prepared.bundleRef());
-    ApprovalRecordV2 approval =
-        new ApprovalRecordV2(
-            prepared.implementationPlanRef(),
-            prepared.implementationPlanRef().contentHash(),
-            candidates,
-            "user",
-            null,
-            FIXED,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, candidates);
-    StageExecutionContext context =
-        new StageExecutionContext(
-            RUN_ID,
-            "conv-1",
-            "materialization",
-            RUN_ID,
-            "attempt-1",
-            null,
-            runManifest(),
-            List.of(
-                prepared.implementationPlanRef(),
-                prepared.validationRef(),
-                prepared.graphRef(),
-                badAssembly,
-                prepared.bundleRef(),
-                approvalRef,
-                prepared.runManifestRef()),
-            Map.of());
-
-    CapabilitySignal.Completed completed = completed(capability.execute(context));
-
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
-    verify(materializer, never()).resume(any(), any());
-  }
-
-  @Test
-  void returnsFailureBeforeResumeWhenCompilerBundleNotEligible() {
-    ChainPlanGraph graph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("demo-chain", "Demo"),
-            List.of(
-                new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
-                new ChainPlanNode("script-1", "script", "Script", "trigger-1", null, List.of())),
-            List.of());
-    String graphDigest =
-        new org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest(
-                new ObjectMapper())
-            .sha256(graph);
-    GraphAssemblyResult assembly =
-        new GraphAssemblyResult(1, graph, graphDigest, List.of(), List.of(), List.of());
-    CompilerValidationBundle failingBundle =
-        new CompilerValidationBundle(
-            1,
-            graphDigest,
-            List.of(
-                new CompilerValidationPass(
-                    "validator", new ValidationResult(false, List.of(), "blocked"))));
-    ImplementationPlan implementationPlan =
-        ImplementationPlan.schemaVersion2(
-            "Plan",
-            "planning",
-            "1",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of());
-    PlanValidationResult validationResult = new PlanValidationResult(List.of());
-    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan, List.of());
-    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of());
-    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
-    Reference bundleRef = append(Kind.COMPILER_VALIDATION_BUNDLE, "1", failingBundle, List.of(graphRef));
-    Reference validationRef =
-        append(Kind.PLAN_VALIDATION_RESULT, "1", validationResult, List.of(implementationPlanRef));
-    Reference runManifestRef = append(Kind.RUN_MANIFEST, "1", runManifest(), List.of());
-    List<Reference> approvedCandidates =
-        List.of(implementationPlanRef, validationRef, graphRef, assemblyRef, bundleRef);
-    ApprovalRecordV2 approval =
-        new ApprovalRecordV2(
-            implementationPlanRef,
-            implementationPlanRef.contentHash(),
-            approvedCandidates,
-            "user",
-            null,
-            FIXED,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
-    StageExecutionContext context =
-        new StageExecutionContext(
-            RUN_ID,
-            "conv-1",
-            "materialization",
-            RUN_ID,
-            "attempt-1",
-            null,
-            runManifest(),
-            List.of(
-                implementationPlanRef,
-                validationRef,
-                graphRef,
-                assemblyRef,
-                bundleRef,
-                approvalRef,
-                runManifestRef),
-            Map.of());
-
-    CapabilitySignal.Completed completed = completed(capability.execute(context));
-
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
-    verify(materializer, never()).resume(any(), any());
-  }
-
-  @Test
-  void returnsFailureBeforeResumeWhenOrderedPatchReferenceMissing() {
-    PreparedInputs prepared = appendHappyPathInputs();
-    Reference dangling =
-        new Reference(Kind.GRAPH_PATCH_ARTIFACT, "missing-art", "missing-hash");
-    ChainPlanGraph graph =
-        artifactStore.payload(
-            artifactStore.get(RUN_ID, prepared.graphRef()).orElseThrow(), ChainPlanGraph.class);
-    GraphAssemblyResult assembly =
-        new GraphAssemblyResult(
-            1, graph, prepared.graphDigest(), List.of(dangling), List.of(), List.of());
-    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(prepared.graphRef()));
-    List<Reference> candidates =
-        List.of(
-            prepared.implementationPlanRef(),
-            prepared.validationRef(),
-            prepared.graphRef(),
-            assemblyRef,
-            prepared.bundleRef());
-    ApprovalRecordV2 approval =
-        new ApprovalRecordV2(
-            prepared.implementationPlanRef(),
-            prepared.implementationPlanRef().contentHash(),
-            candidates,
-            "user",
-            null,
-            FIXED,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, candidates);
-    StageExecutionContext context =
-        new StageExecutionContext(
-            RUN_ID,
-            "conv-1",
-            "materialization",
-            RUN_ID,
-            "attempt-1",
-            null,
-            runManifest(),
-            List.of(
-                prepared.implementationPlanRef(),
-                prepared.validationRef(),
-                prepared.graphRef(),
-                assemblyRef,
-                prepared.bundleRef(),
-                approvalRef,
-                prepared.runManifestRef()),
-            Map.of());
-
-    CapabilitySignal.Completed completed = completed(capability.execute(context));
-
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
-    verify(materializer, never()).resume(any(), any());
   }
 
   @Test
@@ -1392,105 +1130,6 @@ class MaterializationCapabilityTest {
     verify(materializer).resume(any(), eq(written));
   }
 
-  private PreparedInputs appendHappyPathInputs() {
-    return appendHappyPathInputs(null);
-  }
-
-  private PreparedInputs appendHappyPathInputs(String scriptBody) {
-    ChainPlanGraph graph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("demo-chain", "Demo"),
-            List.of(
-                new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
-                new ChainPlanNode("script-1", "script", "Script", "trigger-1", null, scriptBody == null ? List.of()
-                    : List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("mappingIntentId", "legacy-copy"),
-                        new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", scriptBody)))),
-            List.of());
-    String graphDigest =
-        new org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest(
-                new ObjectMapper())
-            .sha256(graph);
-    GraphAssemblyResult assembly =
-        new GraphAssemblyResult(1, graph, graphDigest, List.of(), List.of(), List.of());
-    CompilerValidationBundle compilerBundle =
-        new CompilerValidationBundle(
-            1,
-            graphDigest,
-            List.of(new CompilerValidationPass("validator", new ValidationResult(true, List.of(), "ok"))));
-    ImplementationPlan implementationPlan =
-        ImplementationPlan.schemaVersion2(
-            "Plan",
-            "planning",
-            "1",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of());
-    PlanValidationResult validationResult = new PlanValidationResult(List.of());
-
-    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan, List.of());
-    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of());
-    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
-    Reference bundleRef = append(Kind.COMPILER_VALIDATION_BUNDLE, "1", compilerBundle, List.of(graphRef));
-    Reference validationRef =
-        append(Kind.PLAN_VALIDATION_RESULT, "1", validationResult, List.of(implementationPlanRef));
-    Reference runManifestRef = append(Kind.RUN_MANIFEST, "1", runManifest(), List.of());
-    List<Reference> approvedCandidates =
-        List.of(implementationPlanRef, validationRef, graphRef, assemblyRef, bundleRef);
-    ApprovalRecordV2 approval =
-        new ApprovalRecordV2(
-            implementationPlanRef,
-            implementationPlanRef.contentHash(),
-            approvedCandidates,
-            "user",
-            null,
-            FIXED,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
-    return new PreparedInputs(
-        graphRef,
-        assemblyRef,
-        bundleRef,
-        validationRef,
-        implementationPlanRef,
-        runManifestRef,
-        approvalRef,
-        approvedCandidates,
-        graphDigest);
-  }
-
-  private StageExecutionContext contextWith(PreparedInputs prepared, Reference approvalRef) {
-    return new StageExecutionContext(
-        RUN_ID,
-        CONVERSATION_ID,
-        "materialization",
-        RUN_ID,
-        "attempt-1",
-        null,
-        runManifest(),
-        List.of(
-            prepared.implementationPlanRef(),
-            prepared.validationRef(),
-            prepared.graphRef(),
-            prepared.assemblyRef(),
-            prepared.bundleRef(),
-            approvalRef,
-            prepared.runManifestRef()),
-        Map.of());
-  }
-
   private Reference append(
       Kind kind, String schemaVersion, Object payload, List<Reference> inputs) {
     Revision revision =
@@ -1504,7 +1143,7 @@ class MaterializationCapabilityTest {
                 payload,
                 inputs,
                 null,
-                new ArtifactProvenance(RUN_ID, "materialization", "create-chain", "1", "profile-sha", "test", "1", "closure-sha")));
+                new ArtifactProvenance(RUN_ID, "materialization", "create-chain", "2", "profile-sha", "test", "1", "closure-sha")));
     return revision.reference();
   }
 
@@ -1525,31 +1164,6 @@ class MaterializationCapabilityTest {
     } catch (java.security.NoSuchAlgorithmException ex) {
       throw new IllegalStateException(ex);
     }
-  }
-
-  private static RunManifest runManifest() {
-    return new RunManifest(
-        RUN_ID,
-        null,
-        List.of(),
-        "product",
-        "create-chain",
-        "1",
-        "profile-sha",
-        "baseline",
-        "baseline-sha",
-        List.of(new DependencyClosureEntry("materialization", "1", "skill-catalog-sha")),
-        "closure-sha",
-        new KnowledgePackageRef(
-            "knowledge-1",
-            "1",
-            "1.0.0",
-            "checksum",
-            "CERTIFIED",
-            "sha256:certificate"),
-        "24.4",
-        List.of(new ArtifactTypeRef("implementation-plan", 2)),
-        null);
   }
 
   private static ProductPipelineProfile createChainV3FromBundledV2() throws Exception {
@@ -1790,17 +1404,6 @@ class MaterializationCapabilityTest {
         List.of(requestRef, bundleRef, prepared.runManifestRef()),
         Map.of());
   }
-
-  private record PreparedInputs(
-      Reference graphRef,
-      Reference assemblyRef,
-      Reference bundleRef,
-      Reference validationRef,
-      Reference implementationPlanRef,
-      Reference runManifestRef,
-      Reference approvalRef,
-      List<Reference> approvedCandidates,
-      String graphDigest) {}
 
   private record PreparedV2Inputs(
       MaterializationRequest request,

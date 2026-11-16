@@ -22,6 +22,9 @@ fixtures:
     deployment: "parent"
 scenarios:
   - id: "calls-subchain"
+    expectedBehavior: >-
+      Return the child result and property, continue the parent Try block, and execute Finally without entering
+      Catch.
     scope: Short
     deployment: "chain-call"
     endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
@@ -41,6 +44,9 @@ scenarios:
       finallyReached: true
 
   - id: "handles-child-failure-and-skips-continuation-in-try"
+    expectedBehavior: >-
+      Catch the child IllegalStateException, skip the remaining Try continuation, preserve the request, and
+      execute Finally.
     scope: Short
     deployment: "chain-call"
     endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
@@ -60,6 +66,9 @@ scenarios:
       finallyReached: true
 
   - id: "returns-before-parent-and-child-branches-complete"
+    expectedBehavior: >-
+      Return the original request while parent and child asynchronous branches remain active, then observe their
+      independent completions.
     scope: Short
     deployment: "parent"
     endpointUri: "cip-chain:14a39104-0635-459e-9132-67267ee81748"

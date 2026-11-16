@@ -70,7 +70,7 @@
 }
 
 .hit {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--vscode-textLink-foreground, #1677ff);
 }
 

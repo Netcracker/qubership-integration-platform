@@ -73,6 +73,8 @@ jobs:
       ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}
       # A .e2e-k8s- name, so "Upload the report" carries the log.
       BOOTSTRAP_LOG: ${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log
+      # Avoid plaintext conntrack tuple collisions (istio/ztunnel#2227).
+      E2E_ZTUNNEL_ORIG_SRC: "false"
     steps:
       - name: Checkout
         id: checkout
@@ -153,6 +155,10 @@ jobs:
           kubectl version --client
           helm version
           mvn -v
+
+      - name: Check ambient netns preparation
+        if: ${{ inputs.name == 'micro' }}
+        run: node --test e2e/k8s/prepare-ambient-netns.test.mjs
 
       # Runs alongside the next steps and the suite's image builds. The exit code is written to a file
       # after the log is complete, and the provisioner waits for that file before its first cluster call.

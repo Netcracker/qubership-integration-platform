@@ -3,10 +3,19 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from socketserver import TCPServer
 from urllib.parse import unquote, urlsplit
 
 from .catalog import Catalog, inside
 from .runs import RunStore, create_run, markdown_report, start_worker
+
+
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer's reverse DNS lookup can block even for the loopback address.
+        TCPServer.server_bind(self)
+        self.server_name = "localhost"
+        self.server_port = self.server_address[1]
 
 
 def make_server(catalog: Catalog, store: RunStore, entry: Path, port: int):
@@ -153,7 +162,7 @@ def make_server(catalog: Catalog, store: RunStore, entry: Path, port: int):
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 return self.send({"error": str(exc)}, 400)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return LoopbackHTTPServer(("127.0.0.1", port), Handler)
 
 
 def serve(catalog: Catalog, store: RunStore, entry: Path, port: int):

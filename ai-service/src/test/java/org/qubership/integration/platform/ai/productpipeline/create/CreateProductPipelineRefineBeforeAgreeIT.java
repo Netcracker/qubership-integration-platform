@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -274,7 +273,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
     return new StageCapability() {
       @Override
       public String capabilityId() {
-        return PlanningCapability.CAPABILITY_ID;
+        return "test-planning";
       }
 
       @Override
@@ -371,7 +370,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
                 new RetryPolicy(0, 1L)),
             new ProfileStage(
                 "planning",
-                PlanningCapability.CAPABILITY_ID,
+                "test-planning",
                 List.of(new ArtifactTypeRef("requirement-brief", 1)),
                 List.of(
                     new ArtifactTypeRef("implementation-plan", 2),
@@ -390,7 +389,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
             RequirementDiscoveryCapability.CAPABILITY_ID,
             SpecificationImportCapability.CAPABILITY_ID,
             RequirementAnalysisCapability.CAPABILITY_ID,
-            PlanningCapability.CAPABILITY_ID));
+            "test-planning"));
   }
 
   private RunManifest sampleManifest() {
@@ -404,7 +403,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
         "profile-sha",
         "baseline",
         "baseline-sha",
-        List.of(new DependencyClosureEntry(PlanningCapability.CAPABILITY_ID, "1", "c1")),
+        List.of(new DependencyClosureEntry("test-planning", "1", "c1")),
         "closure-sha",
         new KnowledgePackageRef(
             "artifact-test",

@@ -3,6 +3,10 @@
 Rocky answers platform questions, explains existing chains, manages catalog entries, imports API specifications,
 and deploys existing chains.
 
+CREATE uses `create-chain@2`. Saved conversations pinned to `create-chain@1` receive
+`CREATE_RUN_UNSUPPORTED_AFTER_CUTOVER`; their stored data stays unchanged. Start a new conversation to create a chain
+with the supported profile. Compiler contract v1 and artifact schema version 1 remain supported.
+
 ## Build the service
 
 Run from the repository root with JDK 21 and Maven on Windows, macOS, or Linux.

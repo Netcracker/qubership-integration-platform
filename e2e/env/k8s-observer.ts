@@ -5,6 +5,7 @@
  * --containers`, which metrics-server answers. Its rows name the service container apart from the
  * Istio sidecar, and only the service container is counted.
  */
+import type { SampleCommand } from "./resources.js";
 import fs from "node:fs";
 import type { ProcessEnvelope, ResourcePeak, ServiceRole } from "./index.js";
 import { ROLES, serviceUrl } from "./containers.js";
@@ -67,9 +68,8 @@ export function readK8sPeaks(file: string = SAMPLES_FILE): ResourcePeak[] {
   return peaks;
 }
 
-/** The shell command of one reading, for the sampler loop. */
-export function topSample(): string {
-  return `kubectl top pod --containers --no-headers -n ${NAMESPACE}`;
+export function topSample(): SampleCommand {
+  return { command: "kubectl", args: ["top", "pod", "--containers", "--no-headers", "-n", NAMESPACE] };
 }
 
 export async function k8sBaseline(): Promise<ProcessEnvelope[]> {

@@ -20,7 +20,7 @@
 
 .constant-generator-tag {
   font-style: italic;
-  font-weight: 600;
+  font-weight: 500;
   margin-right: 0;
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground) !important;

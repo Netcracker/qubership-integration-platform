@@ -60,7 +60,7 @@ func TestDecodeTestingContextRoundTrips(t *testing.T) {
 	cases := map[string]TestingContext{
 		"empty":               {},
 		"path only":           {Path: "/orders"},
-		"non-ascii path":      {Path: "/заказы/42"},
+		"non-ascii path":      {Path: "/\u05d0/42"},
 		"template characters": {OperationPath: "/a/{b}/c/{d}", Path: "/a/1/c/2"},
 	}
 

@@ -88,6 +88,9 @@ fixtures:
   sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
 scenarios:
 - id: fires-native-cron-and-preserves-scheduling-metadata
+  expectedBehavior: >-
+    Execute repeated native cron firings with distinct exchanges and request contexts while preserving generated
+    scheduling metadata.
   scope: Short
   deployment: base
   driver:
@@ -95,6 +98,8 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: first-native-fire
+    expectedBehavior: >-
+      Fire the native cron job once and preserve the exported cron, job registration, and delete-job setting.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -107,6 +112,7 @@ scenarios:
           expectedRegistered: true
           expectedCompletionBody: Triggered
   - id: second-native-fire
+    expectedBehavior: Fire the same native job again with a fresh exchange and request context.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -116,6 +122,7 @@ scenarios:
         properties:
           expectedCompletionBody: Triggered
   - id: third-native-fire
+    expectedBehavior: Complete a third independent native firing with the expected generated route result.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -125,6 +132,7 @@ scenarios:
         properties:
           expectedCompletionBody: Triggered
 - id: accepts-seven-field-quartz-cron
+  expectedBehavior: Register and fire the exported seven-field Quartz cron expression.
   scope: Short
   deployment: seven-field
   driver:
@@ -132,6 +140,8 @@ scenarios:
     sourceElementId: cffb3cf1-4d4e-5f82-9138-ddf75084006b
   invocations:
   - id: seven-field-native-fire
+    expectedBehavior: >-
+      Fire the native job with the exact exported seven-field cron and return the generated route result.
     expectedBody: Triggered
     interactions:
     - fixture: seven-field-schedule
@@ -142,6 +152,9 @@ scenarios:
           expectedCron: 0/1 * * ? * * *
           expectedCompletionBody: Triggered
 - id: preserves-cron-steps-ranges-and-lists
+  expectedBehavior: >-
+    Retain list, step, and range syntax in registered native Quartz triggers without business execution during
+    inspection.
   scope: Short
   deployment: lists
   driver:
@@ -149,6 +162,9 @@ scenarios:
     sourceElementId: 0fdf51e6-caeb-5230-b769-59f7bb717806
   invocations:
   - id: inspects-generated-native-cron
+    expectedBehavior: >-
+      Inspect the exact generated list and step/range cron expressions and registered jobs without firing either
+      route.
     expectedBody: null
     interactions:
     - fixture: lists-schedule
@@ -168,6 +184,7 @@ scenarios:
           expectedRegistered: true
           inspectionOnly: true
 - id: rejects-malformed-cron-before-firing
+  expectedBehavior: Reject the malformed cron expression at startup before any native business firing.
   scope: Short
   deployment: invalid
   expectedStartupFailure:
@@ -185,6 +202,7 @@ scenarios:
     sourceElementId: aff2541a-b602-53e8-941f-5611d4d651c4
   invocations:
   - id: invalid-cron-has-no-business-execution
+    expectedBehavior: Start no business execution for the generated route with the invalid Quartz cron expression.
     expectedBody: null
     interactions:
     - fixture: invalid-schedule
@@ -194,6 +212,9 @@ scenarios:
         properties:
           action: observe
 - id: observes-expired-cron-at-the-native-commit-boundary
+  expectedBehavior: >-
+    Observe the native commit rejection for an expired cron expression and retain no registered job or business
+    execution.
   scope: Long
   deployment: expired
   driver:
@@ -201,6 +222,7 @@ scenarios:
     sourceElementId: e2117318-b553-5dcf-8251-a5336b399ead
   invocations:
   - id: expired-cron-registers-no-job
+    expectedBehavior: Report the expired schedule commit failure, register no native job, and execute no business work.
     expectedBody: null
     interactions:
     - fixture: expired-schedule
@@ -212,6 +234,9 @@ scenarios:
           expectedRegistered: false
           expectedStartupCommitFailure: true
 - id: continues-after-an-unhandled-script-failure
+  expectedBehavior: >-
+    Report an unhandled scheduled script failure and execute the next native cron firing with a fresh request
+    context.
   scope: Long
   deployment: unhandled-failure
   driver:
@@ -219,6 +244,9 @@ scenarios:
     sourceElementId: 780b450e-fddb-5078-bd59-87f2a548eeb9
   invocations:
   - id: fails-first-native-fire
+    expectedBehavior: >-
+      Report the configured IllegalStateException from the first native firing and retain its request-context
+      checks.
     expectedBody: null
     interactions:
     - fixture: unhandled-failure-schedule
@@ -233,6 +261,8 @@ scenarios:
       message: Scheduled script failure
       cause: null
   - id: recovers-on-the-next-native-fire
+    expectedBehavior: >-
+      Complete the next native firing successfully with an independent request context after the script failure.
     expectedBody: Triggered
     interactions:
     - fixture: unhandled-failure-schedule
@@ -244,6 +274,9 @@ scenarios:
           verifyRequestContext: true
           expectedCompletionBody: Triggered
 - id: continues-after-a-handled-script-failure
+  expectedBehavior: >-
+    Return the generated fallback for a handled script failure and return to the normal branch on the next native
+    firing.
   scope: Long
   deployment: handled-failure
   driver:
@@ -251,6 +284,7 @@ scenarios:
     sourceElementId: 10ce5c3a-786d-57a8-aafc-8089eb880860
   invocations:
   - id: handles-first-native-failure
+    expectedBehavior: Handle the scheduled script failure, execute the fallback branch, and return its Fallback result.
     expectedBody: Fallback
     interactions:
     - fixture: handled-failure-schedule
@@ -264,6 +298,8 @@ scenarios:
       snapshotSchedulerFallbackReached: true
       snapshotSchedulerScriptReached: true
   - id: succeeds-after-the-handled-failure
+    expectedBehavior: >-
+      Return the normal Triggered result on the next firing without retaining the previous fallback marker.
     expectedBody: Triggered
     interactions:
     - fixture: handled-failure-schedule
@@ -277,6 +313,7 @@ scenarios:
       snapshotSchedulerFallbackReached: null
       snapshotSchedulerScriptReached: true
 - id: allows-overlap-without-leaking-exchange-state
+  expectedBehavior: Allow two native firings to overlap while preserving independent exchange and request-context state.
   scope: Long
   deployment: base
   driver:
@@ -284,6 +321,8 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: overlapping-natural-fires
+    expectedBehavior: >-
+      Hold two native firings concurrently and complete both with distinct exchanges and the expected route result.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -294,6 +333,8 @@ scenarios:
           overlap: true
           expectedCompletionBody: Triggered
 - id: recovers-through-native-consumer-lifecycle
+  expectedBehavior: >-
+    Resume native cron firing after route stop/start and suspend/resume while preserving the registered job.
   scope: Long
   deployment: base
   driver:
@@ -301,6 +342,7 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: fires-before-lifecycle-changes
+    expectedBehavior: Complete a baseline native firing before changing the route lifecycle.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -310,6 +352,7 @@ scenarios:
         properties:
           action: observe
   - id: fires-after-stop-and-start
+    expectedBehavior: Pause firing while stopped, retain the job registration, then complete a firing after route start.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -320,6 +363,8 @@ scenarios:
           action: stop-start
           expectedRegistered: true
   - id: fires-after-suspend-and-resume
+    expectedBehavior: >-
+      Pause firing while suspended, retain the job registration, then complete a firing after route resume.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -330,6 +375,8 @@ scenarios:
           action: suspend-resume
           expectedRegistered: true
 - id: retains-the-job-when-delete-job-is-disabled
+  expectedBehavior: >-
+    Keep the native job registered and its trigger paused when the endpoint stops with deleteJob disabled.
   scope: Long
   deployment: base
   driver:
@@ -337,6 +384,7 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: fires-before-endpoint-stop
+    expectedBehavior: Complete a native firing and verify that the exported deleteJob setting is disabled.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -346,6 +394,8 @@ scenarios:
         properties:
           expectedDeleteJob: false
   - id: retains-the-paused-job-after-endpoint-stop
+    expectedBehavior: >-
+      Stop the endpoint, retain the registered job with a paused trigger, and execute no further business work.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -357,6 +407,7 @@ scenarios:
           expectedRegistered: true
           expectedTriggerPaused: true
 - id: deletes-the-job-when-delete-job-is-enabled
+  expectedBehavior: Delete the native Quartz job when its generated endpoint stops with deleteJob enabled.
   scope: Long
   deployment: delete-job
   driver:
@@ -364,6 +415,7 @@ scenarios:
     sourceElementId: 37ce42de-ad22-5e04-b4ca-a46abcfd113c
   invocations:
   - id: fires-before-endpoint-stop
+    expectedBehavior: Complete a native firing and verify that the exported deleteJob setting is enabled.
     expectedBody: Triggered
     interactions:
     - fixture: delete-job-schedule
@@ -373,6 +425,7 @@ scenarios:
         properties:
           expectedDeleteJob: true
   - id: removes-the-job-after-endpoint-stop
+    expectedBehavior: Stop the endpoint, remove the registered native job, and execute no further business work.
     expectedBody: null
     interactions:
     - fixture: delete-job-schedule
@@ -383,6 +436,7 @@ scenarios:
           action: endpoint-stop
           expectedRegistered: false
 - id: recreates-a-job-after-route-removal-and-reload
+  expectedBehavior: Remove the job with its route and recreate native cron firing when the generated route is reloaded.
   scope: Long
   deployment: base
   driver:
@@ -390,6 +444,7 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: fires-before-route-removal
+    expectedBehavior: Complete a baseline native firing before removing the generated route.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -399,6 +454,7 @@ scenarios:
         properties:
           action: observe
   - id: removes-the-generated-job
+    expectedBehavior: Remove the route and its native job without starting any further business execution.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -409,6 +465,7 @@ scenarios:
           action: remove
           expectedRegistered: false
   - id: fires-after-generated-route-reload
+    expectedBehavior: Reload the generated route, recreate its registered job, and complete a native firing.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -419,6 +476,7 @@ scenarios:
           action: reload
           expectedRegistered: true
 - id: finishes-inflight-work-during-graceful-stop
+  expectedBehavior: Complete the in-flight native firing before graceful route shutdown finishes.
   scope: Long
   deployment: base
   driver:
@@ -426,6 +484,8 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: completes-native-inflight-fire
+    expectedBehavior: >-
+      Hold native processing during route stop and let the existing firing complete with its expected result.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -436,6 +496,7 @@ scenarios:
           action: graceful-stop
           expectedCompletionBody: Triggered
 - id: isolates-two-scheduler-elements-in-one-chain
+  expectedBehavior: Register and fire both exported scheduler elements independently within one generated chain.
   scope: Short
   deployment: multi-trigger
   driver:
@@ -443,6 +504,8 @@ scenarios:
     sourceElementId: c71d51d8-368f-5100-982d-88e687f415fd
   invocations:
   - id: fires-each-native-trigger
+    expectedBehavior: >-
+      Fire both native triggers and retain each trigger registration and its distinct generated branch result.
     expectedBody: Triggered
     interactions:
     - fixture: multi-trigger-schedule
@@ -460,6 +523,9 @@ scenarios:
           expectedCompletionBody: Secondary
           expectedRegistered: true
 - id: removes-old-jobs-during-deployment-replacement
+  expectedBehavior: >-
+    Replace a generated scheduler deployment without retaining its old jobs or interrupting an independent
+    deployment.
   scope: Long
   deployment: replacement
   driver:
@@ -467,6 +533,8 @@ scenarios:
     sourceElementId: 30a1b65f-fec5-516d-8832-920e7fb5af37
   invocations:
   - id: fires-original-before-replacement
+    expectedBehavior: >-
+      Fire the original and independent deployments while the deferred replacement has no registered job.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -489,6 +557,8 @@ scenarios:
         properties:
           expectedCompletionBody: Triggered
   - id: replaces-the-original-generated-deployment
+    expectedBehavior: >-
+      Remove the original job, load the replacement, and retain successful independent deployment firing.
     expectedBody: Replacement
     interactions:
     - fixture: base-schedule
@@ -513,6 +583,8 @@ scenarios:
         properties:
           expectedCompletionBody: Triggered
   - id: keeps-the-replacement-independent
+    expectedBehavior: >-
+      Continue firing the replacement and independent deployment while the removed original job stays absent.
     expectedBody: Replacement
     interactions:
     - fixture: base-schedule
@@ -535,12 +607,14 @@ scenarios:
           expectedCompletionBody: Triggered
 - id: controls-native-firing-through-blue-green-transitions
   scope: Long
+  expectedBehavior: Retain registered jobs and alternate native firing and standby with the blue-green activation state.
   deployment: base
   driver:
     provider: scheduler
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: starts-with-an-inactive-scheduler
+    expectedBehavior: Keep the registered job in standby without starting any native firing.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -553,6 +627,7 @@ scenarios:
           blueGreenState: INACTIVE
           expectedRegistered: true
   - id: fires-after-activation
+    expectedBehavior: Leave standby and complete one native firing after activation.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -563,6 +638,7 @@ scenarios:
           action: blue-green
           blueGreenState: ACTIVE
   - id: fires-after-repeated-active-state
+    expectedBehavior: Complete one native firing after receiving the active state again.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -573,6 +649,7 @@ scenarios:
           action: blue-green
           blueGreenState: ACTIVE
   - id: suspends-after-deactivation
+    expectedBehavior: Enter standby without starting any new native firing after deactivation.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -583,6 +660,7 @@ scenarios:
           action: blue-green
           blueGreenState: INACTIVE
   - id: stays-suspended-after-repeated-inactive-state
+    expectedBehavior: Stay in standby without starting any native firing after receiving the inactive state again.
     expectedBody: null
     interactions:
     - fixture: base-schedule
@@ -593,6 +671,7 @@ scenarios:
           action: blue-green
           blueGreenState: INACTIVE
   - id: fires-after-reactivation
+    expectedBehavior: Leave standby and complete one native firing after reactivation.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -603,6 +682,8 @@ scenarios:
           action: blue-green
           blueGreenState: ACTIVE
 - id: recovers-once-after-a-native-cron-misfire
+  expectedBehavior: >-
+    Observe a native misfire, recover with a current scheduled firing, and resume normal cron processing.
   scope: Long
   deployment: base
   driver:
@@ -610,6 +691,8 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: recovers-from-the-observed-native-misfire
+    expectedBehavior: >-
+      Recover from the observed native misfire without replaying the missed cron tick as old scheduled work.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -620,6 +703,7 @@ scenarios:
           action: misfire
           expectedCompletionBody: Triggered
   - id: returns-to-normal-cron-firing
+    expectedBehavior: Complete the next normal cron firing after misfire recovery.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -629,6 +713,8 @@ scenarios:
         properties:
           expectedCompletionBody: Triggered
 - id: isolates-two-deployments-of-the-same-chain
+  expectedBehavior: >-
+    Keep native jobs from two generated deployments of the same chain independently registered and executable.
   scope: Short
   deployment: second
   driver:
@@ -636,6 +722,7 @@ scenarios:
     sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
   invocations:
   - id: fires-both-generated-deployments
+    expectedBehavior: Fire both generated deployments independently and retain both native job registrations.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule
@@ -653,6 +740,8 @@ scenarios:
           expectedCompletionBody: Triggered
           expectedRegistered: true
   - id: keeps-the-second-deployment-firing-after-the-first-stops
+    expectedBehavior: >-
+      Stop the first deployment endpoint and retain its paused job while the second deployment keeps firing.
     expectedBody: Triggered
     interactions:
     - fixture: base-schedule

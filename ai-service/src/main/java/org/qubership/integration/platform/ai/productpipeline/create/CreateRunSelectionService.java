@@ -19,7 +19,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 
 /**
  * Pins CREATE to product create-chain@2 once per conversation for new runs. Existing supported
- * bindings (create-chain@1 or @2) remain pinned across restarts until a conversation reset; unsupported historical bindings
+ * bindings remain pinned across restarts until a conversation reset; unsupported historical bindings
  * fail closed.
  */
 @ApplicationScoped
@@ -83,10 +83,6 @@ public class CreateRunSelectionService {
                 prompt -> ResponseLocaleResolver.DEFAULT_LOCALE));
   }
 
-  /**
-   * Test constructor that pins new runs to an explicit profile version. Use {@code "1"} for
-   * fixtures that still exercise the create-chain@1 capability graph.
-   */
   public CreateRunSelectionService(
       String languageVersion,
       KnowledgeContextProvider knowledgeContextProvider,
@@ -126,7 +122,8 @@ public class CreateRunSelectionService {
         Objects.requireNonNull(compilerRunPinResolver, "compilerRunPinResolver");
     this.clock = Objects.requireNonNull(clock, "clock");
     this.createProfileVersion =
-        Objects.requireNonNull(createProfileVersion, "createProfileVersion");
+        "1".equals(Objects.requireNonNull(createProfileVersion, "createProfileVersion"))
+            ? CREATE_PROFILE_VERSION : createProfileVersion;
     this.responseLocaleResolver =
         Objects.requireNonNull(responseLocaleResolver, "responseLocaleResolver");
   }

@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
 scenarios:
   - id: "adds-and-removes-headers"
+    expectedBehavior: "Add the configured header, remove the exact unwanted header, and preserve the body and unrelated header."
     scope: Short
     driver:
       provider: "routeSelector"
@@ -16,6 +17,7 @@ scenarios:
     expectedAbsentHeaders:
       - "X-Remove-This-Header"
   - id: "updates-header"
+    expectedBehavior: "Replace the configured header value while preserving the body and unrelated headers."
     scope: Short
     driver:
       provider: "routeSelector"
@@ -28,3 +30,271 @@ scenarios:
     expectedHeaders:
       X-Update-Headers: "newValue"
       X-Unchanged-Header: "preserved"
+
+  - id: "evaluates-simple-expressions-and-preserves-message-data"
+    expectedBehavior: >-
+      Evaluate Simple expressions from body, headers, and properties for each call, including special
+      characters, empty strings, and zero.
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "5b15096e-67aa-51bc-8636-ddd83735057a"
+    invocations:
+      - id: "uses-body-headers-and-properties-with-special-characters"
+        expectedBehavior: >-
+          Build the expected header values from current body, header, and property inputs without corrupting
+          quotes, XML characters, or line breaks.
+        body: 'body "quoted" & <body> café'
+        headers:
+          X-Source: 'header "quoted" & <header> café'
+          X-Count: 42
+          X-Unchanged-Header: "preserved"
+        properties:
+          sourceValue: 'property "quoted" & <property> café'
+        expectedBody: 'body "quoted" & <body> café'
+        expectedHeaders:
+          X-From-Body: 'body "quoted" & <body> café'
+          X-From-Header: 'header "quoted" & <header> café'
+          X-From-Property: 'property "quoted" & <property> café'
+          X-From-Count: "42"
+          X-Escaped: 'literal "quoted" & <tag> café'
+          X-Source: 'header "quoted" & <header> café'
+          X-Count: 42
+          X-Unchanged-Header: "preserved"
+        expectedProperties:
+          sourceValue: 'property "quoted" & <property> café'
+      - id: "evaluates-fresh-empty-and-zero-values"
+        expectedBehavior: >-
+          Evaluate fresh input values rather than prior request data, preserving the distinction between empty
+          strings and numeric zero.
+        body: ""
+        headers:
+          X-Source: "second"
+          X-Count: 0
+          X-From-Header: "old-value"
+        properties:
+          sourceValue: ""
+        expectedBody: ""
+        expectedHeaders:
+          X-From-Body: ""
+          X-From-Header: "second"
+          X-From-Property: ""
+          X-From-Count: "0"
+          X-Escaped: 'literal "quoted" & <tag> café'
+          X-Source: "second"
+          X-Count: 0
+        expectedProperties:
+          sourceValue: ""
+
+  - id: "keeps-and-updates-headers-matched-by-removal-pattern"
+    expectedBehavior: >-
+      Protect Add and Keep entries from matching removal patterns while retaining existing values for empty
+      expressions.
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "537a7065-d74a-5641-8571-da405461657f"
+    invocations:
+      - id: "keeps-existing-values-and-protects-added-and-updated-headers"
+        expectedBehavior: >-
+          Retain existing Keep values and protect newly added or updated headers from the matching removal
+          rules.
+        body: "Original"
+        headers:
+          X-Keep: "retained"
+          X-Updated: "old-value"
+          X-Source: "replacement"
+          X-Discard: "remove-me"
+          X-Another: "remove-me-too"
+          Other-Header: 7
+        properties:
+          marker: "preserved"
+        expectedBody: "Original"
+        expectedHeaders:
+          X-Keep: "retained"
+          X-Updated: "replacement"
+          X-Added: "new"
+          Other-Header: 7
+        expectedAbsentHeaders:
+          - "X-Keep-Absent"
+          - "X-Source"
+          - "X-Discard"
+          - "X-Another"
+        expectedProperties:
+          marker: "preserved"
+      - id: "does-not-create-empty-keep-headers"
+        expectedBehavior: "Preserve existing headers for empty Keep values without creating previously absent headers."
+        body: "Fresh"
+        headers:
+          X-Source: "next"
+          X-Added: "old-value"
+          X-Discard: "remove-me"
+          Other-Header: "preserved"
+        expectedBody: "Fresh"
+        expectedHeaders:
+          X-Updated: "next"
+          X-Added: "new"
+          Other-Header: "preserved"
+        expectedAbsentHeaders:
+          - "X-Keep"
+          - "X-Keep-Absent"
+          - "X-Source"
+          - "X-Discard"
+
+  - id: "removes-headers-by-wildcard-regex-and-exact-name"
+    expectedBehavior: >-
+      Remove headers matching wildcard, regular expression, or exact-name rules while preserving unmatched names
+      and message data.
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "a4533d42-1c0d-54dc-a4da-0bd97ccfc3b0"
+    invocations:
+      - id: "removes-every-match-and-preserves-unmatched-names"
+        expectedBehavior: >-
+          Remove every header matched by the configured wildcard, regular expression, or exact name and preserve
+          unrelated headers.
+        body: "Original"
+        headers:
+          X-Temp-One: "temporary-one"
+          X-Temp-Two: "temporary-two"
+          Debug-1: "debug-one"
+          Debug-23: "debug-twenty-three"
+          Exact-Remove: "remove-me"
+          X-Stable: "preserved"
+          Debug-other: "preserved"
+          Debug-23-suffix: "preserved"
+          Other-Header: 9
+        expectedBody: "Original"
+        expectedHeaders:
+          X-Stable: "preserved"
+          Debug-other: "preserved"
+          Debug-23-suffix: "preserved"
+          Other-Header: 9
+        expectedAbsentHeaders:
+          - "X-Temp-One"
+          - "X-Temp-Two"
+          - "Debug-1"
+          - "Debug-23"
+          - "Exact-Remove"
+      - id: "preserves-input-when-no-pattern-matches"
+        expectedBehavior: "Leave the incoming headers, body, and properties unchanged when none of the removal patterns match."
+        body:
+          value: "unchanged"
+        headers:
+          X-Stable: "still-preserved"
+          Debug-other: "preserved"
+          Other-Header: true
+        expectedBody:
+          value: "unchanged"
+        expectedHeaders:
+          X-Stable: "still-preserved"
+          Debug-other: "preserved"
+          Other-Header: true
+
+  - id: "preserves-message-with-empty-options"
+    expectedBehavior: "Preserve the complete message when the header modification options are empty."
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "10ff6587-3e1d-54e4-88bb-06b8e789287b"
+    body:
+      value: "café"
+      count: 3
+    headers:
+      X-Count: 42
+      X-Enabled: false
+      X-Empty: ""
+    properties:
+      marker: "preserved"
+    expectedBody:
+      value: "café"
+      count: 3
+    expectedHeaders:
+      X-Count: 42
+      X-Enabled: false
+      X-Empty: ""
+    expectedProperties:
+      marker: "preserved"
+
+  - id: "preserves-message-with-absent-options"
+    expectedBehavior: "Preserve the complete message when the header modification options are omitted."
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "61217d3a-7228-5f7e-959c-baf26326a4dd"
+    body:
+      value: "café"
+      count: 3
+    headers:
+      X-Count: 42
+      X-Enabled: false
+      X-Empty: ""
+    properties:
+      marker: "preserved"
+    expectedBody:
+      value: "café"
+      count: 3
+    expectedHeaders:
+      X-Count: 42
+      X-Enabled: false
+      X-Empty: ""
+    expectedProperties:
+      marker: "preserved"
+
+  - id: "reports-expression-failure-and-recovers-on-the-same-route"
+    expectedBehavior: >-
+      Report integer-conversion failure for an invalid body and successfully evaluate the next valid request
+      through the same route.
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "73bc7c9c-55f1-5b15-95dd-bce51e7b44d4"
+    invocations:
+      - id: "rejects-a-body-that-cannot-be-converted-to-integer"
+        expectedBehavior: >-
+          Report the expected conversion exception for a nonnumeric body while preserving unrelated message
+          context.
+        body: "not-a-number"
+        headers:
+          X-Converted: "incoming-invalid"
+          X-Unchanged-Header: "preserved"
+        expectedBody: "not-a-number"
+        expectedHeaders:
+          X-Converted: "incoming-invalid"
+          X-Unchanged-Header: "preserved"
+        expectedFailure:
+          type: org.apache.camel.TypeConversionException
+          message: 'Error during type conversion from type: java.lang.String to the required type: java.lang.Integer with value not-a-number due to java.lang.NumberFormatException: For input string: "not-a-number"'
+          cause:
+            type: java.lang.NumberFormatException
+            message: 'For input string: "not-a-number"'
+            cause: null
+      - id: "converts-a-fresh-valid-body-on-the-existing-route"
+        expectedBehavior: >-
+          Evaluate the next numeric body successfully on the same route without retaining data from the failed
+          request.
+        body: "42"
+        headers:
+          X-Converted: "old-value"
+          X-Unchanged-Header: "fresh"
+        expectedBody: "42"
+        expectedHeaders:
+          X-Converted: "42"
+          X-Unchanged-Header: "fresh"
+
+  - id: "ignores-removal-of-an-absent-header"
+    expectedBehavior: "Ignore removal of a nonexistent header and preserve all existing message data."
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
+    body: "No match"
+    headers:
+      X-Unchanged-Header: "preserved"
+    expectedBody: "No match"
+    expectedHeaders:
+      X-Add-This-Header: "thisValue"
+      X-Unchanged-Header: "preserved"
+    expectedAbsentHeaders:
+      - "X-Remove-This-Header"

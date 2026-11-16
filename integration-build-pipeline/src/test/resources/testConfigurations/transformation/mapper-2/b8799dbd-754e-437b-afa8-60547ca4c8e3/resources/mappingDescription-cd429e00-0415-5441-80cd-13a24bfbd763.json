@@ -1,0 +1,412 @@
+{
+  "mappingDescription": {
+    "source": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "67dd0d6d095452a4923be1e80e7996e6",
+          "attributes": [
+            {
+              "id": "922bb9d96af950a79c6360994e44365d",
+              "name": "orders",
+              "type": {
+                "name": "array",
+                "itemType": {
+                  "name": "object",
+                  "schema": {
+                    "id": "41e3e854a63e54b9baa679cb9de41c98",
+                    "attributes": [
+                      {
+                        "id": "ddf0dddd68a059aab89a9726ea551487",
+                        "name": "id",
+                        "type": {
+                          "name": "string"
+                        },
+                        "required": false
+                      },
+                      {
+                        "id": "602225fea661552baba779ff9ab5dd36",
+                        "name": "items",
+                        "type": {
+                          "name": "array",
+                          "itemType": {
+                            "name": "object",
+                            "schema": {
+                              "id": "70f771fc13895b8d9c2abe0761a2be18",
+                              "attributes": [
+                                {
+                                  "id": "a496b412e38a5c02a0529404dee4933d",
+                                  "name": "count",
+                                  "type": {
+                                    "name": "number"
+                                  },
+                                  "required": false
+                                },
+                                {
+                                  "id": "02d93798708d5c20aed6c21d86e0f8aa",
+                                  "name": "sku",
+                                  "type": {
+                                    "name": "string"
+                                  },
+                                  "required": false
+                                }
+                              ]
+                            },
+                            "definitions": []
+                          },
+                          "definitions": []
+                        },
+                        "required": false
+                      },
+                      {
+                        "id": "ad408406658551588c485c1bbedce688",
+                        "name": "quantity",
+                        "type": {
+                          "name": "number"
+                        },
+                        "required": false
+                      }
+                    ]
+                  },
+                  "definitions": []
+                },
+                "definitions": []
+              },
+              "required": false
+            },
+            {
+              "id": "3bf8827b31965ccbaa057d8c50f66774",
+              "name": "profile",
+              "type": {
+                "name": "object",
+                "schema": {
+                  "id": "0a77d47f8d2b52b193f11a2ab5b975eb",
+                  "attributes": [
+                    {
+                      "id": "7c75dc673831583896d62a9bda150190",
+                      "name": "active",
+                      "type": {
+                        "name": "boolean"
+                      },
+                      "required": false
+                    },
+                    {
+                      "id": "d6a1650bd62f5becaf0541262d4a26a9",
+                      "name": "name",
+                      "type": {
+                        "name": "string"
+                      },
+                      "required": false
+                    }
+                  ]
+                },
+                "definitions": []
+              },
+              "required": false
+            },
+            {
+              "id": "fca7be5a7ab155c1b0beb46eb8169aa9",
+              "name": "tags",
+              "type": {
+                "name": "array",
+                "itemType": {
+                  "name": "string"
+                },
+                "definitions": []
+              },
+              "required": false
+            }
+          ]
+        },
+        "definitions": [],
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        }
+      },
+      "headers": [],
+      "properties": []
+    },
+    "target": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "d535bb35304b5996ac9eb0a2652f1ee7",
+          "attributes": [
+            {
+              "id": "3cc7d530a235560a8e67be7d3b9465d9",
+              "name": "customer",
+              "type": {
+                "name": "object",
+                "schema": {
+                  "id": "cdc18e583f1455308189df65bd0c4a1e",
+                  "attributes": [
+                    {
+                      "id": "2a12ac4b2d4f5839b024f7ff14007049",
+                      "name": "displayName",
+                      "type": {
+                        "name": "string"
+                      },
+                      "required": false
+                    },
+                    {
+                      "id": "bc0f388863c55545a22adcbde667fb37",
+                      "name": "enabled",
+                      "type": {
+                        "name": "boolean"
+                      },
+                      "required": false
+                    }
+                  ]
+                },
+                "definitions": []
+              },
+              "required": false
+            },
+            {
+              "id": "863e5db5b1e158e0a8a24c5b3867262c",
+              "name": "labels",
+              "type": {
+                "name": "array",
+                "itemType": {
+                  "name": "string"
+                },
+                "definitions": []
+              },
+              "required": false
+            },
+            {
+              "id": "e9ddce6eea9c560eba88109711ab6302",
+              "name": "purchases",
+              "type": {
+                "name": "array",
+                "itemType": {
+                  "name": "object",
+                  "schema": {
+                    "id": "0ae7c09f9a03590cac48269421677131",
+                    "attributes": [
+                      {
+                        "id": "e1056a94b6b8509ca2896526fbf7c7d8",
+                        "name": "lines",
+                        "type": {
+                          "name": "array",
+                          "itemType": {
+                            "name": "object",
+                            "schema": {
+                              "id": "f4001ba91b7d590a96756c7d3903469f",
+                              "attributes": [
+                                {
+                                  "id": "02fabcc0ba7c575985cfc689dea53b46",
+                                  "name": "amount",
+                                  "type": {
+                                    "name": "number"
+                                  },
+                                  "required": false
+                                },
+                                {
+                                  "id": "3e49c18b69d6531f952a0de3bc4dca4d",
+                                  "name": "productCode",
+                                  "type": {
+                                    "name": "string"
+                                  },
+                                  "required": false
+                                }
+                              ]
+                            },
+                            "definitions": []
+                          },
+                          "definitions": []
+                        },
+                        "required": false
+                      },
+                      {
+                        "id": "d047f141a6d95c71995f4140b7ef56c4",
+                        "name": "purchaseId",
+                        "type": {
+                          "name": "string"
+                        },
+                        "required": false
+                      },
+                      {
+                        "id": "0edace922d7b51f794d70aaf8245abc8",
+                        "name": "units",
+                        "type": {
+                          "name": "number"
+                        },
+                        "required": false
+                      }
+                    ]
+                  },
+                  "definitions": []
+                },
+                "definitions": []
+              },
+              "required": false
+            }
+          ]
+        },
+        "definitions": [],
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        }
+      },
+      "headers": [],
+      "properties": []
+    },
+    "actions": [
+      {
+        "id": "7c422cb2f63857b989b603f981ba2e81",
+        "target": {
+          "kind": "body",
+          "path": [
+            "3cc7d530a235560a8e67be7d3b9465d9",
+            "2a12ac4b2d4f5839b024f7ff14007049"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "3bf8827b31965ccbaa057d8c50f66774",
+              "d6a1650bd62f5becaf0541262d4a26a9"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "32addc78df3d50da9a881f8b8714bab0",
+        "target": {
+          "kind": "body",
+          "path": [
+            "3cc7d530a235560a8e67be7d3b9465d9",
+            "bc0f388863c55545a22adcbde667fb37"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "3bf8827b31965ccbaa057d8c50f66774",
+              "7c75dc673831583896d62a9bda150190"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "623ed80d39d755f7af69dddfa5246f23",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e9ddce6eea9c560eba88109711ab6302",
+            "d047f141a6d95c71995f4140b7ef56c4"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "922bb9d96af950a79c6360994e44365d",
+              "ddf0dddd68a059aab89a9726ea551487"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "9efe25fae14956bdaf9e635fa8b82082",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e9ddce6eea9c560eba88109711ab6302",
+            "0edace922d7b51f794d70aaf8245abc8"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "922bb9d96af950a79c6360994e44365d",
+              "ad408406658551588c485c1bbedce688"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "5650ceb350c259b9961a3f83d6b986c9",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e9ddce6eea9c560eba88109711ab6302",
+            "e1056a94b6b8509ca2896526fbf7c7d8",
+            "3e49c18b69d6531f952a0de3bc4dca4d"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "922bb9d96af950a79c6360994e44365d",
+              "602225fea661552baba779ff9ab5dd36",
+              "02d93798708d5c20aed6c21d86e0f8aa"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "ea92dd8dd7fd580cbda4db3f013c55ab",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e9ddce6eea9c560eba88109711ab6302",
+            "e1056a94b6b8509ca2896526fbf7c7d8",
+            "02fabcc0ba7c575985cfc689dea53b46"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "922bb9d96af950a79c6360994e44365d",
+              "602225fea661552baba779ff9ab5dd36",
+              "a496b412e38a5c02a0529404dee4933d"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "f78f7163151c5334a78fcfa96e072c61",
+        "target": {
+          "kind": "body",
+          "path": [
+            "863e5db5b1e158e0a8a24c5b3867262c"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "fca7be5a7ab155c1b0beb46eb8169aa9"
+            ],
+            "type": "attribute"
+          }
+        ]
+      }
+    ],
+    "constants": []
+  }
+}

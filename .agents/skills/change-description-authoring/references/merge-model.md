@@ -49,7 +49,8 @@ Every pull request is squashed into one commit whose message is the pull request
 else; neither the commit messages nor the description is copied. Write the title as a commit
 subject, with the issue number in it where one exists, because it is all that reaches git log; put
 problem, symptom, and approach in the description for the reviewer, knowing the description stays
-on the platform.
+on the platform. Where the change carries `Implements:` and `Defers:` trailers, whoever merges
+pastes them into the body of the squash commit.
 ```
 
 ## Every pull request is squashed, title and description

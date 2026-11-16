@@ -68,6 +68,8 @@ fixtures:
   deployment: graphql-sender-body-correlation
 scenarios:
 - id: sends-requests-with-and-without-bearer-authentication
+  expectedBehavior: >-
+    Send requests with and without Bearer authentication and return the final authenticated response.
   scope: Short
   endpointUri: cip-chain:b855fa07-94b9-49e0-89e3-f0fffcd59f4c
   expectedAbsentHeaders:
@@ -137,11 +139,15 @@ scenarios:
     CamelHttpResponseCode: 200
     Content-Type: application/json
 - id: sends-internal-requests-and-recovers-from-errors
+  expectedBehavior: >-
+    Preserve GraphQL request shape and response data while recovering from HTTP errors and invalid variable
+    input.
   scope: Short
   deployment: graphql-sender-internal-routing
   endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
   invocations:
   - id: returns-data
+    expectedBehavior: "Return the successful GraphQL data response unchanged."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -180,6 +186,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
   - id: returns-errors
+    expectedBehavior: "Return GraphQL errors carried by an HTTP 200 response without treating them as HTTP failure."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -218,6 +225,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
   - id: returns-partial-data-and-errors
+    expectedBehavior: "Preserve both partial GraphQL data and the accompanying errors."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -256,6 +264,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
   - id: fails-on-http-401
+    expectedBehavior: "Propagate HTTP 401 while preserving the error response body and status."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -295,6 +304,7 @@ scenarios:
       message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 401'
       cause: null
   - id: recovers-after-http-401
+    expectedBehavior: "Complete a fresh GraphQL request after HTTP 401 without retaining the failed response."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -333,6 +343,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 401"}}
   - id: fails-on-http-403
+    expectedBehavior: "Propagate HTTP 403 while preserving the error response body and status."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -372,6 +383,7 @@ scenarios:
       message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 403'
       cause: null
   - id: recovers-after-http-403
+    expectedBehavior: "Complete a fresh GraphQL request after HTTP 403 without retaining the failed response."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -410,6 +422,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 403"}}
   - id: fails-on-http-500
+    expectedBehavior: "Propagate HTTP 500 while preserving the error response body and status."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -449,6 +462,7 @@ scenarios:
       message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 500'
       cause: null
   - id: recovers-after-http-500
+    expectedBehavior: "Complete a fresh GraphQL request after HTTP 500 without retaining the failed response."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -487,6 +501,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 500"}}
   - id: sends-nested-variables
+    expectedBehavior: "Preserve nested objects, arrays, booleans, and nulls in GraphQL variables."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -528,6 +543,7 @@ scenarios:
         body: |-
           {"query":"query Request($input: GreetingInput!, $limit: Int!) { greeting(input: $input, limit: $limit) { message } }","operationName":"Request","variables":{"input":{"name":"Sample customer","enabled":true,"count":7,"ratio":2.5,"optional":null,"tags":["first","second"],"items":[{"id":1,"active":false},{"id":2,"active":true}],"nested":{"emptyObject":{},"emptyArray":[]}},"limit":0}}
   - id: replaces-query-and-variables
+    expectedBehavior: "Use this request's query and variables overrides instead of the exported defaults."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -567,6 +583,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!, $enabled: Boolean!) { recipient(name: $name, enabled: $enabled) { name } }","operationName":"Request","variables":{"name":"replacement","enabled":false,"count":-12,"ratio":0.125,"optional":null,"tags":[]}}
   - id: clears-variables-for-next-query
+    expectedBehavior: "Send the next query with empty variables rather than retaining the previous override."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -605,6 +622,7 @@ scenarios:
         body: |-
           {"query":"query Request { health { ready } }","operationName":"Request","variables":{}}
   - id: sends-mutation
+    expectedBehavior: "Send the mutation with its expected operation name and variables."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -643,6 +661,7 @@ scenarios:
         body: |-
           {"query":"mutation Request($name: String!) { updateGreeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Updated recipient"}}
   - id: selects-operation-from-document
+    expectedBehavior: "Send the configured operationName when the GraphQL document contains multiple operations."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -683,6 +702,7 @@ scenarios:
         body: |-
           {"query":"query Unused { ignored { value } }\nquery Request($name: String!) { greeting(name: $name) { message } }","operationName":"Request","variables":{"name":"QIP"}}
   - id: preserves-multiline-query-and-escaping
+    expectedBehavior: "Preserve the multiline query and escaped variable characters in the outgoing JSON request."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -727,6 +747,7 @@ scenarios:
         body: |-
           {"query":"query Request {\n  greeting(message: \"Line one\\nLine two: \\\"quoted\\\" \\\\ path\") {\n    message\n    recipient\n  }\n}","operationName":"Request","variables":{}}
   - id: rejects-invalid-json
+    expectedBehavior: "Reject malformed variables JSON before making an HTTP request."
     body: The request did not reach HTTP.
     headers:
       Content-Type: text/plain
@@ -758,6 +779,7 @@ scenarios:
         properties:
           internalProperty_graphQLVariablesJSON: '{invalid}'
   - id: recovers-after-invalid-json
+    expectedBehavior: "Send a valid GraphQL request after malformed variables JSON was rejected."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -796,6 +818,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered invalid-json"}}
   - id: rejects-array-root
+    expectedBehavior: "Reject variables whose root is an array before making an HTTP request."
     body: The request did not reach HTTP.
     headers:
       Content-Type: text/plain
@@ -827,6 +850,7 @@ scenarios:
         properties:
           internalProperty_graphQLVariablesJSON: '[1,2]'
   - id: recovers-after-array-root
+    expectedBehavior: "Send valid object-root variables after rejecting the array root."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -865,6 +889,7 @@ scenarios:
         body: |-
           {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered array-root"}}
   - id: returns-empty-body
+    expectedBehavior: "Preserve the empty body returned by a successful HTTP response."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -899,6 +924,7 @@ scenarios:
           CamelGraphQLVariables: null
         body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
   - id: returns-plain-text
+    expectedBehavior: "Preserve the plain-text body returned by a successful HTTP response."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -933,6 +959,7 @@ scenarios:
           CamelGraphQLVariables: null
         body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
   - id: fails-with-html-body
+    expectedBehavior: "Propagate the HTTP error while retaining the server's HTML response body."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -968,6 +995,7 @@ scenarios:
       message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 500'
       cause: null
   - id: recovers-after-html-error
+    expectedBehavior: "Send successfully after the previous HTTP error returned HTML."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1002,6 +1030,7 @@ scenarios:
           CamelGraphQLVariables: null
         body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
   - id: sends-to-internal-address
+    expectedBehavior: "Use the generated internal GraphQL host, port, and path."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1042,11 +1071,13 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
 - id: sends-unnamed-operations-with-empty-variables
+  expectedBehavior: "Send unnamed GraphQL operations with a null operationName and an empty variables object."
   scope: Short
   deployment: graphql-sender-variables-object
   endpointUri: cip-chain:c102edd9-f109-410f-88e5-e6431cde17b5
   invocations:
   - id: sends-unnamed-query
+    expectedBehavior: "Send an unnamed operation with null operationName and an empty variables object."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1082,6 +1113,7 @@ scenarios:
         body: |-
           {"query":"{ greeting { message recipient } }","operationName":null,"variables":{}}
   - id: sends-empty-variables
+    expectedBehavior: "Send an empty variables object without adding an operation name."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1117,11 +1149,13 @@ scenarios:
         body: |-
           {"query":"{ health { ready } }","operationName":null,"variables":{}}
 - id: sends-empty-variables-with-absent-setting
+  expectedBehavior: "Send an empty GraphQL variables object when the exported variables setting is absent."
   scope: Short
   deployment: graphql-sender-variables-absent
   endpointUri: cip-chain:f4f4912d-bfb2-4767-a8ae-57a0e3fa872a
   invocations:
   - id: sends-empty-variables
+    expectedBehavior: "Send an empty variables object without adding an operation name."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1157,11 +1191,13 @@ scenarios:
         body: |-
           {"query":"{ health { ready } }","operationName":null,"variables":{}}
 - id: sends-empty-variables-with-empty-setting
+  expectedBehavior: "Send an empty GraphQL variables object when the exported variables setting is empty."
   scope: Short
   deployment: graphql-sender-variables-empty
   endpointUri: cip-chain:7e4cc46f-8097-465c-b36b-8161353e7a0e
   invocations:
   - id: sends-empty-variables
+    expectedBehavior: "Send an empty variables object without adding an operation name."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1197,11 +1233,13 @@ scenarios:
         body: |-
           {"query":"{ health { ready } }","operationName":null,"variables":{}}
 - id: recovers-after-connection-close
+  expectedBehavior: "Propagate a server connection closure and complete the next GraphQL request on a new connection."
   scope: Short
   deployment: graphql-sender-internal-routing
   endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
   invocations:
   - id: fails-when-server-closes-connection
+    expectedBehavior: "Propagate the server's empty-response connection failure after exactly one send attempt."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1243,6 +1281,7 @@ scenarios:
       ignoreMessage: true
       cause: null
   - id: succeeds-after-connection-close
+    expectedBehavior: "Establish a new HTTP connection and complete the next GraphQL request."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1286,11 +1325,16 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
 - id: propagates-context-and-receives-correlation-headers
+  expectedBehavior: >-
+    Send the configured context override, restore the incoming context, and retain correlation IDs across
+    success, errors, and recovery.
   scope: Short
   deployment: graphql-sender-context
   endpointUri: cip-chain:68fb59ae-efb7-44ef-9850-ae64674a8b12
   invocations:
   - id: restores-context-after-success
+    expectedBehavior: >-
+      Restore the incoming context after a successful response and send the configured request-context override.
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1345,6 +1389,8 @@ scenarios:
     expectedProperties:
       correlationId: '[outgoing-restores-context-after-success, response-restores-context-after-success]'
   - id: restores-context-after-http-error
+    expectedBehavior: >-
+      Restore the incoming context after the HTTP error and send the configured request-context override.
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1399,6 +1445,9 @@ scenarios:
     expectedAbsentHeaders:
     - X-Request-Id
   - id: restores-context-after-recovery
+    expectedBehavior: >-
+      Restore the incoming context after a fresh successful request after recovery and send the configured
+      request-context override.
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1453,6 +1502,7 @@ scenarios:
     expectedProperties:
       correlationId: '[outgoing-restores-context-after-recovery, response-restores-context-after-recovery]'
   - id: receives-response-only
+    expectedBehavior: "Receive the response correlation header when no outgoing correlation ID was supplied."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1503,6 +1553,7 @@ scenarios:
     expectedProperties:
       correlationId: response-only-id
   - id: keeps-outgoing-without-response
+    expectedBehavior: "Retain the outgoing correlation ID when the response supplies no replacement."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1553,6 +1604,7 @@ scenarios:
     expectedProperties:
       correlationId: outgoing-only-id
   - id: has-no-correlation-id
+    expectedBehavior: "Leave correlation absent when neither the request nor the response supplies an ID."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1602,11 +1654,13 @@ scenarios:
     expectedProperties:
       correlationId: null
 - id: reuses-established-connection
+  expectedBehavior: "Send three GraphQL requests over one established HTTP connection."
   scope: Short
   deployment: graphql-sender-internal-routing
   endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
   invocations:
   - id: sends-request-1
+    expectedBehavior: "Complete request 1 while keeping the HTTP connection count at 1."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1648,6 +1702,7 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
   - id: sends-request-2
+    expectedBehavior: "Complete request 2 while keeping the HTTP connection count at 1."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1689,6 +1744,7 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
   - id: sends-request-3
+    expectedBehavior: "Complete request 3 while keeping the HTTP connection count at 1."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1730,11 +1786,13 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
 - id: opens-connection-for-each-request
+  expectedBehavior: "Open a distinct HTTP connection for each GraphQL request when connection reuse is disabled."
   scope: Short
   deployment: graphql-sender-no-reuse
   endpointUri: cip-chain:c483a0e2-35b5-42a5-a9d8-d8261e803196
   invocations:
   - id: sends-request-1
+    expectedBehavior: "Complete request 1 on its own HTTP connection, bringing the count to 1."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1776,6 +1834,7 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
   - id: sends-request-2
+    expectedBehavior: "Complete request 2 on its own HTTP connection, bringing the count to 2."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1817,6 +1876,7 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
   - id: sends-request-3
+    expectedBehavior: "Complete request 3 on its own HTTP connection, bringing the count to 3."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1858,11 +1918,15 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
 - id: routes-external-requests-and-keeps-authorization-nonempty
+  expectedBehavior: >-
+    Use the generated external gateway address and preserve nonempty Authorization after success, HTTP errors,
+    and conflicting responses.
   scope: Short
   deployment: graphql-sender-external-routing
   endpointUri: cip-chain:33f4d9ee-78b8-4e35-b42a-252d12fe1703
   invocations:
   - id: sends-to-external-address
+    expectedBehavior: "Use the generated external gateway address and GraphQL path."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1903,6 +1967,7 @@ scenarios:
     - CamelGraphQLQuery
     - CamelGraphQLVariables
   - id: keeps-authorization-nonempty-after-success
+    expectedBehavior: "Send the configured Basic authorization and retain nonempty Authorization after success."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -1952,6 +2017,7 @@ scenarios:
     - CamelGraphQLVariables
     - X-Request-Id
   - id: keeps-authorization-nonempty-after-http-error
+    expectedBehavior: "Send the configured Basic authorization and retain nonempty Authorization after the HTTP error."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2008,6 +2074,7 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: keeps-authorization-nonempty-after-recovery
+    expectedBehavior: "Retain nonempty Authorization when a fresh request succeeds after the HTTP error."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2057,6 +2124,8 @@ scenarios:
     - CamelGraphQLVariables
     - X-Request-Id
   - id: keeps-authorization-nonempty-with-conflicting-success-header
+    expectedBehavior: >-
+      Keep Authorization nonempty when a successful response supplies a different Authorization value.
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2107,6 +2176,7 @@ scenarios:
     - CamelGraphQLVariables
     - X-Request-Id
   - id: recovers-after-conflicting-success-header
+    expectedBehavior: "Send successfully after the conflicting success header while retaining nonempty Authorization."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2156,6 +2226,7 @@ scenarios:
     - CamelGraphQLVariables
     - X-Request-Id
   - id: keeps-authorization-nonempty-with-conflicting-error-header
+    expectedBehavior: "Keep Authorization nonempty when an HTTP error supplies a different Authorization value."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2213,6 +2284,7 @@ scenarios:
         with statusCode: 500'
       cause: null
   - id: recovers-after-conflicting-error-header
+    expectedBehavior: "Send successfully after the conflicting error header while retaining nonempty Authorization."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2262,11 +2334,15 @@ scenarios:
     - CamelGraphQLVariables
     - X-Request-Id
 - id: skips-context-propagation-when-disabled
+  expectedBehavior: >-
+    Omit outgoing context headers while restoring the incoming context after GraphQL success, HTTP error, and
+    recovery.
   scope: Short
   deployment: graphql-sender-context-disabled
   endpointUri: cip-chain:21bd6abc-88d5-419a-b66d-72f45babff94
   invocations:
   - id: restores-context-after-success
+    expectedBehavior: "Restore the incoming context after a successful response and omit outgoing request context."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2314,6 +2390,7 @@ scenarios:
     expectedProperties:
       internalProperty_overrideContextParams: null
   - id: restores-context-after-http-error
+    expectedBehavior: "Restore the incoming context after the HTTP error and omit outgoing request context."
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2363,6 +2440,9 @@ scenarios:
     expectedAbsentHeaders:
     - X-Request-Id
   - id: restores-context-after-recovery
+    expectedBehavior: >-
+      Restore the incoming context after a fresh successful request after recovery and omit outgoing request
+      context.
     body: Input body is replaced by the GraphQL response.
     headers:
       Content-Type: text/plain
@@ -2410,11 +2490,15 @@ scenarios:
     expectedProperties:
       internalProperty_overrideContextParams: null
 - id: receives-correlation-id-from-response-body
+  expectedBehavior: >-
+    Receive correlation IDs from the GraphQL response body and retain the prior ID when the field is absent or
+    the request fails.
   scope: Short
   deployment: graphql-sender-body-correlation
   endpointUri: cip-chain:2b447f64-9546-4302-9ef1-9c7c0fd6b777
   invocations:
   - id: receives-body-id-without-outgoing-id
+    expectedBehavior: "Read the correlation ID from the response body when the request had none."
     body: '{"input":"original"}'
     headers:
       Content-Type: text/plain
@@ -2466,6 +2550,7 @@ scenarios:
     expectedProperties:
       correlationId: response-body-id
   - id: keeps-id-when-body-field-is-absent
+    expectedBehavior: "Preserve the prior correlation ID when the response body omits its correlation field."
     body: '{"input":"original"}'
     headers:
       Content-Type: text/plain
@@ -2516,6 +2601,7 @@ scenarios:
     expectedProperties:
       correlationId: outgoing-body-id
   - id: keeps-id-after-http-error
+    expectedBehavior: "Preserve the prior correlation ID when the GraphQL HTTP request fails."
     body: '{"input":"original"}'
     headers:
       Content-Type: text/plain
@@ -2570,6 +2656,7 @@ scenarios:
     - X-Request-Id
     - X-Correlation-Id
   - id: receives-body-id-after-recovery
+    expectedBehavior: "Read the fresh correlation ID from the response body after HTTP-error recovery."
     body: '{"input":"original"}'
     headers:
       Content-Type: text/plain

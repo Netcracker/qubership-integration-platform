@@ -282,7 +282,7 @@ class ProductPipelineRunResourceTest {
         new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
             runId,
             "planning",
-            "create-chain-v1",
+            "compiler-fixture",
             "1",
             "digest",
             "cip-script-generator",

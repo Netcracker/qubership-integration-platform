@@ -17,6 +17,7 @@ import { createInterface } from "node:readline";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const entry = resolve(root, "ai-service/e2e/run.py");
+const python = process.env.E2E_PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 let directory: string, server: ChildProcess, url: string;
 
 test.beforeEach(async () => {
@@ -132,7 +133,8 @@ else:
       ],
     }),
   );
-  server = spawn("python3", [
+  server = spawn(python, [
+    "-u",
     entry,
     "--package",
     join(directory, "package"),
@@ -142,15 +144,22 @@ else:
     "--port",
     "0",
   ]);
+  let output = "";
+  server.stderr!.on("data", (chunk) => { output += String(chunk); });
+  server.stdout!.on("data", (chunk) => { output += String(chunk); });
   const lines = createInterface({ input: server.stdout! });
   url = await new Promise<string>((accept, reject) => {
     const timer = setTimeout(
-      () => reject(new Error("The local test UI did not start")),
+      () => reject(new Error(`The local test UI did not start. Output:\n${output}`)),
       10_000,
     );
     server.once("exit", (code) => {
       clearTimeout(timer);
-      reject(new Error(`UI server exited: ${code}`));
+      reject(new Error(`UI server exited: ${code}. Output:\n${output}`));
+    });
+    server.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
     });
     lines.on("line", (line) => {
       if (line.startsWith("Test results: ")) {
@@ -198,7 +207,7 @@ test.describe("AI test results", () => {
     async ({ page, request }) => {
       const run = JSON.parse(
         execFileSync(
-          "python3",
+          python,
           [
             entry,
             "--package",

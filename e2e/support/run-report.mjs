@@ -267,9 +267,12 @@ export const grepPathPattern = (title) => title.split(" › ").map(grepPattern).
  * @param {string} location the spec's `file:line` under `specs/`
  * @param {string} title the describe path and the case title
  * @param {boolean} [stack] whether the project needs the stack
+ * @param {string} [run] the owner of the saved process snapshot
  */
-export const rerunCommand = (target, project, location, title, stack = true) =>
-  `npm run test:${target} -- --project=${project}${stack ? " --no-deps" : ""} specs/${location} -g "${grepPathPattern(title)}"`;
+export const rerunCommand = (target, project, location, title, stack = true, run) => {
+  const prefix = project === "process-envelope" ? `E2E_RUN='${(run ?? "<run>").replaceAll("'", "'\\''")}' ` : "";
+  return `${prefix}npm run test:${target} -- --project=${project}${stack ? " --no-deps" : ""} specs/${location} -g "${grepPathPattern(title)}"`;
+};
 
 /** @param {string[]} names */
 export const joined = (names) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);

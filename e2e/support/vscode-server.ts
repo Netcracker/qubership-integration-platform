@@ -6,7 +6,7 @@
  * `stopVsCodeServer`. The setup refuses a server it did not start: it may serve another checkout's
  * extension or another workspace.
  */
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -108,7 +108,7 @@ export async function staleBuilds(root = repoRoot()): Promise<{ uiLib: boolean; 
  */
 export function serverCommand(root = repoRoot()): { command: string; args: string[]; cwd: string } {
   return {
-    command: path.join(root, "node_modules", ".bin", "vscode-test-web"),
+    command: path.join(root, "node_modules", ".bin", process.platform === "win32" ? "vscode-test-web.cmd" : "vscode-test-web"),
     args: [
       "--browser",
       "none",

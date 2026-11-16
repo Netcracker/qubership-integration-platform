@@ -13,6 +13,19 @@ from test_system.server import make_server
 
 
 class ServerTest(unittest.TestCase):
+    def test_loopback_server_starts_without_reverse_dns(self):
+        with patch(
+            "socket.getfqdn", side_effect=AssertionError("Reverse DNS is unavailable")
+        ):
+            server = make_server(
+                Catalog(self.root), self.store, self.root / "run.py", 0
+            )
+        try:
+            self.assertGreater(server.server_port, 0)
+            self.assertEqual(server.server_name, "localhost")
+        finally:
+            server.server_close()
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -41,9 +54,8 @@ class ServerTest(unittest.TestCase):
                 }
             )
         )
-        self.server = make_server(
-            Catalog(root), RunStore(root / "results"), root / "run.py", 0
-        )
+        self.store = RunStore(root / "results")
+        self.server = make_server(Catalog(root), self.store, root / "run.py", 0)
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
         self.addCleanup(self.close)

@@ -37,6 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.service.codeview.deser
 import org.qubership.integration.platform.runtime.catalog.service.codeview.serializer.CodeviewChainElementSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -95,7 +96,7 @@ public class MapperAutoConfiguration {
     }
 
     @Bean("yamlExportImportMapper")
-    public YAMLMapper yamlExportImportMapper() {
+    public YAMLMapper yamlExportImportMapper(@Value("${cip.export.minimize-quotes}") boolean minimizeQuotes) {
         final String[] excludedFields = {
                 "createdWhen",
                 "createdBy",
@@ -117,6 +118,7 @@ public class MapperAutoConfiguration {
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
         yamlMapper.setFilterProvider(simpleFilterProvider);
         yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        yamlMapper.configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
 
         return yamlMapper;
     }
@@ -143,7 +145,7 @@ public class MapperAutoConfiguration {
 
     @Bean("variablesYamlMapper")
     public YAMLMapper variablesYamlMapper(KubeSecretSerializer kubeSecretSerializer) {
-        YAMLMapper yamlMapper = new YAMLMapper();
+        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
 
@@ -177,7 +179,9 @@ public class MapperAutoConfiguration {
     private YAMLFactory createCustomYamlFactory() {
         LoaderOptions loaderOptions = new LoaderOptions();
         loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
-        return YAMLFactory.builder().loaderOptions(loaderOptions).build();
+        return new MinimizedQuotesYamlFactory(YAMLFactory.builder()
+                .loaderOptions(loaderOptions)
+                .stringQuotingChecker(new YamlStringQuotingChecker()));
     }
 
     @Bean

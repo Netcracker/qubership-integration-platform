@@ -19,9 +19,10 @@
  * the import is load-bearing twice over: an import over a live id is an update, and this fixture is
  * imported three times in one case.
  */
+import yaml from "js-yaml";
 import { test, expect } from "../../support/fixtures.js";
 import { entryNames, entryText } from "../../support/zip.js";
-import { assembleFixture, readDocumentFixture, SCRIPT_FIXTURE_DIR } from "../../fixtures/templating.js";
+import { assembleFixture, elementsOf, readDocumentFixture, SCRIPT_FIXTURE_DIR } from "../../fixtures/templating.js";
 import { chainEntry, chainExists, importChains } from "../../support/chain-import.js";
 
 const FIXTURE = "script-inline.yaml";
@@ -82,7 +83,8 @@ test.describe("script source", { tag: ["@catalog"] }, () => {
       expect(await entryText(archive, scriptEntry(fixture.id, script.id))).toBe(source);
 
       const exported = await entryText(archive, chainEntry(fixture.id));
-      expect(exported).toContain(`propertiesFilename: "${scriptResourceName(script.id)}"`);
+      const exportedScript = elementsOf(yaml.load(exported) as Record<string, unknown>).find((element) => element.id === script.id)!;
+      expect(exportedScript.properties?.propertiesFilename).toBe(scriptResourceName(script.id));
       // The source moved rather than being copied. Were it in both places, an import reading the
       // file back would prove nothing about the file.
       expect(exported).not.toContain("script: ");

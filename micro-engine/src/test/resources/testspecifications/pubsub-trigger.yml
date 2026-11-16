@@ -50,6 +50,8 @@ fixtures:
   deployment: idempotency-subchain
 scenarios:
 - id: consumes-values-attributes-and-metadata-with-auto-ack
+  expectedBehavior: >-
+    Preserve message bytes and attributes while providing native metadata and isolated AUTO-mode deliveries.
   reuseBroker: true
   scope: Short
   deployment: auto
@@ -58,6 +60,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: utf8-values
+    expectedBehavior: >-
+      Consume the UTF-8 payload with its expected attributes and native message metadata.
     body: Hello from the café
     expectedBody: Triggered
     headers:
@@ -71,6 +75,8 @@ scenarios:
       response:
         properties: {}
   - id: json-as-raw-bytes
+    expectedBehavior: >-
+      Consume the JSON message as the expected raw bytes with its published attributes.
     body: '{"order":{"id":42,"status":"RECEIVED"}}'
     expectedBody: Triggered
     headers:
@@ -83,6 +89,8 @@ scenarios:
       response:
         properties: {}
   - id: binary-invalid-utf8
+    expectedBehavior: >-
+      Preserve binary bytes that do not form valid UTF-8 while consuming the message once.
     body:
     - 0
     - 255
@@ -107,6 +115,8 @@ scenarios:
       response:
         properties: {}
   - id: empty-with-attributes
+    expectedBehavior: >-
+      Consume an empty payload without losing its published message attributes.
     body: ''
     expectedBody: Triggered
     headers:
@@ -119,6 +129,8 @@ scenarios:
       response:
         properties: {}
   - id: null-as-empty-with-attributes
+    expectedBehavior: >-
+      Treat the null publication as empty bytes while preserving its attributes.
     body: null
     expectedBody: Triggered
     headers:
@@ -131,6 +143,9 @@ scenarios:
       response:
         properties: {}
   - id: same-payload-distinct-message-ids
+    expectedBehavior: >-
+      Consume all five publications independently despite identical payloads, with distinct broker message
+      IDs.
     body: same-payload
     expectedBody:
     - Triggered
@@ -151,6 +166,9 @@ scenarios:
       response:
         properties: {}
   - id: attributes-cannot-forge-metadata
+    expectedBehavior: >-
+      Preserve native message metadata and exclude internal context headers that application attributes cannot
+      replace.
     body: metadata
     expectedBody: Triggered
     headers:
@@ -171,6 +189,8 @@ scenarios:
           - X-Request-Id
           - snapshotPrevious
   - id: clean-message-after-attributed-message
+    expectedBehavior: >-
+      Consume a fresh message without retaining context headers or attributes from the previous delivery.
     body: clean
     expectedBody: Triggered
     interactions:
@@ -185,6 +205,8 @@ scenarios:
           - X-Request-Id
           - snapshotPrevious
 - id: consumes-repeated-publications-with-auto-ack
+  expectedBehavior: >-
+    Consume and acknowledge each repeated publication once with an independent first delivery attempt.
   reuseBroker: true
   scope: Short
   deployment: auto
@@ -193,6 +215,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: repeated-publication
+    expectedBehavior: >-
+      Acknowledge both repeated publications once and report their first delivery attempt.
     repeat: 2
     body: repeated-payload
     headers:
@@ -218,6 +242,9 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 1
 - id: redelivers-each-repeated-publication-after-script-failure
+  expectedBehavior: >-
+    Negatively acknowledge each failed publication, redeliver it successfully, and keep later publications
+    independent.
   reuseBroker: true
   scope: Long
   deployment: auto
@@ -226,6 +253,9 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: repeated-failure-and-redelivery
+    expectedBehavior: >-
+      Record each initial script failure, NACK both messages, and acknowledge their successful second delivery
+      attempts.
     repeat: 2
     body: repeated-failure
     headers:
@@ -266,6 +296,8 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 2
   - id: repeated-publication-after-recovery
+    expectedBehavior: >-
+      Acknowledge fresh repeated publications once each without inheriting earlier failure or delivery counts.
     repeat: 2
     body: recovered
     expectedBody: Triggered
@@ -287,6 +319,9 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 1
 - id: deduplicates-repeated-publications-with-unequal-delivery-counts
+  expectedBehavior: >-
+    Retain a failed business key and suppress repeated business work across redelivery and separate
+    publications.
   reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
@@ -295,6 +330,8 @@ scenarios:
     sourceElementId: 800be329-a255-5d52-8abd-7e2d04b587f4
   invocations:
   - id: repeated-key-after-first-script-failure
+    expectedBehavior: >-
+      Retain the failed business key and suppress business work for its redelivery and repeated publication.
     repeat: 2
     body: repeated-payload
     headers:
@@ -369,6 +406,8 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: repeated-duplicates-in-next-invocation
+    expectedBehavior: >-
+      Acknowledge both later duplicate publications without new business work or negative acknowledgments.
     repeat: 2
     body: duplicate-payload
     headers:
@@ -426,6 +465,9 @@ scenarios:
             keyExpiry: 600
             active: true
 - id: recovers-after-failure-restart-connection-loss-and-subscription-recreation
+  expectedBehavior: >-
+    Resume AUTO-mode delivery after script failure, consumer restart, transport loss, and subscription
+    recreation.
   scope: Long
   deployment: auto
   driver:
@@ -433,6 +475,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: healthy-before-failure
+    expectedBehavior: >-
+      Consume and acknowledge the initial message before injecting downstream and lifecycle failures.
     body: before
     expectedBody: Triggered
     interactions:
@@ -443,6 +487,8 @@ scenarios:
       response:
         properties: {}
   - id: script-failure-redelivers-same-message
+    expectedBehavior: >-
+      NACK the failed first attempt and ACK the same broker message on its successful second attempt.
     body: fail-once
     expectedBody: Triggered
     headers:
@@ -469,6 +515,8 @@ scenarios:
     expectedHeaders:
       snapshotDeliveryAttempt: 2
   - id: backlog-after-consumer-stop
+    expectedBehavior: >-
+      Consume all five messages queued while the subscriber was stopped.
     body: backlog
     expectedBody:
     - Triggered
@@ -505,6 +553,8 @@ scenarios:
         properties:
           consumerAction: stop-until-published
   - id: acked-records-are-excluded-after-restart
+    expectedBehavior: >-
+      Consume only the fresh message after restart without replaying previously acknowledged deliveries.
     body: after-restart
     expectedBody: Triggered
     interactions:
@@ -516,6 +566,8 @@ scenarios:
         properties:
           consumerAction: restart
   - id: backlog-during-transport-outage
+    expectedBehavior: >-
+      Consume the queued message after restoring the subscriber transport connection.
     body: offline
     expectedBody: Triggered
     interactions:
@@ -527,6 +579,8 @@ scenarios:
         properties:
           consumerAction: disconnect-until-published
   - id: recovers-after-subscription-deletion
+    expectedBehavior: >-
+      Consume successfully after the deleted subscription is recreated and subscriber initialization recovers.
     body: after-subscription-recreation
     expectedBody: Triggered
     interactions:
@@ -538,6 +592,8 @@ scenarios:
         properties:
           subscriptionAction: recreate-after-failures
 - id: acknowledges-and-redelivers-with-manual-ack
+  expectedBehavior: >-
+    Apply explicit ACK or NACK in manual mode and avoid automatic acknowledgment when the chain omits it.
   reuseBroker: true
   scope: Long
   deployment: manual
@@ -546,6 +602,8 @@ scenarios:
     sourceElementId: f4993db3-60da-5429-96c0-116344123146
   invocations:
   - id: explicit-ack
+    expectedBehavior: >-
+      Complete processing and explicitly acknowledge the manually handled delivery.
     body: manual-ack
     expectedBody: Triggered
     headers:
@@ -558,6 +616,8 @@ scenarios:
       response:
         properties: {}
   - id: explicit-nack-redelivers-same-message
+    expectedBehavior: >-
+      Explicitly NACK the first delivery, then ACK the same message on its second attempt.
     body: manual-nack
     expectedBody: Triggered
     headers:
@@ -574,6 +634,8 @@ scenarios:
     expectedHeaders:
       snapshotDeliveryAttempt: 2
   - id: successful-completion-without-ack
+    expectedBehavior: >-
+      Complete manual-mode processing without sending an acknowledgment that the chain did not request.
     body: held-message
     expectedBody: Triggered
     headers:
@@ -587,6 +649,8 @@ scenarios:
         properties:
           expectedAcknowledgments: 0
 - id: recovers-when-service-is-unreachable-at-consumer-start
+  expectedBehavior: >-
+    Consume backlog after a subscriber startup outage and continue with fresh messages.
   scope: Long
   deployment: auto
   driver:
@@ -594,6 +658,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: backlog-after-startup-outage
+    expectedBehavior: >-
+      Consume the queued message after the subscriber service becomes reachable following startup failure.
     body: startup-backlog
     expectedBody: Triggered
     interactions:
@@ -605,6 +671,8 @@ scenarios:
         properties:
           startupUnavailable: true
   - id: healthy-after-startup-recovery
+    expectedBehavior: >-
+      Consume a fresh message on the subscriber that recovered from its startup outage.
     body: after-startup
     expectedBody: Triggered
     interactions:
@@ -615,6 +683,9 @@ scenarios:
       response:
         properties: {}
 - id: keeps-resources-bounded-during-a-persistent-connection-outage
+  expectedBehavior: >-
+    Keep subscriber, connection, thread, and heap measurements within configured limits during a persistent
+    outage.
   scope: Long
   deployment: auto
   driver:
@@ -622,6 +693,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: healthy-before-persistent-outage
+    expectedBehavior: >-
+      Consume the baseline message before measuring resources during the transport outage.
     body: before-outage
     expectedBody: Triggered
     interactions:
@@ -632,6 +705,9 @@ scenarios:
       response:
         properties: {}
   - id: observe-repeated-connections-without-delivery
+    expectedBehavior: >-
+      Keep subscriber, heap, connection, and thread measurements within configured bounds while reconnection
+      attempts produce no deliveries.
     body: null
     expectedBody: Observed
     driver:
@@ -655,6 +731,8 @@ scenarios:
             maxConnectionGrowth: 2
             maxThreadGrowth: 12
   - id: healthy-after-persistent-outage
+    expectedBehavior: >-
+      Consume a fresh message after the persistent transport outage ends.
     body: after-outage
     expectedBody: Triggered
     interactions:
@@ -665,6 +743,9 @@ scenarios:
       response:
         properties: {}
 - id: keeps-resources-bounded-while-the-publisher-is-idle
+  expectedBehavior: >-
+    Keep subscriber, connection, thread, and heap measurements within configured limits while no messages are
+    published.
   scope: Long
   deployment: auto
   driver:
@@ -672,6 +753,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: last-message-before-publisher-disappears
+    expectedBehavior: >-
+      Consume the final baseline message before the publisher becomes idle.
     body: before-outage
     expectedBody: Triggered
     interactions:
@@ -682,6 +765,9 @@ scenarios:
       response:
         properties: {}
   - id: observe-idle-consumer-without-publications
+    expectedBehavior: >-
+      Keep subscriber, heap, connection, and thread measurements within configured bounds without receiving
+      publications.
     body: null
     expectedBody: Observed
     driver:
@@ -705,6 +791,8 @@ scenarios:
             maxConnectionGrowth: 2
             maxThreadGrowth: 12
   - id: new-message-after-publisher-returns
+    expectedBehavior: >-
+      Consume a fresh message after the idle publisher resumes publication.
     body: after-outage
     expectedBody: Triggered
     interactions:
@@ -715,6 +803,9 @@ scenarios:
       response:
         properties: {}
 - id: keeps-resources-bounded-while-subscription-is-missing
+  expectedBehavior: >-
+    Keep initialization resource measurements within configured limits and recover after creating the missing
+    subscription.
   scope: Long
   deployment: auto
   driver:
@@ -722,6 +813,9 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: observe-repeated-subscriber-initialization
+    expectedBehavior: >-
+      Retry initialization for the missing subscription without delivery or resource measurements exceeding
+      configured limits.
     body: null
     expectedBody: Observed
     driver:
@@ -745,6 +839,8 @@ scenarios:
             maxConnectionGrowth: 2
             maxThreadGrowth: 12
   - id: recovers-after-subscription-creation
+    expectedBehavior: >-
+      Consume a fresh message after the missing subscription is created.
     body: after-creation
     expectedBody: Triggered
     interactions:
@@ -756,6 +852,9 @@ scenarios:
         properties:
           subscriptionAction: create
 - id: deduplicates-pubsub-business-keys-with-ignore
+  expectedBehavior: >-
+    Acknowledge duplicate business keys without rerunning business work; preserve keys across failure, expiry,
+    and restart.
   reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
@@ -764,6 +863,8 @@ scenarios:
     sourceElementId: 800be329-a255-5d52-8abd-7e2d04b587f4
   invocations:
   - id: first-business-key
+    expectedBehavior: >-
+      Process and acknowledge the original business key once without invoking a duplicate handler.
     body: first-payload
     headers:
       businessContext: orders
@@ -820,6 +921,8 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: same-business-key-distinct-message-id
+    expectedBehavior: >-
+      Acknowledge the duplicate key without executing business work or a duplicate-handler subchain.
     body: changed-payload
     headers:
       businessContext: orders
@@ -873,6 +976,8 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: distinct-key-with-same-payload
+    expectedBehavior: >-
+      Process and acknowledge a distinct business key even when its payload matches an earlier message.
     body: first-payload
     headers:
       businessContext: orders
@@ -935,6 +1040,9 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: retains-key-after-script-failure-and-auto-redelivery
+    expectedBehavior: >-
+      Retain the key after the script failure and acknowledge redelivery as a duplicate without repeating
+      business work.
     body: failed-payload
     headers:
       businessContext: orders
@@ -1017,6 +1125,8 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: reacquires-failed-key-after-expiry
+    expectedBehavior: >-
+      Process and acknowledge the formerly failed key after its retained idempotency entry expires.
     body: after-expiry
     headers:
       businessContext: orders
@@ -1089,6 +1199,9 @@ scenarios:
           # Force expires_at into the past; the next delivery reacquires the exported 600-second TTL.
           expireKey: orders:order-failed
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the idempotency key across subscriber restart. Acknowledge the duplicate key without executing
+      business work or a duplicate-handler subchain.
     body: after-restart
     headers:
       businessContext: orders
@@ -1155,6 +1268,9 @@ scenarios:
             keyExpiry: 600
             active: true
 - id: deduplicates-pubsub-business-keys-with-throw-exception
+  expectedBehavior: >-
+    Reject duplicate keys with DuplicateException and negative acknowledgments while retaining failure and
+    expiry semantics.
   reuseBroker: true
   scope: Long
   deployment: idempotency-throw
@@ -1163,6 +1279,8 @@ scenarios:
     sourceElementId: fa94e0e9-75e3-55cf-a026-ea8eb55c4b43
   invocations:
   - id: first-business-key
+    expectedBehavior: >-
+      Process and acknowledge the original business key once without invoking a duplicate handler.
     body: first-payload
     headers:
       businessContext: orders
@@ -1219,6 +1337,9 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: same-business-key-distinct-message-id
+    expectedBehavior: >-
+      Reject the duplicate key with DuplicateException and negative acknowledgments without executing business
+      work.
     body: changed-payload
     headers:
       businessContext: orders
@@ -1282,6 +1403,8 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
   - id: distinct-key-with-same-payload
+    expectedBehavior: >-
+      Process and acknowledge a distinct business key even when its payload matches an earlier message.
     body: first-payload
     headers:
       businessContext: orders
@@ -1344,6 +1467,9 @@ scenarios:
             keyExpiry: 600
             active: true
   - id: retains-key-after-script-failure-and-auto-redelivery
+    expectedBehavior: >-
+      Retain the key after the script failure and reject duplicate redeliveries with DuplicateException and
+      NACKs.
     body: failed-payload
     headers:
       businessContext: orders
@@ -1436,6 +1562,8 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
   - id: reacquires-failed-key-after-expiry
+    expectedBehavior: >-
+      Process and acknowledge the formerly failed key after its retained idempotency entry expires.
     body: after-expiry
     headers:
       businessContext: orders
@@ -1508,6 +1636,9 @@ scenarios:
           # Force expires_at into the past; the next delivery reacquires the exported 600-second TTL.
           expireKey: orders:order-failed
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the idempotency key across subscriber restart. Reject the duplicate key with DuplicateException
+      and negative acknowledgments without executing business work.
     body: after-restart
     headers:
       businessContext: orders
@@ -1584,6 +1715,8 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
 - id: deduplicates-pubsub-business-keys-with-execute-subchain
+  expectedBehavior: >-
+    Run and acknowledge the duplicate-handler subchain instead of repeating business work for duplicate keys.
   reuseBroker: true
   scope: Long
   deployment: idempotency-subchain
@@ -1592,6 +1725,8 @@ scenarios:
     sourceElementId: 88f3f761-618a-5eb0-83be-e976d8828263
   invocations:
   - id: first-business-key
+    expectedBehavior: >-
+      Process and acknowledge the original business key once without invoking a duplicate handler.
     body: first-payload
     headers:
       businessContext: orders
@@ -1651,6 +1786,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: same-business-key-distinct-message-id
+    expectedBehavior: >-
+      Acknowledge the duplicate after running only the duplicate-handler subchain instead of business work.
     body: changed-payload
     headers:
       businessContext: orders
@@ -1707,6 +1844,8 @@ scenarios:
       expectedRequest:
         count: 1
   - id: distinct-key-with-same-payload
+    expectedBehavior: >-
+      Process and acknowledge a distinct business key even when its payload matches an earlier message.
     body: first-payload
     headers:
       businessContext: orders
@@ -1772,6 +1911,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: retains-key-after-script-failure-and-auto-redelivery
+    expectedBehavior: >-
+      Retain the failed key, then run and acknowledge only the duplicate-handler subchain on redelivery.
     body: failed-payload
     headers:
       businessContext: orders
@@ -1857,6 +1998,8 @@ scenarios:
       expectedRequest:
         count: 1
   - id: reacquires-failed-key-after-expiry
+    expectedBehavior: >-
+      Process and acknowledge the formerly failed key after its retained idempotency entry expires.
     body: after-expiry
     headers:
       businessContext: orders
@@ -1932,6 +2075,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: duplicate-after-consumer-restart
+    expectedBehavior: >-
+      Retain the idempotency key across subscriber restart. Acknowledge the duplicate after running only the
+      duplicate-handler subchain instead of business work.
     body: after-restart
     headers:
       businessContext: orders
@@ -2001,6 +2147,8 @@ scenarios:
       expectedRequest:
         count: 1
 - id: stops-during-transport-outage-and-resumes-delivery
+  expectedBehavior: >-
+    Stop an unavailable subscriber without acknowledgment and consume successfully after restart.
   scope: Long
   deployment: auto
   driver:
@@ -2008,6 +2156,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: healthy-before-unavailable-stop
+    expectedBehavior: >-
+      Consume the baseline message before stopping the subscriber during a transport outage.
     body: before-stop
     headers: {}
     expectedBody: Triggered
@@ -2019,6 +2169,8 @@ scenarios:
       response:
         properties: {}
   - id: stops-unavailable-subscriber
+    expectedBehavior: >-
+      Stop the disconnected subscriber without receiving or acknowledging a message.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2034,6 +2186,8 @@ scenarios:
           expectedAcknowledgments: 0
           consumerAction: stop-while-unavailable
   - id: fresh-message-after-restart
+    expectedBehavior: >-
+      Consume the fresh publication after restarting the previously unavailable subscriber.
     body: after-stop
     headers: {}
     expectedBody: Triggered
@@ -2045,6 +2199,9 @@ scenarios:
       response:
         properties: {}
 - id: redelivers-unacknowledged-failed-manual-message-after-restart
+  expectedBehavior: >-
+    Redeliver a failed unacknowledged manual message after restart and exclude it once explicitly
+    acknowledged.
   scope: Long
   deployment: manual
   driver:
@@ -2052,6 +2209,8 @@ scenarios:
     sourceElementId: f4993db3-60da-5429-96c0-116344123146
   invocations:
   - id: script-fails-before-manual-ack
+    expectedBehavior: >-
+      Retain the failed unacknowledged message through restart, then redeliver and ACK it without a NACK.
     body: manual-failure
     headers:
       snapshotFailOnce: 'true'
@@ -2081,6 +2240,9 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 2
   - id: acknowledged-message-stays-excluded
+    expectedBehavior: >-
+      Consume only the fresh first-attempt message after restart and exclude the previously acknowledged
+      manual delivery.
     body: after-manual-recovery
     expectedBody: Triggered
     expectedHeaders:
@@ -2095,6 +2257,9 @@ scenarios:
           expectedAcknowledgments: 1
           expectedNegativeAcknowledgments: 0
 - id: authenticates-subscriber-refreshes-token-and-recovers-after-oauth-denial
+  expectedBehavior: >-
+    Authenticate the subscriber, refresh expired credentials, reject delivery during OAuth denial, and recover
+    with a valid token.
   scope: Long
   deployment: auto
   driver:
@@ -2102,6 +2267,9 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: authenticates-exported-service-account
+    expectedBehavior: >-
+      Consume after authenticating with the exported service account and obtaining the first short-lived
+      access token.
     body: authenticated
     headers: {}
     expectedBody: Triggered
@@ -2116,6 +2284,8 @@ scenarios:
           shortLivedAccessToken: true
           minimumTokenRequests: 1
   - id: refreshes-expired-token-after-reconnect
+    expectedBehavior: >-
+      Fetch another access token after expiry and consume the message queued during reconnection.
     body: refreshed
     headers: {}
     expectedBody: Triggered
@@ -2130,6 +2300,8 @@ scenarios:
           consumerAction: disconnect-until-published
           minimumTokenRequests: 2
   - id: rejects-token-before-delivery
+    expectedBehavior: >-
+      Observe the invalid_grant OAuth failure without consuming or acknowledging a message.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2148,6 +2320,8 @@ scenarios:
           awaitOAuthFailure: true
           minimumTokenRequests: 3
   - id: recovers-with-valid-token
+    expectedBehavior: >-
+      Obtain a valid token after OAuth denial and consume a fresh publication.
     body: recovered
     headers: {}
     expectedBody: Triggered
@@ -2161,6 +2335,8 @@ scenarios:
           consumerAction: restart
           minimumTokenRequests: 4
 - id: recovers-streaming-pull-after-quota-and-deadline-errors
+  expectedBehavior: >-
+    Recover StreamingPull after quota and deadline failures without losing queued messages.
   scope: Long
   deployment: auto
   driver:
@@ -2168,6 +2344,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: healthy-before-stream-errors
+    expectedBehavior: >-
+      Consume the baseline message before injecting StreamingPull failures.
     body: healthy-before-stream-errors
     expectedBody: Triggered
     interactions:
@@ -2177,6 +2355,8 @@ scenarios:
       response:
         properties: {}
   - id: queued-during-resource-exhaustion
+    expectedBehavior: >-
+      Recover from RESOURCE_EXHAUSTED and acknowledge both queued messages without negative acknowledgments.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2197,6 +2377,8 @@ scenarios:
           expectedAcknowledgments: 2
           expectedNegativeAcknowledgments: 0
   - id: healthy-after-resource-exhaustion
+    expectedBehavior: >-
+      Consume a fresh message after the StreamingPull quota failure has recovered.
     body: after-quota
     expectedBody: Triggered
     interactions:
@@ -2206,6 +2388,8 @@ scenarios:
       response:
         properties: {}
   - id: queued-during-stream-deadline-failure
+    expectedBehavior: >-
+      Recover from DEADLINE_EXCEEDED and acknowledge both queued messages without negative acknowledgments.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2226,6 +2410,8 @@ scenarios:
           expectedAcknowledgments: 2
           expectedNegativeAcknowledgments: 0
   - id: healthy-after-stream-deadline-failure
+    expectedBehavior: >-
+      Consume a fresh message after the StreamingPull deadline failure has recovered.
     body: after-deadline
     expectedBody: Triggered
     interactions:
@@ -2235,6 +2421,9 @@ scenarios:
       response:
         properties: {}
 - id: renews-lease-through-long-processing-without-redelivery
+  expectedBehavior: >-
+    Observe native lease extension during long processing, acknowledge once, and avoid redelivery after
+    restart.
   scope: Long
   deployment: auto
   driver:
@@ -2242,6 +2431,9 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: holds-processing-past-original-ack-deadline
+    expectedBehavior: >-
+      Observe a lease extension during held processing and complete the first delivery attempt with one ACK
+      and no NACK.
     timeoutSeconds: 180
     body: lease-held
     expectedBody: Triggered
@@ -2257,6 +2449,9 @@ scenarios:
           expectedAcknowledgments: 1
           expectedNegativeAcknowledgments: 0
   - id: completed-lease-message-stays-excluded-after-restart
+    expectedBehavior: >-
+      Restart the subscriber without receiving or acknowledging the already completed lease-extended message
+      again.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2273,6 +2468,8 @@ scenarios:
           expectedAcknowledgments: 0
           expectedNegativeAcknowledgments: 0
   - id: next-message-has-an-independent-lease
+    expectedBehavior: >-
+      Consume the next message on its first delivery attempt with independent lease state.
     body: fresh-after-lease
     expectedBody: Triggered
     expectedHeaders:
@@ -2284,6 +2481,9 @@ scenarios:
       response:
         properties: {}
 - id: retains-queued-messages-during-oauth-denial
+  expectedBehavior: >-
+    Keep messages queued during OAuth denial and acknowledge their original broker IDs after authentication
+    recovers.
   scope: Long
   deployment: auto
   driver:
@@ -2291,6 +2491,8 @@ scenarios:
     sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
   invocations:
   - id: healthy-before-queued-oauth-denial
+    expectedBehavior: >-
+      Consume the baseline authenticated message before expiring its token and denying OAuth refresh.
     body: healthy-before-denial
     expectedBody: Triggered
     interactions:
@@ -2303,6 +2505,8 @@ scenarios:
           shortLivedAccessToken: true
           minimumTokenRequests: 1
   - id: publishes-backlog-while-oauth-remains-rejected
+    expectedBehavior: >-
+      Queue both messages while OAuth requests are rejected, without consumption, ACKs, or NACKs.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2330,6 +2534,8 @@ scenarios:
             attributes:
               queuedDuring: oauth-denial
   - id: recovers-and-acknowledges-original-backlog-message-ids
+    expectedBehavior: >-
+      Restore authentication and ACK both original backlog message IDs without republishing them.
     driver:
       provider: pubsub-trigger
       sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
@@ -2355,6 +2561,8 @@ scenarios:
           expectedAcknowledgments: 2
           expectedNegativeAcknowledgments: 0
   - id: fresh-message-after-acknowledged-backlog-and-restart
+    expectedBehavior: >-
+      Refresh authentication after restart and consume only the fresh message, excluding acknowledged backlog.
     body: fresh-after-backlog
     expectedBody: Triggered
     expectedHeaders:

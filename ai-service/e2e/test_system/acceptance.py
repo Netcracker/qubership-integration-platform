@@ -42,7 +42,7 @@ def preparation(root: Path) -> tuple[Path, dict]:
             name for name in candidate["files"] if name.startswith(prefix + "/")
         }
         current_files = {
-            str(p.relative_to(root))
+            p.relative_to(root).as_posix()
             for p in (root / prefix).rglob("*")
             if p.is_file() and "__pycache__" not in p.parts
         }

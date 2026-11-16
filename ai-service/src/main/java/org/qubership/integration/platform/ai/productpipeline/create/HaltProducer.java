@@ -17,7 +17,6 @@ public enum HaltProducer {
   REQUIREMENT_ANALYSIS,
   DESIGN_INPUT,
   DESIGN_PLANNING,
-  PLANNING,
   DESIGN_EXECUTION,
   SPECIFICATION_IMPORT,
   MATERIALIZATION,
@@ -35,7 +34,6 @@ public enum HaltProducer {
       case RequirementAnalysisCapability.CAPABILITY_ID -> REQUIREMENT_ANALYSIS;
       case DesignInputCapability.CAPABILITY_ID -> DESIGN_INPUT;
       case DesignPlanningCapability.CAPABILITY_ID -> DESIGN_PLANNING;
-      case PlanningCapability.CAPABILITY_ID -> PLANNING;
       case DesignExecutionCapability.CAPABILITY_ID -> DESIGN_EXECUTION;
       case SpecificationImportCapability.CAPABILITY_ID,
               AutoUploadedSpecImportCapability.CAPABILITY_ID -> SPECIFICATION_IMPORT;

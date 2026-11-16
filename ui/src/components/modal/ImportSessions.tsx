@@ -2,7 +2,7 @@ import { Button, Modal, UploadFile } from "antd";
 import Dragger from "antd/es/upload/Dragger";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useState } from "react";
-import styles from "./ImportSessions.module.css";
+import uploadStyles from "./ScrollableUpload.module.css";
 import { api } from "../../api/api.ts";
 import { Session } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
@@ -64,7 +64,7 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({
     >
       <Dragger
         multiple
-        className={styles.uploadDialog}
+        className={uploadStyles.scrollableUpload}
         fileList={fileList}
         beforeUpload={() => false}
         onChange={(info) => setFileList(info.fileList)}

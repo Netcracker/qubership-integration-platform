@@ -596,7 +596,7 @@ class ChainImportServiceTest {
         when(fileMigrationService.migrate(anyString(), anyCollection()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         ChainImportService previewService = new ChainImportService(
-                new MapperAutoConfiguration().yamlExportImportMapper(), null, chainService, chainFinderService,
+                new MapperAutoConfiguration().yamlExportImportMapper(true), null, chainService, chainFinderService,
                 folderService, snapshotService, chainExternalEntityMapper, importSessionService, actionsLogService,
                 dependencyService, elementService, maskedFieldsService, null, null, fileMigrationService,
                 List.of(), chainModelMapper, chainReader, bulkDeploymentService);

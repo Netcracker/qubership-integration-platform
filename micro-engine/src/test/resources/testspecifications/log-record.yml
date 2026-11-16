@@ -4,6 +4,9 @@ fixtures:
     provider: "log-capture"
 scenarios:
   - id: "evaluates-log-properties-and-suppresses-info"
+    expectedBehavior: >-
+      Emit WARN and ERROR with evaluated sender, receiver, message, and business identifiers; suppress INFO and
+      preserve the body.
     scope: Short
     endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
     body: "Original"
@@ -36,6 +39,9 @@ scenarios:
               businessIdentifiers: "{Req-Id=error-303}"
 
   - id: "omits-empty-sender-or-receiver"
+    expectedBehavior: >-
+      Omit blank sender or receiver prefixes from WARN and ERROR while retaining the message and business
+      identifier.
     scope: Short
     endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
     body: "Original"
@@ -68,6 +74,9 @@ scenarios:
               businessIdentifiers: "{Req-Id=error-606}"
 
   - id: "writes-message-only-with-numeric-request-ids"
+    expectedBehavior: >-
+      Log only the message when both endpoints are blank and render numeric request IDs in the WARN and ERROR
+      business identifiers.
     scope: Short
     endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
     body: "Original"

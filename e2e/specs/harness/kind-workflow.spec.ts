@@ -28,7 +28,7 @@ import { spawnSync } from "node:child_process";
 import yaml from "js-yaml";
 import { test, expect, type FullConfig } from "@playwright/test";
 import { ROLES } from "../../env/containers.js";
-import { repoRoot } from "../../env/host.js";
+import { bashExecutable, repoRoot } from "../../env/host.js";
 import { microProjects } from "../../env/provision.js";
 import { awaitBootstrap, imagesToBuild } from "../../env/provision/k8s.js";
 import { targetSetup } from "../../env/target-setup.js";
@@ -231,7 +231,7 @@ test.describe("kind workflow", () => {
       fs.writeFileSync(script, `#!/usr/bin/env bash\necho "Cluster: creating kind-qip"\nsleep 1\necho "exit ${code}" >&2\nexit ${code}\n`, { mode: 0o755 });
       const log = path.join(root, "bootstrap.log");
       // GitHub runs a step's script with bash -e.
-      const result = spawnSync("bash", ["-e", "-c", step("Start the cluster bootstrap").run ?? ""], {
+      const result = spawnSync(bashExecutable(), ["-e", "-c", step("Start the cluster bootstrap").run ?? ""], {
         cwd: root,
         env: { ...process.env, BOOTSTRAP_LOG: log },
         encoding: "utf-8",

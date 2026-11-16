@@ -132,6 +132,9 @@ fixtures:
   sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
 scenarios:
 - id: registers-and-invokes-the-generated-tool
+  expectedBehavior: >-
+    Register the exported MCP tool metadata, forward call arguments to its route, and isolate rejected and
+    successful calls.
   scope: Short
   deployment: base
   driver:
@@ -139,6 +142,7 @@ scenarios:
     sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
   invocations:
   - id: registers-generated-tool-metadata
+    expectedBehavior: Register the generated tool metadata and invoke its business route once.
     body: {}
     interactions:
     - fixture: base-tool
@@ -157,6 +161,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: passes-arguments-and-generated-route-identity
+    expectedBehavior: Forward the supplied arguments to the generated route with the expected tool and route identity.
     body:
       message: first call
     interactions:
@@ -175,6 +180,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: preserves-utf8-and-escaped-text-arguments
+    expectedBehavior: Preserve UTF-8 characters, quotes, and escaped text in the captured tool arguments.
     body:
       message: "café \"quoted\"\nnext line\tend"
     interactions:
@@ -193,6 +199,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: returns-text-without-an-output-schema
+    expectedBehavior: Return native text content for a tool that declares no output schema.
     body:
       message: ''
     interactions:
@@ -211,6 +218,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: rejects-an-unknown-tool-without-chain-execution
+    expectedBehavior: Return the native unknown-tool error without entering the business chain.
     body: {}
     interactions:
     - fixture: base-tool
@@ -230,6 +238,7 @@ scenarios:
       parameters:
         toolName: snapshot_missing_tool
   - id: recovers-after-an-unknown-tool-call
+    expectedBehavior: Invoke a valid tool successfully after the unknown-tool rejection.
     body:
       message: after unknown
     interactions:
@@ -248,6 +257,9 @@ scenarios:
           text: Triggered
         isError: false
 - id: preserves-arguments-through-the-native-tool-manager
+  expectedBehavior: >-
+    Preserve typed and nested argument values through native MCP calls without adding schema enforcement at chain
+    entry.
   scope: Short
   deployment: typed
   driver:
@@ -255,6 +267,7 @@ scenarios:
     sourceElementId: f9ace031-e144-5ddd-aa38-c6b11fcc3045
   invocations:
   - id: preserves-typed-and-nested-arguments
+    expectedBehavior: Forward the exact typed and nested argument map and retain the exported tool metadata.
     body:
       message: typed café
       number: 3.25
@@ -294,6 +307,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: forwards-values-without-schema-enforcement
+    expectedBehavior: Forward argument values unchanged even when they do not satisfy the advertised schema.
     body:
       message: 7
       extra: undeclared
@@ -314,6 +328,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: forwards-a-missing-required-field
+    expectedBehavior: Forward the supplied argument map even when an advertised required field is missing.
     body:
       enabled: true
     interactions:
@@ -332,6 +347,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: accepts-an-empty-argument-map
+    expectedBehavior: Accept an empty argument map and enter the business route once.
     body: {}
     interactions:
     - fixture: typed-tool
@@ -349,6 +365,9 @@ scenarios:
           text: Triggered
         isError: false
 - id: publishes-tool-hints-without-enforcing-business-idempotency
+  expectedBehavior: >-
+    Publish exported MCP annotations and optional metadata while treating the idempotent hint as metadata rather
+    than a business-key filter.
   scope: Short
   deployment: hints
   driver:
@@ -356,6 +375,7 @@ scenarios:
     sourceElementId: db127a7a-5e5d-5379-bfc9-9bc7ec931bd7
   invocations:
   - id: publishes-both-values-of-tool-annotations
+    expectedBehavior: Expose both true and false exported tool annotation values in native metadata.
     body: {}
     interactions:
     - fixture: hints-tool
@@ -374,6 +394,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: registers-a-tool-without-an-optional-title
+    expectedBehavior: Register and invoke the tool when its optional title is omitted.
     body:
       message: untitled
     interactions:
@@ -392,6 +413,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: repeats-business-work-when-only-the-idempotent-hint-is-set
+    expectedBehavior: Execute business work for arguments on a tool that only advertises the idempotent hint.
     body:
       message: repeated
     interactions:
@@ -410,6 +432,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: executes-the-same-hinted-arguments-again
+    expectedBehavior: Execute the same arguments again because the hint does not enable business-key deduplication.
     body:
       message: repeated
     interactions:
@@ -428,6 +451,8 @@ scenarios:
           text: Triggered
         isError: false
 - id: returns-native-structured-results
+  expectedBehavior: >-
+    Return native structured MCP content and publish the output schema without enforcing it on chain results.
   scope: Short
   deployment: structured
   driver:
@@ -435,6 +460,7 @@ scenarios:
     sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
   invocations:
   - id: returns-structured-content-with-an-output-schema
+    expectedBehavior: Return the structured result and retain the exported output schema metadata.
     body:
       message: structured café
       items:
@@ -473,6 +499,7 @@ scenarios:
                 value: kept
           marker: structured
   - id: preserves-results-without-output-schema-enforcement
+    expectedBehavior: Preserve the chain result even when its shape does not satisfy the advertised output schema.
     body:
       mode: wrong-output
     interactions:
@@ -490,6 +517,8 @@ scenarios:
         structuredContent:
           unexpected: 7
 - id: reports-native-call-failures-and-retains-call-isolation
+  expectedBehavior: >-
+    Map unhandled chain failures to MCP errors and keep arguments and recovery independent across native calls.
   scope: Long
   deployment: base
   driver:
@@ -497,6 +526,7 @@ scenarios:
     sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
   invocations:
   - id: reports-unhandled-chain-failure-and-recovers
+    expectedBehavior: Return an MCP tool error containing the unhandled chain failure instead of a successful result.
     body:
       mode: fail
     interactions:
@@ -515,6 +545,7 @@ scenarios:
           text: MCP snapshot failure
         isError: true
   - id: recovers-after-an-unhandled-chain-failure
+    expectedBehavior: Execute a successful call after the preceding unhandled chain failure.
     body:
       message: recovered
     interactions:
@@ -533,6 +564,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: uses-the-exception-class-when-its-message-is-null
+    expectedBehavior: Use the exception class as the tool error text when the exception message is null.
     body:
       mode: no-message
     interactions:
@@ -551,6 +583,7 @@ scenarios:
           text: java.lang.IllegalStateException
         isError: true
   - id: recovers-after-a-message-less-failure
+    expectedBehavior: Execute a successful call after the exception that has no message.
     body:
       message: recovered again
     interactions:
@@ -569,6 +602,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: isolates-arguments-between-sequential-calls
+    expectedBehavior: Capture only the arguments supplied for the current sequential call.
     body:
       message: first
       requestTag: one
@@ -589,6 +623,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: omits-the-previous-call-arguments
+    expectedBehavior: Do not retain argument entries from the preceding call when the new map omits them.
     body: {}
     interactions:
     - fixture: base-tool
@@ -606,6 +641,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: reports-top-level-null-before-chain-entry
+    expectedBehavior: Reject a top-level null argument map before entering the business chain.
     body:
       message: null
     interactions:
@@ -621,6 +657,7 @@ scenarios:
         code: -32603
         message: Internal error
   - id: recovers-after-a-null-argument-rejection
+    expectedBehavior: Execute a valid argument map successfully after the null-argument rejection.
     body:
       message: after null
     interactions:
@@ -639,6 +676,7 @@ scenarios:
           text: Triggered
         isError: false
 - id: correlates-concurrent-native-tool-results
+  expectedBehavior: Keep arguments and results correlated for overlapping native calls to the same generated MCP tool.
   scope: Long
   deployment: structured
   driver:
@@ -646,6 +684,9 @@ scenarios:
     sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
   invocations:
   - id: correlates-concurrent-tool-calls
+    expectedBehavior: >-
+      Execute all three concurrent calls and associate each result with its own arguments without imposing
+      completion order.
     body: {}
     interactions:
     - fixture: structured-tool
@@ -697,6 +738,8 @@ scenarios:
         - message: parallel-2
           number: 2
 - id: returns-content-from-generated-error-handling
+  expectedBehavior: >-
+    Return the generated error handler result as successful MCP content after a handled business failure.
   scope: Long
   deployment: handled-failure
   driver:
@@ -704,6 +747,7 @@ scenarios:
     sourceElementId: 7978dc96-0ec1-5904-9a5d-15209e922d70
   invocations:
   - id: returns-fallback-content-after-a-handled-failure
+    expectedBehavior: Execute the generated error handler and return its fallback content instead of an MCP tool error.
     body:
       message: handled
     interactions:
@@ -722,6 +766,8 @@ scenarios:
           text: Fallback
         isError: false
 - id: suppresses-and-renews-native-business-keys
+  expectedBehavior: >-
+    Acquire business keys through the native tool, suppress duplicate business work, and reacquire an expired key.
   scope: Long
   deployment: idempotency-ignore
   driver:
@@ -729,6 +775,7 @@ scenarios:
     sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
   invocations:
   - id: acquires-the-first-business-key
+    expectedBehavior: Acquire the first business key and execute the main route once.
     body:
       key: stable
     interactions:
@@ -758,6 +805,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: ignores-a-duplicate-business-key
+    expectedBehavior: Accept the duplicate tool call without executing the main business route again.
     body:
       key: stable
     interactions:
@@ -786,6 +834,7 @@ scenarios:
           text: '{key=stable}'
         isError: false
   - id: accepts-a-distinct-business-key
+    expectedBehavior: Acquire a distinct business key and execute the main route independently.
     body:
       key: other
     interactions:
@@ -816,6 +865,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: acquires-an-expiring-business-key
+    expectedBehavior: Acquire the key that is scheduled to expire and execute business work once.
     body:
       key: expires
     interactions:
@@ -847,6 +897,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: reacquires-a-business-key-after-expiry
+    expectedBehavior: Expire the stored key, reacquire it, and execute the main business route again.
     body:
       key: expires
     interactions:
@@ -881,6 +932,8 @@ scenarios:
           text: Triggered
         isError: false
 - id: reports-duplicates-and-retains-failed-business-keys
+  expectedBehavior: >-
+    Return native tool errors for duplicate keys and retain a reserved key after an unhandled business failure.
   scope: Long
   deployment: idempotency-throw
   driver:
@@ -888,6 +941,7 @@ scenarios:
     sourceElementId: e8f64d23-38f4-5e48-b828-23c8c80a2eaf
   invocations:
   - id: acquires-a-throw-on-duplicate-key
+    expectedBehavior: Acquire the first key under the throw-on-duplicate policy and execute business work.
     body:
       key: stable
     interactions:
@@ -917,6 +971,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: returns-a-tool-error-for-a-duplicate-key
+    expectedBehavior: Return an MCP tool error for a duplicate key without repeating main business work.
     body:
       key: stable
     interactions:
@@ -945,6 +1000,7 @@ scenarios:
           text: Duplicated idempotency key
         isError: true
   - id: reserves-a-key-before-an-unhandled-business-failure
+    expectedBehavior: Reserve the key before business execution fails and return the unhandled failure as a tool error.
     body:
       key: failed
       mode: fail
@@ -977,6 +1033,7 @@ scenarios:
           text: MCP snapshot failure
         isError: true
   - id: retains-the-key-after-an-unhandled-business-failure
+    expectedBehavior: Return a duplicate-key tool error for the key retained after the failed business execution.
     body:
       key: failed
     interactions:
@@ -1006,6 +1063,7 @@ scenarios:
           text: Duplicated idempotency key
         isError: true
   - id: recovers-with-a-distinct-key-after-failure
+    expectedBehavior: Acquire a distinct key and execute successfully after the preceding business failure.
     body:
       key: other
     interactions:
@@ -1037,6 +1095,8 @@ scenarios:
           text: Triggered
         isError: false
 - id: runs-the-generated-duplicate-subchain
+  expectedBehavior: >-
+    Invoke the exported duplicate handler instead of repeating main business work for an existing MCP business key.
   scope: Long
   deployment: idempotency-subchain
   driver:
@@ -1044,6 +1104,7 @@ scenarios:
     sourceElementId: d556ce90-e691-5aa6-b7c7-cd1b2d6f8376
   invocations:
   - id: acquires-a-subchain-business-key
+    expectedBehavior: Acquire the first key and execute the main branch without calling its duplicate handler.
     body:
       key: stable
     interactions:
@@ -1076,6 +1137,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: executes-the-exported-duplicate-handler
+    expectedBehavior: Execute the exported duplicate handler for the existing key and skip the main business branch.
     body:
       key: stable
     interactions:
@@ -1107,6 +1169,7 @@ scenarios:
           text: Duplicate handled
         isError: false
   - id: executes-the-handler-for-another-duplicate
+    expectedBehavior: Execute the duplicate handler again for another call with the same key.
     body:
       key: stable
     interactions:
@@ -1138,6 +1201,7 @@ scenarios:
           text: Duplicate handled
         isError: false
   - id: accepts-a-distinct-subchain-business-key
+    expectedBehavior: Acquire a distinct key and execute the main branch instead of the duplicate handler.
     body:
       key: other
     interactions:
@@ -1171,6 +1235,9 @@ scenarios:
           text: Triggered
         isError: false
 - id: acquires-one-business-key-under-concurrent-native-calls
+  expectedBehavior: >-
+    Allow only one concurrent native call to acquire the shared PostgreSQL business key and enter main business
+    work.
   scope: Long
   deployment: idempotency-ignore
   driver:
@@ -1178,6 +1245,8 @@ scenarios:
     sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
   invocations:
   - id: acquires-one-key-under-concurrent-tool-calls
+    expectedBehavior: >-
+      Complete all three concurrent calls while only one acquires the key and executes the main business route.
     body: {}
     interactions:
     - fixture: idempotency-ignore-tool
@@ -1228,6 +1297,9 @@ scenarios:
         - key: race
         - key: race
 - id: separates-two-tool-contexts-in-one-postgresql-repository
+  expectedBehavior: >-
+    Keep identical business keys independent between two tool idempotency contexts sharing one PostgreSQL
+    repository.
   scope: Long
   deployment: idempotency-other-context
   driver:
@@ -1235,6 +1307,7 @@ scenarios:
     sourceElementId: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
   invocations:
   - id: acquires-the-key-in-the-first-context
+    expectedBehavior: Acquire the business key in the first tool context without entering the second tool.
     body:
       key: same
     interactions:
@@ -1282,6 +1355,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: separates-idempotency-contexts-between-tools
+    expectedBehavior: Acquire the same business key independently in the second tool context.
     body:
       key: same
     interactions:
@@ -1336,6 +1410,7 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_idempotency_second_context
   - id: suppresses-the-first-context-duplicate
+    expectedBehavior: Suppress duplicate business work for the key already stored in the first context.
     body:
       key: same
     interactions:
@@ -1383,6 +1458,7 @@ scenarios:
           text: '{key=same}'
         isError: false
   - id: suppresses-the-second-context-duplicate
+    expectedBehavior: Suppress duplicate business work for the key already stored in the second context.
     body:
       key: same
     interactions:
@@ -1435,6 +1511,8 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_idempotency_second_context
 - id: registers-every-tool-in-one-generated-deployment
+  expectedBehavior: >-
+    Retain one native registration per generated tool and route calls independently within a multi-tool deployment.
   scope: Long
   deployment: multi-tool
   driver:
@@ -1442,6 +1520,7 @@ scenarios:
     sourceElementId: 3bb54f89-9584-5596-9b36-9337326ae270
   invocations:
   - id: keeps-one-registration-across-repeated-route-events
+    expectedBehavior: Keep a single tool registration through repeated route events and invoke only the selected tool.
     body:
       message: first
     interactions:
@@ -1469,6 +1548,7 @@ scenarios:
           text: First tool
         isError: false
   - id: calls-the-second-tool-from-the-same-deployment
+    expectedBehavior: Invoke the second tool from the same deployment without entering the first tool.
     body:
       message: second
     interactions:
@@ -1500,6 +1580,8 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_multi_tool_second
 - id: isolates-invalid-input-schema-registration-failure
+  expectedBehavior: >-
+    Isolate malformed input-schema registration failure while leaving an independent valid MCP tool callable.
   scope: Long
   deployment: invalid-input-schema
   driver:
@@ -1507,6 +1589,8 @@ scenarios:
     sourceElementId: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
   invocations:
   - id: rejects-malformed-schema-json-during-registration
+    expectedBehavior: >-
+      Reject malformed input-schema JSON during registration, retain no invalid tool, and execute no business work.
     body: {}
     interactions:
     - fixture: invalid-input-schema-tool
@@ -1533,6 +1617,7 @@ scenarios:
       parameters:
         operation: list
   - id: keeps-a-valid-tool-callable-after-registration-failure
+    expectedBehavior: Invoke the independent valid tool successfully while the invalid tool remains unregistered.
     body:
       message: valid after failure
     interactions:
@@ -1564,6 +1649,8 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_trigger
 - id: isolates-invalid-output-schema-registration-failure
+  expectedBehavior: >-
+    Isolate malformed output-schema registration failure while leaving an independent valid MCP tool callable.
   scope: Long
   deployment: invalid-output-schema
   driver:
@@ -1571,6 +1658,8 @@ scenarios:
     sourceElementId: 52fca17f-69c0-5570-92d0-56827fea0d19
   invocations:
   - id: rejects-malformed-output-schema-json
+    expectedBehavior: >-
+      Reject malformed output-schema JSON during registration, retain no invalid tool, and execute no business work.
     body: {}
     interactions:
     - fixture: invalid-output-schema-tool
@@ -1597,6 +1686,7 @@ scenarios:
       parameters:
         operation: list
   - id: keeps-a-valid-tool-callable-after-registration-failure
+    expectedBehavior: Invoke the independent valid tool successfully while the invalid tool remains unregistered.
     body:
       message: valid after failure
     interactions:
@@ -1628,6 +1718,9 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_trigger
 - id: retains-one-registration-through-stop-and-start
+  expectedBehavior: >-
+    Retain a single tool registration through route stop/start and clean up registrations and owned resources on
+    context close.
   scope: Long
   deployment: base
   driver:
@@ -1635,6 +1728,7 @@ scenarios:
     sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
   invocations:
   - id: calls-the-tool-before-route-stop
+    expectedBehavior: Invoke the registered tool successfully before stopping its route.
     body:
       message: before stop
     interactions:
@@ -1653,6 +1747,8 @@ scenarios:
           text: Triggered
         isError: false
   - id: preserves-registration-across-route-stop-and-start
+    expectedBehavior: >-
+      Stop and start the generated route, retain one metadata registration, and invoke the tool successfully.
     body:
       message: after start
     interactions:
@@ -1673,6 +1769,8 @@ scenarios:
           text: Triggered
         isError: false
   - id: cleans-up-tools-and-owned-resources-on-context-close
+    expectedBehavior: >-
+      Complete the tool call and remove its registrations and owned resources when the Camel context closes.
     body:
       message: before close
     interactions:
@@ -1692,6 +1790,7 @@ scenarios:
           text: Triggered
         isError: false
 - id: removes-the-tool-with-its-generated-deployment
+  expectedBehavior: Remove the native MCP tool registration when its generated deployment is removed.
   scope: Long
   deployment: base
   driver:
@@ -1699,6 +1798,7 @@ scenarios:
     sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
   invocations:
   - id: calls-the-tool-before-removal
+    expectedBehavior: Invoke the tool successfully before removing its generated deployment.
     body:
       message: before removal
     interactions:
@@ -1717,6 +1817,8 @@ scenarios:
           text: Triggered
         isError: false
   - id: removes-tools-when-their-deployment-is-removed
+    expectedBehavior: >-
+      Remove the deployment and return an unknown-tool error without business execution for its former tool name.
     body: {}
     interactions:
     - fixture: base-tool
@@ -1733,6 +1835,7 @@ scenarios:
         code: -32602
         message: 'Invalid tool name: snapshot_mcp_trigger'
 - id: isolates-tools-while-removing-one-deployment
+  expectedBehavior: Remove one deployment and its tools without affecting tool metadata or calls in another deployment.
   scope: Long
   deployment: base-with-peer
   driver:
@@ -1740,6 +1843,7 @@ scenarios:
     sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
   invocations:
   - id: calls-the-first-independent-deployment
+    expectedBehavior: Invoke the first deployment tool while retaining the independent peer tool registration.
     body:
       message: before peer removal
     interactions:
@@ -1766,6 +1870,7 @@ scenarios:
           text: Triggered
         isError: false
   - id: isolates-tools-from-independent-deployments
+    expectedBehavior: Remove the first deployment and invoke the independent peer tool successfully.
     body:
       message: peer survives removal
     interactions:
@@ -1799,6 +1904,7 @@ scenarios:
       parameters:
         toolName: snapshot_mcp_hints
   - id: rejects-the-removed-tool-while-the-peer-remains-registered
+    expectedBehavior: Reject the removed tool name without business execution while the peer remains registered.
     body: {}
     interactions:
     - fixture: peer-base-tool
@@ -1822,6 +1928,9 @@ scenarios:
         code: -32602
         message: 'Invalid tool name: snapshot_mcp_trigger'
 - id: preserves-the-original-tool-and-replaces-it-after-removal
+  expectedBehavior: >-
+    Keep the original handler after a duplicate-name registration fails and install the replacement after the
+    original is removed.
   scope: Long
   deployment: redeployed
   driver:
@@ -1829,6 +1938,7 @@ scenarios:
     sourceElementId: 26d63148-31ba-5094-b973-6825ecc53594
   invocations:
   - id: preserves-the-original-tool-after-a-name-collision
+    expectedBehavior: Reject the colliding registration and invoke the unchanged original tool handler.
     body:
       message: original before replacement
     interactions:
@@ -1860,6 +1970,8 @@ scenarios:
           text: Triggered
         isError: false
   - id: replaces-the-handler-after-a-successful-redeployment
+    expectedBehavior: >-
+      Remove the original deployment, redeploy the replacement, and return the replacement handler result.
     body:
       message: replacement after removal
     interactions:

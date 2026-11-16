@@ -1,0 +1,29 @@
+{
+  "conversationId":"%s",
+  "mode":"PRODUCT",
+  "productRunId":"%s",
+  "runManifest":{
+    "runId":"%s",
+    "parentRunId":null,
+    "sourceReferences":[],
+    "runtimeSelection":"product",
+    "profileId":"create-chain",
+    "profileVersion":"1",
+    "profileDigest":"create-chain@1",
+    "referenceBaselineId":"reference-baseline-v1",
+    "referenceBaselineDigest":"reference-baseline-v1",
+    "dependencyClosure":[],
+    "dependencyClosureDigest":"closure",
+    "knowledgePackage":{
+      "packageKey":"knart-test@1.0.0",
+      "knowledgeVersion":"1.0.0",
+      "schemaVersion":"1.0.0",
+      "packageChecksum":"sha256:pinned",
+      "certificationStatus":"CERTIFIED",
+      "certificationDigest":"sha256:certificate"
+    },
+    "languageVersion":"2026.1",
+    "artifactSchemaVersions":[]
+  },
+  "createdAt":"2026-07-22T12:00:00Z"
+}

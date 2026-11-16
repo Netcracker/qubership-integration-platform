@@ -60,6 +60,16 @@ test.describe("chain editor", () => {
     await expect(form.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("e2e-fixture");
     await expect(form.getByRole("textbox", { name: "Value", exact: true })).toHaveValue(corpus.run);
 
+    // Cancel can move between pointer-down and pointer-up while the modal opens.
+    await expect
+      .poll(() =>
+        form.evaluate(
+          (dialog) =>
+            getComputedStyle(dialog).opacity === "1" &&
+            dialog.getAnimations().every((animation) => animation.playState === "finished"),
+        ),
+      )
+      .toBe(true);
     await form.getByRole("button", { name: "Cancel" }).click();
     await expect(form).toBeHidden();
     await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/graph$`));

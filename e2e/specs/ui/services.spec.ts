@@ -58,7 +58,7 @@ test.describe("services", () => {
       await services.chooseSpecificationFile(path.join(SPECIFICATION_FIXTURE_DIR, "widgets.openapi.yaml"));
       // The group name comes from the file name when the field was left alone.
       await expect(services.importGroupDialog.getByRole("textbox", { name: "Name" })).toHaveValue("widgets.openapi");
-      await services.importGroupDialog.getByRole("button", { name: "Import File" }).click();
+      await services.importGroupDialog.getByRole("button", { name: "Add", exact: true }).click();
       // The dialog polls the import and closes once it is done, and the groups table reloads with no
       // page reload.
       await expect(services.importGroupDialog).toBeHidden();

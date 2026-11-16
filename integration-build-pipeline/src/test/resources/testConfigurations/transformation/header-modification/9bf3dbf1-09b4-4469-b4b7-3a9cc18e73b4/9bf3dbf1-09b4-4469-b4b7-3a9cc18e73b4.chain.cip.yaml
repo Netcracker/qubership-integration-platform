@@ -30,6 +30,53 @@ content:
       headerModificationToAdd:
         X-Update-Headers: "newValue"
       headerModificationToRemove: []
+  - id: "5b15096e-67aa-51bc-8636-ddd83735057a"
+    name: "Headers From Expressions"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        X-From-Body: '${body}'
+        X-From-Header: '${header.X-Source}'
+        X-From-Property: '${exchangeProperty.sourceValue}'
+        X-From-Count: '${header.X-Count}'
+        X-Escaped: 'literal "quoted" & <tag> café'
+      headerModificationToRemove: []
+  - id: "537a7065-d74a-5641-8571-da405461657f"
+    name: "Add or Keep Before Removal"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        X-Keep: ''
+        X-Keep-Absent: ''
+        X-Updated: '${header.X-Source}'
+        X-Added: 'new'
+      headerModificationToRemove:
+      - 'X-*'
+  - id: "a4533d42-1c0d-54dc-a4da-0bd97ccfc3b0"
+    name: "Remove Headers by Pattern"
+    type: "header-modification"
+    properties:
+      headerModificationToRemove:
+      - 'X-Temp-*'
+      - '^Debug-[0-9]+$'
+      - 'Exact-Remove'
+  - id: "10ff6587-3e1d-54e4-88bb-06b8e789287b"
+    name: "Empty Header Options"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd: {}
+      headerModificationToRemove: []
+  - id: "61217d3a-7228-5f7e-959c-baf26326a4dd"
+    name: "Absent Header Options"
+    type: "header-modification"
+    properties: {}
+  - id: "73bc7c9c-55f1-5b15-95dd-bce51e7b44d4"
+    name: "Integer Body Conversion"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        X-Converted: '${bodyAs(Integer)}'
+      headerModificationToRemove: []
   dependencies:
   - from: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
     to: "1056cfed-69e4-4ab8-8023-25875ee47f2e"
@@ -37,6 +84,18 @@ content:
     to: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
   - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
     to: "c74b44da-f6b6-467b-96f0-a20f83a52df0"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "5b15096e-67aa-51bc-8636-ddd83735057a"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "537a7065-d74a-5641-8571-da405461657f"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "a4533d42-1c0d-54dc-a4da-0bd97ccfc3b0"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "10ff6587-3e1d-54e4-88bb-06b8e789287b"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "61217d3a-7228-5f7e-959c-baf26326a4dd"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "73bc7c9c-55f1-5b15-95dd-bce51e7b44d4"
   deployments:
   - domain: "default"
   deployAction: "DEPLOY"

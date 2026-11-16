@@ -13,7 +13,7 @@ Set `SNAPSHOT_BUNDLE_DIRECTORY` to use another output directory outside
 `micro-engine/target`, which the consumer build cleans. Additional arguments
 are passed to each Maven invocation, for example `-s /path/to/settings.xml`.
 
-The manifests declare 345 scenarios across 31 targets and 162 exported chains.
+The manifests declare 376 scenarios across 31 targets and 162 exported chains.
 Scheduler isolation also uses a second catalog-generated snapshot of the same chain.
 The latest complete verified baseline contains 269 passing scenarios. The RabbitMQ
 trigger target passed all 22 added scenarios separately. The SFTP trigger target
@@ -21,7 +21,7 @@ passed all 17 scenarios after the failed-download key recovery fix in both engin
 The MCP target passed all 19 scenarios and 61 invocations separately.
 The shared-runner regression passed all 155 Short scenarios and 621 invocations
 across 32 targets in 353.298 seconds. The scheduler target passed all 18 scenarios
-and 36 executed invocations. The complete 345-scenario suite has not been run.
+and 36 executed invocations. The complete 376-scenario suite has not been run.
 
 The `snapshotTests` and `snapshotTestsShort` profiles run micro-engine scenarios in four separate JVMs by default.
 This also applies to an ordinary build from the repository root:
@@ -44,7 +44,7 @@ when used in a sequential reactor build. With an existing bundle, run either pro
 Every scenario must declare `scope: Short` or `scope: Long`. Use `Short` for scenarios that
 normally take at most one second, or that cover an element's basic behavior. Use `Long` for
 the remaining scenarios. Classification is explicit in YAML; a run's timing does not change it.
-The short suite contains 155 scenarios, including broker-backed senders whose fixture
+The short suite contains 186 scenarios, including broker-backed senders whose fixture
 startup takes longer than one second. The remaining 190 scenarios are `Long`.
 
 ```yaml
@@ -162,6 +162,48 @@ and so on. `summary.json` contains the combined array of scenario results, and t
 prints one combined results table. A failed test or worker error makes the build fail.
 Each fork uses `micro-engine/target/snapshot-workers/{forkNumber}` as its working directory.
 
+Failed scenarios also appear in a separate `Failed snapshot scenarios` table after the
+general results. Its four columns are `Element`, `Test`, `Expected behavior`, and `Error`.
+The test identifies the scenario and failing invocation, with the invocation repetition number when
+greater than one. The error includes the execution stage, exception type, message,
+causes, and suppressed diagnostic messages. Long cells wrap onto additional lines.
+Surefire retains the original exception and full stack trace. Successful scenarios that
+verify an expected exception do not appear in the failure table.
+
+For example, a scheduler standby failure has these details:
+
+| Element | Test | Expected behavior | Error |
+| --- | --- | --- | --- |
+| scheduler | controls-native-firing-through-blue-green-transitions / suspends-after-deactivation | Enter standby without starting any new native firing after deactivation. | Stage: invocation verification; AssertionFailedError: A paused scheduler must not execute business work. |
+
+Use the optional `expectedBehavior` field to describe the behavior checked by a scenario
+or invocation. An invocation description overrides its scenario description. Without
+either description, the report summarizes the declared body, metadata, exception, and
+fixture expectations. At scenario-wide stages with multiple invocations, it identifies
+the requirement to complete all invocations and satisfy their expectations.
+The checked-in specifications describe every scenario and explicit invocation; add a
+description when adding a new case so its failure report explains the intended behavior.
+
+```yaml
+scenarios:
+  - id: verifies-consumer-recovery
+    scope: Long
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    expectedBehavior: Reject invalid certificates and consume queued records after recovery.
+    invocations:
+      - id: rejects-untrusted-certificate
+        expectedBehavior: Reject the certificate without consuming records or advancing offsets.
+        expectedBody: null
+```
+
+Descriptions are report metadata; assertions remain defined by the existing expectation
+fields and fixtures. The shard JSON files and `summary.json` retain their existing
+`element`, `scenario`, `outcome`, and `duration` fields. Failed results also record
+`invocation`, `repetition`, `stage`, `expectedBehavior`, and `error`. These fields contain
+the full text displayed across wrapped table rows.
+
 A filtered selection can leave a worker with no scenarios. Scenarios with staged files or a
 `file-output` fixture retain the shared filesystem lock; other scenarios can execute concurrently
 in separate JVMs.
@@ -175,7 +217,7 @@ include the producer in a micro-engine build.
 ## What the flow executes
 
 `SnapshotBundleProducerIntegrationTest` generates the bundle. With the default worker count,
-Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard7Test`.
+Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard3Test`.
 The `snapshot.workers` property controls how many classes it generates. They inherit the scenario runner from
 `MicroEngineSnapshotRouteExecutionTest` and divide the selected manifest scenarios between them.
 The other snapshot classes provide shared execution support.

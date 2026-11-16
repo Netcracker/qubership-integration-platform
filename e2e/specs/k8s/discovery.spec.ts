@@ -12,12 +12,16 @@
  * Until #1139 the catalog reported progress 100 before it stored the result, and a read in between
  * answered an empty body.
  *
- * Cold OpenAPI generation and import took over 60 s on CI while other Kubernetes cases ran.
+ * The source document is prepared before discovery: cold SpringDoc generation exceeded the
+ * catalog's 60 s HTTP read timeout on CI. API cases prepare it in a full run, but the micro lane
+ * runs without them.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog } from "../../support/catalog.js";
 import { serviceNames } from "../../support/kube.js";
+import { serviceUrl } from "../../env/containers.js";
 
+const SOURCE_TIMEOUT = 120_000;
 const DISCOVERY_TIMEOUT = 120_000;
 const CLEANUP_TIMEOUT = 30_000;
 
@@ -40,8 +44,15 @@ async function deleteDiscovered(catalog: Catalog): Promise<string[]> {
 }
 
 test.describe("service discovery", { tag: ["@catalog", "@infra"] }, () => {
-  test("creates a catalog service per Service with a specification", async ({ catalog }) => {
-    test.setTimeout(180_000);
+  test("creates a catalog service per Service with a specification", async ({ catalog, request }) => {
+    test.setTimeout(SOURCE_TIMEOUT + 180_000);
+    await test.step("prepare the source OpenAPI document", async () => {
+      const response = await request.get(`${serviceUrl("runtime-catalog")}/v3/api-docs`, { timeout: SOURCE_TIMEOUT });
+      await expect(response).toBeOK();
+      const document = await response.json();
+      expect(document.openapi).toMatch(/^3\./);
+      expect(Object.keys(document.paths)).not.toHaveLength(0);
+    });
     expect(await deleteDiscovered(catalog), "services an earlier run discovered").toEqual([]);
 
     let bodyFailed = true;

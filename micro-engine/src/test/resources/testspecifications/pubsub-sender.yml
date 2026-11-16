@@ -5,10 +5,14 @@ fixtures:
     sourceElementId: f4644776-fa54-4910-9795-30854b0f2b73
 scenarios:
   - id: publishes-distinct-messages-with-ordering-and-context
+    expectedBehavior: >-
+      Deliver distinct Pub/Sub messages with ordering keys, UTF-8 data, attributes, and restored context while
+      reusing OAuth credentials.
     scope: Short
     endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
     invocations:
       - id: first-message
+        expectedBehavior: "Deliver the first ordered message with its attributes and request a valid OAuth token once."
         body: Order received
         headers:
           Authorization: Bearer first-snapshot-token
@@ -49,6 +53,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 1
       - id: second-message-with-utf8
+        expectedBehavior: "Preserve UTF-8 payload bytes and ordering while reusing the cached OAuth token."
         body: "Order received - caf\u00e9"
         headers:
           Authorization: Bearer second-snapshot-token
@@ -85,10 +90,14 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
   - id: publishes-messages-and-recovers-from-service-failures
+    expectedBehavior: >-
+      Preserve Pub/Sub ordering and context across token refresh, transient retries, lost responses, transport
+      faults, and topic recreation.
     scope: Long
     endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
     invocations:
       - id: publishes-with-a-short-lived-token
+        expectedBehavior: "Obtain the short-lived OAuth token and complete the Pub/Sub publication."
         body: Before token expiration
         headers:
           X-Request-Id: incoming-before-expiration
@@ -116,6 +125,7 @@ scenarios:
                 shortLivedAccessToken: true
                 expectedTokenRequests: 1
       - id: publishes-with-a-refreshed-token
+        expectedBehavior: "Refresh the expired OAuth token before publishing the next message."
         body: After token expiration
         headers:
           X-Request-Id: incoming-after-expiration
@@ -143,6 +153,7 @@ scenarios:
                 expireAccessToken: true
                 expectedTokenRequests: 1
       - id: reuses-the-refreshed-token
+        expectedBehavior: "Publish with the refreshed token without making another token request."
         body: Refreshed token remains cached
         headers:
           X-Request-Id: incoming-refreshed-cache
@@ -169,6 +180,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: publishes-without-an-ordering-key
+        expectedBehavior: "Deliver the message without adding an absent ordering key."
         body: Unordered message
         headers:
           X-Request-Id: incoming-unordered
@@ -190,6 +202,7 @@ scenarios:
                 X-Request-Id: outgoing-unordered
                 CamelGooglePubsubOrderingKey: null
       - id: publishes-an-empty-body-with-attributes
+        expectedBehavior: "Deliver an empty message body while preserving its attributes."
         body: ''
         headers:
           X-Request-Id: incoming-empty
@@ -217,6 +230,7 @@ scenarios:
                 CamelGooglePubsubOrderingKey: null
                 X-Event-Type: heartbeat
       - id: publishes-a-serialized-object
+        expectedBehavior: "Serialize the structured body into the expected Pub/Sub message bytes."
         body:
           orderId: order-303
           quantity: 2
@@ -255,6 +269,7 @@ scenarios:
                 X-Request-Id: outgoing-object
                 CamelGooglePubsubOrderingKey: null
       - id: rejected-message
+        expectedBehavior: "Propagate PERMISSION_DENIED from Pub/Sub and preserve the failed request's context."
         body: Rejected message
         headers:
           Authorization: Bearer rejected-snapshot-token
@@ -300,6 +315,7 @@ scenarios:
               message: 'PERMISSION_DENIED: Snapshot publication denied'
               cause: null
       - id: accepted-message-after-rejection
+        expectedBehavior: "Deliver successfully after the service rejects the previous publication."
         body: Accepted message
         headers:
           Authorization: Bearer accepted-snapshot-token
@@ -330,6 +346,7 @@ scenarios:
                 Authorization: null
                 X-Snapshot-Header: accepted-value
       - id: order-a-1
+        expectedBehavior: "Deliver the first message for ordering key A without requesting another OAuth token."
         body: order-a:event-1
         headers:
           X-Request-Id: incoming-order-a-1
@@ -360,6 +377,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: order-b-1
+        expectedBehavior: "Deliver the first message for ordering key B independently of key A."
         body: order-b:event-1
         headers:
           X-Request-Id: incoming-order-b-1
@@ -390,6 +408,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: order-a-2
+        expectedBehavior: "Retry two UNAVAILABLE responses and preserve key A's publication order."
         body: order-a:event-2
         headers:
           X-Request-Id: incoming-order-a-2
@@ -423,6 +442,7 @@ scenarios:
                 grpcMessage: Publisher temporarily unavailable
                 grpcFailureCount: 2
       - id: order-b-2
+        expectedBehavior: "Retry DEADLINE_EXCEEDED once and preserve key B's publication order."
         body: order-b:event-2
         headers:
           X-Request-Id: incoming-order-b-2
@@ -456,6 +476,7 @@ scenarios:
                 grpcMessage: Publish deadline exceeded
                 grpcFailureCount: 1
       - id: order-a-3
+        expectedBehavior: "Continue key A's ordered publications after its transient retry."
         body: order-a:event-3
         headers:
           X-Request-Id: incoming-order-a-3
@@ -486,6 +507,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: order-b-3
+        expectedBehavior: "Continue key B's ordered publications after its transient retry."
         body: order-b:event-3
         headers:
           X-Request-Id: incoming-order-b-3
@@ -516,6 +538,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: retries-an-accepted-publication
+        expectedBehavior: "Retry a lost Publish response and observe both accepted copies of the same payload."
         body: order-retry:event-1
         headers:
           X-Request-Id: incoming-lost-response
@@ -547,6 +570,7 @@ scenarios:
                 lostPublishResponseCount: 1
                 expectedTokenRequests: 0
       - id: preserves-key-order-after-the-duplicate
+        expectedBehavior: "Deliver the next message after the duplicate without violating ordering for its key."
         body: order-retry:event-2
         headers:
           X-Request-Id: incoming-after-lost-response
@@ -574,6 +598,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: before-connection-reset
+        expectedBehavior: "Deliver a baseline message before resetting the Pub/Sub connection."
         body: connection:event-1
         headers:
           X-Request-Id: incoming-before-connection-reset
@@ -604,6 +629,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: during-connection-reset
+        expectedBehavior: "Recover publication through the same publisher after the transport connection is reset."
         body: connection:event-2
         headers:
           X-Request-Id: incoming-during-connection-reset
@@ -635,6 +661,7 @@ scenarios:
                 expectedTokenRequests: 0
                 disconnect: true
       - id: after-connection-reset
+        expectedBehavior: "Deliver a fresh message after transport recovery without requesting another token."
         body: connection:event-3
         headers:
           X-Request-Id: incoming-after-connection-reset
@@ -665,6 +692,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: before-topic-recreation
+        expectedBehavior: "Deliver an ordered message before deleting and recreating its topic."
         body: recreation:event-1
         headers:
           X-Request-Id: incoming-before-topic-recreation
@@ -695,6 +723,8 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: deletes-the-topic
+        expectedBehavior: >-
+          Propagate NOT_FOUND after deleting the topic and retain the failed ordering key's paused state.
         body: recreation:event-2
         headers:
           X-Request-Id: incoming-deletes-the-topic
@@ -737,6 +767,9 @@ scenarios:
                 expectedTokenRequests: 0
                 topicAction: delete
       - id: recreates-the-topic-with-the-same-key
+        expectedBehavior: >-
+          Keep the previously failed ordering key paused after topic recreation without sending another
+          publication.
         body: recreation:event-3
         headers:
           X-Request-Id: incoming-recreates-the-topic-with-the-same-key
@@ -776,6 +809,7 @@ scenarios:
                 expectedTokenRequests: 0
                 topicAction: recreate
       - id: publishes-with-another-key-after-recreation
+        expectedBehavior: "Deliver through the same publisher using another ordering key after topic recreation."
         body: recreation:event-4
         headers:
           X-Request-Id: incoming-publishes-with-another-key-after-recreation
@@ -806,6 +840,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: before-topic-deletion
+        expectedBehavior: "Deliver a baseline message before deleting the topic again."
         body: deletion:event-1
         headers:
           X-Request-Id: incoming-before-topic-deletion
@@ -836,6 +871,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 0
       - id: after-topic-deletion
+        expectedBehavior: "Propagate the missing topic's failure for the next publication."
         body: deletion:event-2
         headers:
           X-Request-Id: incoming-after-topic-deletion
@@ -878,10 +914,14 @@ scenarios:
                 expectedTokenRequests: 0
                 topicAction: delete
   - id: rejects-publication-when-oauth-grant-is-denied
+    expectedBehavior: >-
+      Propagate an invalid OAuth grant without sending a Pub/Sub publication or retaining credentials.
     scope: Long
     endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
     invocations:
       - id: invalid-oauth-grant
+        expectedBehavior: >-
+          Propagate the invalid OAuth grant after one token request and make no Pub/Sub publication request.
         body: Message with a rejected OAuth grant
         headers:
           X-Request-Id: incoming-oauth-denied

@@ -4,7 +4,7 @@
   white-space: nowrap;
   flex-shrink: 1;
   min-width: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 15px;
 }
 
@@ -95,6 +95,6 @@
   height: 30px;
   min-height: 30px;
   padding: 2px 4px;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 15px;
 }

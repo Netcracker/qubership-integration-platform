@@ -438,7 +438,7 @@ class FailureNarrativeTest {
             List.of(),
             "Configure one or more explicit RBAC roles");
     PlanValidationResult planValidation =
-        CompilerPlanningRunner.buildValidationResult(
+        PlanValidationResult.fromCompiler(
             new ValidationResult(
                 false, List.of(issue), "security validation failed with 1 blocker(s)"),
             List.of());

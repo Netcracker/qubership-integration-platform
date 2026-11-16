@@ -15,7 +15,7 @@ import { message } from "../../../misc/antd-app.ts";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from "../../../misc/download-utils";
 import { invalidateServiceCache, prepareFile } from "../utils.tsx";
-import { ImportSpecificationsModal } from "../modals/ImportSpecificationsModal";
+import { AddSpecificationModal } from "../modals/AddSpecificationModal";
 import { useModalsContext } from "../../../Modals";
 import { useAsyncRequest } from "../useAsyncRequest";
 import styles from "../Services.module.css";
@@ -166,7 +166,7 @@ const getGroupActions =
         onClick: () => {
           showModal({
             component: (
-              <ImportSpecificationsModal
+              <AddSpecificationModal
                 systemId={systemId}
                 specificationGroupId={group.id}
                 isImplementedService={isImplementedService}
@@ -594,7 +594,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
   const onImportSpecGroupClick = () => {
     showModal({
       component: (
-        <ImportSpecificationsModal
+        <AddSpecificationModal
           systemId={systemId}
           groupMode={true}
           isImplementedService={isImplementedService}
@@ -611,7 +611,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
   const onImportSpecClick = () => {
     showModal({
       component: (
-        <ImportSpecificationsModal
+        <AddSpecificationModal
           systemId={systemId}
           specificationGroupId={groupId}
           isImplementedService={isImplementedService}
@@ -688,17 +688,18 @@ export const ServiceApiSpecsTab: React.FC = () => {
               )}
               <ProtectedButton
                 require={{ specificationGroup: ["import"] }}
-                tooltipProps={{ title: "Add Specification Group" }}
+                tooltipProps={{}}
                 buttonProps={{
                   "data-testid": "api-specs-add-group",
                   type: "primary",
-                  iconName: "plus",
+                  children: "Add Specification Group",
                   onClick: onImportSpecGroupClick,
                 }}
               />
             </Flex>
           </span>
           <span
+            data-testid="api-specs-specifications-toolbar"
             className={
               currentTable === "specs"
                 ? css.serviceApiSpecsTabFilterGroup
@@ -706,15 +707,6 @@ export const ServiceApiSpecsTab: React.FC = () => {
             }
           >
             <Flex vertical={false} gap={4}>
-              <ProtectedButton
-                require={{ specification: ["import"] }}
-                tooltipProps={{ title: "Import Specification" }}
-                buttonProps={{
-                  "data-testid": "api-specs-import-specification",
-                  iconName: "cloudUpload",
-                  onClick: onImportSpecClick,
-                }}
-              />
               {!isVsCode && (
                 <ProtectedButton
                   require={{ specification: ["export"] }}
@@ -742,6 +734,16 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 />
               )}
               {modelsTable.FilterButton()}
+              <ProtectedButton
+                require={{ specification: ["import"] }}
+                tooltipProps={{}}
+                buttonProps={{
+                  "data-testid": "api-specs-add-specification",
+                  type: "primary",
+                  children: "Add Specification",
+                  onClick: onImportSpecClick,
+                }}
+              />
             </Flex>
           </span>
           <span
@@ -833,6 +835,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
       systemId ?? "",
       String(selectedSpecRowKeys.length),
       String(models?.length ?? 0),
+      String(isImplementedService),
     ].join("|");
 
     if (toolbarSignatureRef.current === signature) {
@@ -855,6 +858,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     systemId,
     selectedSpecRowKeys.length,
     models?.length,
+    isImplementedService,
     toolbarContent,
   ]);
 

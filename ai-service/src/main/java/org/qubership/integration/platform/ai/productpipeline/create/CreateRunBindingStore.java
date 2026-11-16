@@ -26,10 +26,9 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 /**
  * Persists one CREATE runtime assignment until the conversation is explicitly reset.
  *
- * <p>Product {@code create-chain@*} bindings registered in the profile catalog are readable. New
- * writes
- * omit the historical {@code mode} field. Unsupported historical bindings fail closed without
- * mutation.
+ * <p>Registered product {@code create-chain} bindings other than {@code create-chain@1} are readable.
+ * New writes omit the historical {@code mode} field. Unsupported historical bindings fail closed
+ * without mutation.
  */
 @ApplicationScoped
 public class CreateRunBindingStore {
@@ -41,7 +40,7 @@ public class CreateRunBindingStore {
   private final ObjectMapper objectMapper;
   private final ProductPipelineProfileCatalog profileCatalog;
 
-  /** Test constructor with bundled create-chain@1 and @2 profiles. */
+  /** Test constructor with the bundled CREATE profile. */
   public CreateRunBindingStore(ArtifactBlobStore blobStore, ObjectMapper objectMapper) {
     this(blobStore, objectMapper, defaultTestProfileCatalog());
   }
@@ -170,6 +169,7 @@ public class CreateRunBindingStore {
     String profileId = textOrNull(manifestNode.get("profileId"));
     String profileVersion = textOrNull(manifestNode.get("profileVersion"));
     if (!SUPPORTED_PROFILE_ID.equals(profileId)
+        || "1".equals(profileVersion)
         || !profileCatalog.supports(profileId, profileVersion)) {
       throw new UnsupportedCreateRunBindingException(
           "profile=" + profileId + "@" + profileVersion);
@@ -191,7 +191,7 @@ public class CreateRunBindingStore {
 
   private static ProductPipelineProfileCatalog defaultTestProfileCatalog() {
     List<ProductPipelineProfile> profiles = new ArrayList<>();
-    for (String fileName : List.of("create-chain-v1.yaml", "create-chain-v2.yaml")) {
+    for (String fileName : List.of("create-chain-v2.yaml")) {
       try (InputStream in =
           CreateRunBindingStore.class.getResourceAsStream(
               "/product-pipelines/profiles/" + fileName)) {

@@ -98,7 +98,7 @@ func TestGetEntityDataGetterAcceptsAnEntityTypeThatTakesNoName(t *testing.T) {
 // nothing and the matcher over it holds for every call — the same shadowing a
 // blank name would cause, one space away.
 func TestGetEntityDataGetterRejectsAHeaderNameThatIsNotAFieldName(t *testing.T) {
-	for _, entityName := range []string{"X Mocked", "X\tMocked", "X:Mocked", "Accept(json)", "X-Mocked\n", "заголовок"} {
+	for _, entityName := range []string{"X Mocked", "X\tMocked", "X:Mocked", "Accept(json)", "X-Mocked\n", "\u05d0"} {
 		t.Run(strconv.Quote(entityName), func(t *testing.T) {
 			getter, err := GetEntityDataGetter(EntityTypeHeader, entityName)
 
@@ -164,7 +164,7 @@ func entityNameProbes() []string {
 		probes = append(probes, character, "order"+character+"Id", character+"orderId")
 	}
 	return append(probes,
-		"orderId", "order Id", "заказ", "注文", "🧾", "é", "a b", "�", "%2F", "{orderId}",
+		"orderId", "order Id", "\u05d0", "\u6ce8\u6587", "\U0001f9fe", "e\u0301", "a\u00a0b", "\ufffd", "%2F", "{orderId}",
 	)
 }
 
@@ -375,7 +375,7 @@ func TestPathParameterGetterDecodesTheSegmentItReads(t *testing.T) {
 		"percent":     "100%",
 		"question":    "a?b",
 		"hash":        "a#b",
-		"non-latin":   "заказ",
+		"non-latin":   "\u05d0",
 		"plus":        "a+b",
 		"encoded dot": "..",
 	} {

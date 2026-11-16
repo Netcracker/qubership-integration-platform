@@ -33,7 +33,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
-import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
@@ -68,28 +67,21 @@ final class A2aRealRuntimeFacadeFactory {
   private static Harness create(boolean needInputFirst, boolean materialize) {
     try {
       ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-      ProductPipelineProfile profileV1;
-      ProductPipelineProfile profileV2;
+      ProductPipelineProfile approvalProfile;
       try (InputStream in =
           A2aRealRuntimeFacadeFactory.class.getResourceAsStream(
-              "/product-pipelines/profiles/create-chain-v1.yaml")) {
-        profileV1 = ProductPipelineProfileParser.parse(in);
-      }
-      try (InputStream in =
-          A2aRealRuntimeFacadeFactory.class.getResourceAsStream(
-              "/product-pipelines/profiles/create-chain-v2.yaml")) {
-        profileV2 = ProductPipelineProfileParser.parse(in);
+              "/product-pipelines/profiles/approval-gates.yaml")) {
+        approvalProfile = ProductPipelineProfileParser.parse(in);
       }
       InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
       FakeKnowledgeClient knowledge = FakeKnowledgeClient.defaultFixture();
       ProductPipelineProfileCatalog catalog =
-          new ProductPipelineProfileCatalog(List.of(profileV1, profileV2));
+          new ProductPipelineProfileCatalog(List.of(approvalProfile));
       Clock clock = Clock.fixed(Instant.parse("2026-08-04T06:00:00Z"), ZoneOffset.UTC);
       CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobs, mapper);
-      // Pin create-chain@1 so deterministic discovery/planning stubs match the profile graph.
       CreateRunSelectionService selectionService =
           new CreateRunSelectionService(
-              "2026.1", knowledge, bindingStore, catalog, stubPinResolver(), clock, "1");
+              "2026.1", knowledge, bindingStore, catalog, stubPinResolver(), clock, "2");
       CompilationArtifacts artifacts = new CompilationArtifacts(blobs, mapper, clock);
       ProductPipelineArtifactStore artifactStore = new ProductPipelineArtifactStore(artifacts);
       ProductPipelineRunStore runStore = new ProductPipelineRunStore(blobs, mapper, clock);
@@ -247,7 +239,7 @@ final class A2aRealRuntimeFacadeFactory {
     return new StageCapability() {
       @Override
       public String capabilityId() {
-        return PlanningCapability.CAPABILITY_ID;
+        return "test-planning";
       }
 
       @Override

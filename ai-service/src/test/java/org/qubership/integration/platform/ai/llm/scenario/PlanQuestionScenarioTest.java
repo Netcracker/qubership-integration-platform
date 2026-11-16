@@ -145,7 +145,7 @@ class PlanQuestionScenarioTest {
                 created.run().runId(),
                 "planning",
                 "create-chain",
-                "1",
+                "2",
                 "profile-sha",
                 "test",
                 "1",

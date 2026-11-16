@@ -256,10 +256,10 @@ class Catalog:
 
     def variables(self, task_dir: Path, settings: dict) -> dict[str, str]:
         return {
-            "service_root": str(self.root),
-            "package_root": str(self.package),
-            "bundle_root": str(self.package / "testing"),
-            "task_dir": str(task_dir),
+            "service_root": self.root.as_posix(),
+            "package_root": self.package.as_posix(),
+            "bundle_root": (self.package / "testing").as_posix(),
+            "task_dir": task_dir.as_posix(),
             "python": sys.executable,
             **settings,
         }

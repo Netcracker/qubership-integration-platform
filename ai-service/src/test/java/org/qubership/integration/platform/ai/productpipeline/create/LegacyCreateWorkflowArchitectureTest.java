@@ -60,7 +60,7 @@ class LegacyCreateWorkflowArchitectureTest {
   void compilerDerivedPlanningDoesNotReferenceBuildChainDependencyGraph() throws IOException {
     Path spine =
         Path.of(
-            "src/main/java/org/qubership/integration/platform/ai/productpipeline/create/CompilerDerivedPlanningSpine.java");
+            "src/main/java/org/qubership/integration/platform/ai/productpipeline/create/DefaultCompilerDagExecutionEngine.java");
     String text = Files.readString(spine);
     assertFalse(text.contains("BuildChainDependencyGraph"));
   }

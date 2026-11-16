@@ -2,7 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 /**
  * Thrown when a persisted CREATE conversation binding is not a supported product create-chain
- * profile ({@code create-chain@1} or {@code create-chain@2}) after cutover.
+ * profile after cutover.
  */
 public final class UnsupportedCreateRunBindingException extends RuntimeException {
 

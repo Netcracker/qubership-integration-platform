@@ -45,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ImplementationBlockedRecovery;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 
 /**
  * Protocol-level exact approval coverage: pending-action advertisement, success, rejection matrix,
@@ -241,6 +242,20 @@ class A2aApprovalTest {
   }
 
   @Test
+  void retiredBindingApprovalReturnsCutoverIdentifier() {
+    String taskId = createWaitingTask();
+    org.mockito.Mockito.doThrow(new UnsupportedCreateRunBindingException())
+        .when(facade).ensureSupportedBinding(taskId);
+
+    var response = post(approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION));
+
+    assertEquals(400, response.statusCode());
+    assertTrue(response.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        response.asString());
+    assertEquals(0, approveCalls.get());
+  }
+
+  @Test
   void duplicateApprovalLeavesTaskUnchanged() {
     String taskId = createWaitingTask();
     approveOutcome.set(new ApproveCreateChainOutcome.DuplicateApproval());
@@ -413,6 +428,26 @@ class A2aApprovalTest {
   }
 
   @Test
+  void retiredBindingRejectsFreeTextAndCompletedReplay() {
+    String taskId = createWaitingTask();
+    String body = textBody(taskId, "still thinking");
+    var first = post(body);
+    assertEquals(200, first.statusCode(), first.asString());
+
+    org.mockito.Mockito.doThrow(new UnsupportedCreateRunBindingException())
+        .when(facade).ensureSupportedBinding(taskId);
+    var replay = post(body);
+    assertEquals(400, replay.statusCode(), replay.asString());
+    assertTrue(replay.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID), replay.asString());
+    var continuation = post(textBody(taskId, "a different continuation"));
+    assertEquals(400, continuation.statusCode(), continuation.asString());
+    assertTrue(continuation.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        continuation.asString());
+    assertEquals(0, approveCalls.get());
+    assertEquals(0, continueCalls.get());
+  }
+
+  @Test
   void publicImplementActionIsRejectedWithoutStateChange() {
     String taskId = createWaitingTask();
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
@@ -568,6 +603,14 @@ class A2aApprovalTest {
     assertEquals(422, post(body.replace(taskId, "another-task")).statusCode(), "the receipt cannot move to another task");
     assertEquals(422, post(body.replace(APPROVAL_TOKEN, "0".repeat(APPROVAL_TOKEN.length()))).statusCode(),
         "a changed approval cannot reuse the message id");
+    org.mockito.Mockito.doThrow(new UnsupportedCreateRunBindingException())
+        .when(facade).ensureSupportedBinding(taskId);
+    var retired = post(body);
+    assertEquals(400, retired.statusCode(), retired.asString());
+    assertTrue(retired.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        retired.asString());
+    assertEquals(1, approveCalls.get());
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().completed());
   }
 
   @ParameterizedTest
@@ -626,7 +669,7 @@ class A2aApprovalTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"structured", "text"})
-  void terminalApprovalReplayRequiresAppliedCommandEvidence(String format) throws Exception {
+  void terminalApprovalReplayRequiresAppliedEvidenceAndRejectsRetiredBinding(String format) throws Exception {
     String taskId = createWaitingTask();
     String body = "text".equals(format) ? textBody(taskId, "approve " + APPROVAL_TOKEN)
         : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
@@ -647,6 +690,14 @@ class A2aApprovalTest {
     assertEquals(0, continueCalls.get());
     String messageId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("message").path("messageId").asText();
     assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().incomplete());
+    org.mockito.Mockito.doThrow(new UnsupportedCreateRunBindingException())
+        .when(facade).ensureSupportedBinding(taskId);
+    var rejected = post(body);
+    assertEquals(400, rejected.statusCode(), rejected.asString());
+    assertTrue(rejected.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        rejected.asString());
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().incomplete());
+    assertEquals(0, approveCalls.get());
   }
 
   private static io.restassured.response.Response post(String body) {

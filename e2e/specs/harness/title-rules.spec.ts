@@ -16,7 +16,7 @@ const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SPEC_FILES = fs
   .readdirSync(SPECS, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.ts"))
-  .map((entry) => path.relative(SPECS, path.join(entry.parentPath, entry.name)));
+  .map((entry) => path.relative(SPECS, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"));
 
 const problemsIn = (file: string) => titleProblems(fs.readFileSync(path.join(SPECS, file), "utf-8"), `specs/${file}`);
 

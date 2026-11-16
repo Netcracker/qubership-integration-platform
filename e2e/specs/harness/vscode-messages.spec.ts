@@ -148,6 +148,7 @@ test.describe("vscode messages", () => {
     const constants = read("ui/src/api/rest/vscodeExtensionApi.ts");
     const uiFiles: SourceFile[] = (fs.readdirSync(path.join(repoRoot(), "ui/src"), { recursive: true, encoding: "utf-8" }) as string[])
       .filter((file) => /\.tsx?$/.test(file))
+      .map((file) => file.split(path.sep).join("/"))
       .map((file) => ({ path: `ui/src/${file}`, text: read(`ui/src/${file}`) }));
 
     test("the rows are unique and every uncovered row has a reason", () => {

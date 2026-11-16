@@ -9,6 +9,7 @@ deployments:
     route: "loop copy context false"
 scenarios:
   - id: "loop-completes"
+    expectedBehavior: "Execute ten iterations, increment the accumulated value to ten, and reduce the counter to zero."
     scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     body: "Original"
@@ -17,6 +18,7 @@ scenarios:
       counter: 0
 
   - id: "skips-iterations-when-counter-is-zero"
+    expectedBehavior: "Skip the loop body when the counter starts at zero and leave the increment and counter at zero."
     scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     body: "Original"
@@ -27,10 +29,14 @@ scenarios:
       counter: 0
 
   - id: "enforces-maximum-iteration-limit"
+    expectedBehavior: >-
+      Permit fifteen iterations and reject the next iteration with IterationLimitException while preserving the
+      observed counters.
     scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     invocations:
       - id: "completes-after-fifteen-iterations"
+        expectedBehavior: "Complete exactly fifteen iterations and return increment fifteen with a zero counter."
         body: "Original"
         properties:
           counter: 15
@@ -38,6 +44,9 @@ scenarios:
           increment: 15
           counter: 0
       - id: "fails-before-sixteenth-iteration"
+        expectedBehavior: >-
+          Reject the sixteenth iteration with IterationLimitException, leaving increment fifteen and one
+          iteration unconsumed.
         body: "Original"
         properties:
           counter: 16
@@ -50,6 +59,9 @@ scenarios:
           counter: 1
 
   - id: "copies-start-context-for-each-counted-iteration"
+    expectedBehavior: >-
+      Start each counted iteration from the copied initial context, so only the last iteration's body is
+      returned.
     scope: Short
     endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
     body: "Original"
@@ -58,6 +70,7 @@ scenarios:
     expectedBody: "S:2"
 
   - id: "skips-counted-iterations-when-count-is-zero"
+    expectedBehavior: "Keep the original body when a counted loop with copied context has zero iterations."
     scope: Short
     endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
     body: "Original"
@@ -66,6 +79,9 @@ scenarios:
     expectedBody: "S"
 
   - id: "reuses-context-across-counted-iterations"
+    expectedBehavior: >-
+      Accumulate all three iteration results in the shared context, record their order, and remove the custom
+      iteration index afterward.
     scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     body: "Original"
@@ -77,6 +93,9 @@ scenarios:
       iterationIndex: null
 
   - id: "skips-counted-iterations-without-copy-when-count-is-zero"
+    expectedBehavior: >-
+      Keep the original body and empty visit history for a zero-count shared-context loop, with no iteration
+      index retained.
     scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     body: "Original"
@@ -88,10 +107,16 @@ scenarios:
       iterationIndex: null
 
   - id: "clears-custom-iteration-index-after-script-failure"
+    expectedBehavior: >-
+      Propagate the script failure on the second iteration, retain preceding results and visit history, and
+      clear the iteration index.
     scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     invocations:
       - id: "fails-on-second-iteration"
+        expectedBehavior: >-
+          Propagate the script failure on the second iteration, retain preceding results and visit history, and
+          clear the iteration index.
         body: "Original"
         properties:
           iterations: 3

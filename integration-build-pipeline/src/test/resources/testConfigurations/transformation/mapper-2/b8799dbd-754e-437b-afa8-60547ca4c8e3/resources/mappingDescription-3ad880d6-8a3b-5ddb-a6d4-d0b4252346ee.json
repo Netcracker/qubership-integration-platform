@@ -1,0 +1,163 @@
+{
+  "mappingDescription": {
+    "source": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "6605a940eea7591a9d9e680d73ba17af",
+          "attributes": [
+            {
+              "id": "76a31884b65f5f7d82a0cef044e33396",
+              "name": "schemaInput",
+              "type": {
+                "name": "string"
+              },
+              "required": false,
+              "defaultValue": "schema-default"
+            },
+            {
+              "id": "254f84ca2baa51fca0cc375f9d6eeb0c",
+              "name": "fallbackInput",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "b8f7a03f40fc5ba2b039d91d235f6ca6",
+              "name": "status",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            }
+          ]
+        },
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        },
+        "definitions": []
+      },
+      "headers": [],
+      "properties": []
+    },
+    "target": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "0dfe4a9e88bf579e9b7179d03c7955c7",
+          "attributes": [
+            {
+              "id": "76f8fbf9d25356698ddb08a8c44b6319",
+              "name": "schemaDefault",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "842ab326612156949dfe994a11951b68",
+              "name": "fallbackValue",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "050c42d4613b520ca5262f195049026c",
+              "name": "state",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            }
+          ]
+        },
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        },
+        "definitions": []
+      },
+      "headers": [],
+      "properties": []
+    },
+    "actions": [
+      {
+        "id": "5735b85703f9560d8394e1a9c669436e",
+        "target": {
+          "kind": "body",
+          "path": [
+            "76f8fbf9d25356698ddb08a8c44b6319"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "76a31884b65f5f7d82a0cef044e33396"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "0ecf40c54e875643a9281437de4d97f1",
+        "target": {
+          "kind": "body",
+          "path": [
+            "842ab326612156949dfe994a11951b68"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "254f84ca2baa51fca0cc375f9d6eeb0c"
+            ],
+            "type": "attribute"
+          }
+        ],
+        "transformation": {
+          "name": "defaultValue",
+          "parameters": [
+            "fallback-value"
+          ]
+        }
+      },
+      {
+        "id": "7b44e965dd7d5903a40686437fd5c464",
+        "target": {
+          "kind": "body",
+          "path": [
+            "050c42d4613b520ca5262f195049026c"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "b8f7a03f40fc5ba2b039d91d235f6ca6"
+            ],
+            "type": "attribute"
+          }
+        ],
+        "transformation": {
+          "name": "conditional",
+          "parameters": [
+            "body.status == 'active'",
+            "'enabled'",
+            "'disabled'"
+          ]
+        }
+      }
+    ],
+    "constants": []
+  }
+}

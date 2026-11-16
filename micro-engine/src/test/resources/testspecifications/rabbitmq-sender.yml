@@ -34,11 +34,15 @@ fixtures:
   deployment: rabbitmq-sender-maas
 scenarios:
 - id: publishes-messages-through-sender-variants
+  expectedBehavior: >-
+    Deliver through the selected RabbitMQ sender with its context and routing settings while inactive senders
+    remain unused.
   scope: Short
   deployment: rabbitmq-sender
   endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
   invocations:
   - id: first
+    expectedBehavior: "Deliver the initial text message with its expected request context and AMQP content properties."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: RabbitMQ message
     headers:
@@ -89,6 +93,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: unicode
+    expectedBehavior: "Preserve Unicode text through UTF-8 publication and the expected AMQP content properties."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: "Order received - caf\u00e9"
     headers:
@@ -139,6 +144,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: empty
+    expectedBehavior: "Deliver an empty text payload with the expected AMQP content properties."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: ''
     headers:
@@ -189,6 +195,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: fresh-context
+    expectedBehavior: "Deliver fresh request-context values without reusing the previous message's context."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: No previous headers
     expectedBody: No previous headers
@@ -229,6 +236,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-first
+    expectedBehavior: "Deliver the message through the sender with context propagation disabled."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: RabbitMQ message with propagation disabled
     headers:
@@ -276,6 +284,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: second
+    expectedBehavior: "Deliver the next text message with its expected context values."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: "Order received - caf\u00e9"
     headers:
@@ -323,6 +332,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-fresh-context
+    expectedBehavior: "Keep propagation disabled when the next request supplies different context values."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: No previous headers
     expectedBody: No previous headers
@@ -365,6 +375,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: replaces-incoming-value
+    expectedBehavior: "Apply the configured outgoing context override and restore the incoming context afterward."
     endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
     body: Configured context replaces incoming value
     headers:
@@ -411,6 +422,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: null-body
+    expectedBehavior: "Reject the null body with MessageConversionException and deliver no AMQP message."
     endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
     body: null
     headers:
@@ -461,6 +473,7 @@ scenarios:
       message: Cannot send message as message body is null, and option allowNullBody is false.
       cause: null
   - id: after-null-body
+    expectedBehavior: "Deliver a valid text message after the null body was rejected."
     endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
     body: Context override after failed publication
     headers:
@@ -507,6 +520,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-incoming-context
+    expectedBehavior: "Supply the expected outgoing request ID when incoming context is absent."
     endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
     body: Context override without incoming context
     headers:
@@ -554,6 +568,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: configured-key
+    expectedBehavior: "Route the message using the sender's configured routing key."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for configured-key
     headers:
@@ -606,6 +621,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: override-key
+    expectedBehavior: "Route this message using the incoming routing-key override."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for override-key
     headers:
@@ -652,6 +668,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: configured-key-after-override
+    expectedBehavior: "Return to the configured routing key after the previous override."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for configured-key-after-override
     headers:
@@ -697,6 +714,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: empty-override
+    expectedBehavior: "Honor an explicitly empty routing-key override."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for empty-override
     headers:
@@ -743,6 +761,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: configured-key-after-empty-override
+    expectedBehavior: "Return to the configured routing key after the empty override."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for configured-key-after-empty-override
     headers:
@@ -788,6 +807,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: unbound-override
+    expectedBehavior: "Attempt publication with the unbound override without delivering a message to the bound queue."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for unbound-override
     headers:
@@ -833,6 +853,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: configured-key-after-unbound-override
+    expectedBehavior: "Deliver to the bound queue after returning to the configured routing key."
     endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
     body: Message for configured-key-after-unbound-override
     headers:
@@ -878,11 +899,15 @@ scenarios:
         properties:
           expectedSendCount: 0
 - id: publishes-messages-with-routing-and-context-and-recovers
+  expectedBehavior: >-
+    Preserve AMQP bytes, properties, routing, and context, then recover after unsupported conversion and invalid
+    routing input.
   scope: Long
   deployment: rabbitmq-sender
   endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
   invocations:
   - id: all-byte-values
+    expectedBehavior: "Preserve all 256 byte values in the outgoing AMQP body."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     driver:
       provider: binaryInput
@@ -930,6 +955,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: empty-bytes
+    expectedBehavior: "Deliver an empty non-null byte array as an octet-stream AMQP body."
     body: ''
     driver:
       provider: binaryInput
@@ -977,6 +1003,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: buffer
+    expectedBehavior: "Convert the ByteBuffer to the exact expected AMQP bytes."
     body: 00ff80c32800
     driver:
       provider: binaryInput
@@ -1024,6 +1051,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: stream
+    expectedBehavior: "Read the input stream and publish its exact binary contents."
     body: 00ff8073747265616d00
     driver:
       provider: binaryInput
@@ -1071,6 +1099,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: empty-stream
+    expectedBehavior: "Deliver an empty input stream as a zero-length AMQP body."
     body: ''
     driver:
       provider: binaryInput
@@ -1118,6 +1147,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: text-after-streams
+    expectedBehavior: "Restore normal UTF-8 text publication after sending binary streams."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Readable after binary values
     expectedBody: Readable after binary values
@@ -1162,6 +1192,8 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: explicit-properties
+    expectedBehavior: >-
+      Preserve the explicitly supplied AMQP message properties, including IDs, reply-to, expiry, and priority.
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: '{"order":17}'
     headers:
@@ -1241,6 +1273,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: persistent
+    expectedBehavior: "Publish with persistent delivery mode and the expected priority."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Persistent message
     headers:
@@ -1288,6 +1321,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: default-properties
+    expectedBehavior: "Apply default AMQP properties without retaining overrides from earlier messages."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Default properties
     expectedBody: Default properties
@@ -1343,6 +1377,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: typed-headers
+    expectedBehavior: "Preserve the supported typed AMQP headers with their expected values."
     body: Typed headers
     headers:
       X-Text: "caf\u00e9"
@@ -1431,6 +1466,7 @@ scenarios:
     properties:
       internalOnly: not-a-message-header
   - id: no-previous-headers
+    expectedBehavior: "Exclude typed headers that were present only on the previous message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Fresh headers
     expectedBody: Fresh headers
@@ -1482,6 +1518,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: alternate-exchange
+    expectedBehavior: "Honor the incoming exchange and routing-key overrides for this publication."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Alternate exchange
     headers:
@@ -1538,6 +1575,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: routing-key-only
+    expectedBehavior: "Override only the routing key while retaining the configured exchange."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Alternate routing key
     headers:
@@ -1586,6 +1624,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: original-destination
+    expectedBehavior: "Return to the configured exchange and routing key after the overrides."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Original destination
     expectedBody: Original destination
@@ -1631,6 +1670,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: consumer-headers-do-not-override
+    expectedBehavior: "Keep the configured destination despite incoming consumer-side exchange and routing headers."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Consumer headers are ignored
     headers:
@@ -1679,6 +1719,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: unbound-key
+    expectedBehavior: "Attempt publication with an unbound key without delivering to the bound queue."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: No bound queue
     headers:
@@ -1727,6 +1768,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: after-unbound-key
+    expectedBehavior: "Deliver a fresh message after restoring a bound routing key."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Routed after unbound key
     expectedBody: Routed after unbound key
@@ -1772,6 +1814,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: latin1
+    expectedBehavior: "Encode the text as ISO-8859-1 and preserve the expected AMQP encoding property."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: "caf\u00e9 d\u00e9j\u00e0 vu"
     headers:
@@ -1820,6 +1863,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: utf16
+    expectedBehavior: "Encode the text as UTF-16LE with the expected AMQP content encoding."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: "Order caf\u00e9"
     headers:
@@ -1868,6 +1912,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: multiple-frames
+    expectedBehavior: "Deliver the complete large payload across AMQP frames with the expected length and digest."
     body: x
     driver:
       provider: repeatedBody
@@ -1913,6 +1958,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: default-encoding-after-overrides
+    expectedBehavior: "Return to UTF-8 encoding without retaining the prior charset override."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: "UTF-8 again: caf\u00e9"
     expectedBody: "UTF-8 again: caf\u00e9"
@@ -1958,6 +2004,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: null-body
+    expectedBehavior: "Reject the null body with MessageConversionException and deliver no AMQP message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: null
     headers:
@@ -2005,6 +2052,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: after-null-body
+    expectedBehavior: "Deliver a valid text message after the null body was rejected."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after null-body
     headers:
@@ -2051,6 +2099,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: invalid-charset
+    expectedBehavior: "Reject the unsupported charset before delivering an AMQP message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Bad encoding
     headers:
@@ -2102,6 +2151,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: after-invalid-charset
+    expectedBehavior: "Deliver valid text after rejecting the unsupported charset."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after invalid-charset
     headers:
@@ -2148,6 +2198,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: invalid-exchange-type
+    expectedBehavior: "Reject the invalid exchange header type before AMQP delivery."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Bad exchange type
     headers:
@@ -2197,6 +2248,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: after-invalid-exchange-type
+    expectedBehavior: "Deliver valid text after rejecting the exchange header's invalid type."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after invalid-exchange-type
     headers:
@@ -2243,6 +2295,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: invalid-routing-key-type
+    expectedBehavior: "Reject the invalid routing-key header type before AMQP delivery."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Bad routing key type
     headers:
@@ -2292,6 +2345,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: after-invalid-routing-key-type
+    expectedBehavior: "Deliver valid text after rejecting the routing-key header's invalid type."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after invalid-routing-key-type
     headers:
@@ -2338,6 +2392,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: first-generated-id
+    expectedBehavior: "Generate the expected nonempty outgoing request ID when no incoming ID is present."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: A fresh request ID for first-generated-id
     headers:
@@ -2384,6 +2439,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: second-generated-id
+    expectedBehavior: "Generate a nonempty outgoing request ID for a subsequent request without an incoming ID."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: A fresh request ID for second-generated-id
     headers:
@@ -2430,6 +2486,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: first-version
+    expectedBehavior: "Propagate the expected first version-context value to the outgoing message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Message with v1
     headers:
@@ -2475,6 +2532,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: second-version
+    expectedBehavior: "Propagate the new version-context value without retaining the earlier value."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Message with v2
     headers:
@@ -2520,6 +2578,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-version-context
+    expectedBehavior: "Omit version context that is absent from the current request."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Message without a previous version
     headers:
@@ -2564,6 +2623,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: positive-timestamp
+    expectedBehavior: "Preserve the explicitly supplied positive AMQP timestamp."
     body: AMQP timestamp in seconds
     headers:
       CamelSpringRabbitmqTimestamp: 1700000000123
@@ -2615,6 +2675,7 @@ scenarios:
         headerTypes:
           CamelSpringRabbitmqTimestamp: date
   - id: without-timestamp
+    expectedBehavior: "Omit the AMQP timestamp when the current request does not supply one."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: No timestamp on the next message
     expectedBody: No timestamp on the next message
@@ -2659,6 +2720,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: empty-buffer
+    expectedBehavior: "Deliver an empty ByteBuffer as a zero-length octet-stream AMQP body."
     body: ''
     expectedAbsentHeaders:
     - Authorization
@@ -2706,6 +2768,7 @@ scenarios:
         endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
         bodyType: byte-buffer
   - id: integer-body
+    expectedBehavior: "Reject the unsupported integer body with MessageConversionException and deliver no message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: 42
     headers:
@@ -2756,6 +2819,7 @@ scenarios:
         message: 'No type converter available to convert from type: java.lang.Integer to the required type: byte[]'
         cause: null
   - id: after-integer-body
+    expectedBehavior: "Deliver valid text after rejecting the integer body."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after integer-body
     headers:
@@ -2798,6 +2862,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: boolean-body
+    expectedBehavior: "Reject the unsupported boolean body with MessageConversionException and deliver no message."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: true
     headers:
@@ -2848,6 +2913,7 @@ scenarios:
         message: 'No type converter available to convert from type: java.lang.Boolean to the required type: byte[]'
         cause: null
   - id: after-boolean-body
+    expectedBehavior: "Deliver valid text after rejecting the boolean body."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after boolean-body
     headers:
@@ -2890,6 +2956,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: positioned-buffer
+    expectedBehavior: "Reject the positioned ByteBuffer conversion without delivering an AMQP message."
     body: '00010203'
     headers:
       Authorization: Bearer positioned-buffer
@@ -2944,6 +3011,7 @@ scenarios:
         message: null
         cause: null
   - id: after-positioned-buffer
+    expectedBehavior: "Deliver valid text after rejecting the positioned ByteBuffer."
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
     body: Accepted after positioned buffer
     headers:
@@ -2986,6 +3054,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-null-body
+    expectedBehavior: "Reject the null body while context propagation is disabled and deliver no message."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: null
     headers:
@@ -3033,6 +3102,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-after-null-body
+    expectedBehavior: "Deliver valid text with propagation still disabled after rejecting the null body."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: Accepted after null-body
     headers:
@@ -3079,6 +3149,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-invalid-charset
+    expectedBehavior: "Reject the unsupported charset while context propagation is disabled."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: Bad encoding
     headers:
@@ -3130,6 +3201,7 @@ scenarios:
         properties:
           expectedSendCount: 0
   - id: no-context-after-invalid-charset
+    expectedBehavior: "Deliver valid text with propagation disabled after rejecting the unsupported charset."
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
     body: Accepted after invalid-charset
     headers:
@@ -3176,11 +3248,15 @@ scenarios:
         properties:
           expectedSendCount: 0
 - id: recovers-after-credential-permission-and-broker-failures
+  expectedBehavior: >-
+    Recover RabbitMQ publication after credential changes, access revocation, connection closure, broker
+    restart, and channel errors.
   scope: Long
   deployment: rabbitmq-sender-broker
   endpointUri: cip-chain:68ef6d16-3fe7-4cfc-b9a9-5248b34f56fb
   invocations:
   - id: before-password-change
+    expectedBehavior: "Deliver a baseline message before changing the broker account password."
     body: Accepted with configured credentials
     headers:
       Authorization: Bearer snapshot-before-password-change
@@ -3206,6 +3282,7 @@ scenarios:
           X-Request-Id: incoming-before-password-change
           X-Snapshot-Header: before-password-change
   - id: invalid-password
+    expectedBehavior: "Propagate RabbitMQ authentication rejection and deliver no message with the stale password."
     body: Rejected with the old password
     headers:
       Authorization: Bearer snapshot-invalid-password
@@ -3246,6 +3323,7 @@ scenarios:
             username: snapshot-sender
             password: changed-password
   - id: restored-password
+    expectedBehavior: "Reconnect and deliver after restoring the broker account password."
     body: Accepted after password restoration
     headers:
       Authorization: Bearer snapshot-restored-password
@@ -3277,6 +3355,7 @@ scenarios:
             username: snapshot-sender
             password: snapshot
   - id: before-user-deletion
+    expectedBehavior: "Deliver a baseline message before deleting the broker account."
     body: Accepted before user deletion
     headers:
       Authorization: Bearer snapshot-before-user-deletion
@@ -3302,6 +3381,7 @@ scenarios:
           X-Request-Id: incoming-before-user-deletion
           X-Snapshot-Header: before-user-deletion
   - id: unknown-user
+    expectedBehavior: "Propagate authentication rejection and deliver no message after the broker account is deleted."
     body: Rejected after user deletion
     headers:
       Authorization: Bearer snapshot-unknown-user
@@ -3341,6 +3421,7 @@ scenarios:
             action: delete-user
             username: snapshot-sender
   - id: restored-user
+    expectedBehavior: "Reconnect and deliver after restoring the broker account and its vhost access."
     body: Accepted after user restoration
     headers:
       Authorization: Bearer snapshot-restored-user
@@ -3373,6 +3454,7 @@ scenarios:
             password: snapshot
             vhost: /snapshot-sender
   - id: before-access-revocation
+    expectedBehavior: "Deliver successfully before revoking the account's vhost access."
     body: Accepted in the configured virtual host
     headers:
       Authorization: Bearer snapshot-before-access-revocation
@@ -3398,6 +3480,7 @@ scenarios:
           X-Request-Id: incoming-before-access-revocation
           X-Snapshot-Header: before-access-revocation
   - id: denied-vhost
+    expectedBehavior: "Propagate denied vhost access without delivering a message."
     body: Rejected without virtual host access
     headers:
       Authorization: Bearer snapshot-denied-vhost
@@ -3440,6 +3523,7 @@ scenarios:
             username: snapshot-sender
             vhost: /snapshot-sender
   - id: restored-vhost
+    expectedBehavior: "Deliver after restoring access to the sender's vhost."
     body: Accepted after virtual host access restoration
     headers:
       Authorization: Bearer snapshot-restored-vhost
@@ -3471,6 +3555,7 @@ scenarios:
             username: snapshot-sender
             vhost: /snapshot-sender
   - id: before-disconnect
+    expectedBehavior: "Deliver successfully before the broker closes the sender's connection."
     body: Accepted before broker disconnect
     headers:
       Authorization: Bearer snapshot-before-disconnect
@@ -3496,6 +3581,7 @@ scenarios:
           X-Request-Id: incoming-before-disconnect
           X-Snapshot-Header: before-disconnect
   - id: new-connection
+    expectedBehavior: "Observe the broker-forced connection closure and deliver through a new connection."
     body: Accepted over a new connection
     headers:
       Authorization: Bearer snapshot-new-connection
@@ -3527,6 +3613,7 @@ scenarios:
             username: snapshot-sender
           expectedChannelCloseCode: 320
   - id: after-disconnect
+    expectedBehavior: "Deliver a fresh message after recovering from the forced connection closure."
     body: Accepted after reconnect
     headers:
       Authorization: Bearer snapshot-after-disconnect
@@ -3552,6 +3639,7 @@ scenarios:
           X-Request-Id: incoming-after-disconnect
           X-Snapshot-Header: after-disconnect
   - id: before-stop
+    expectedBehavior: "Deliver successfully before stopping RabbitMQ."
     body: Accepted before broker stop
     headers:
       Authorization: Bearer snapshot-before-stop
@@ -3577,6 +3665,7 @@ scenarios:
           X-Request-Id: incoming-before-stop
           X-Snapshot-Header: before-stop
   - id: stopped-broker
+    expectedBehavior: "Propagate the stopped broker's connection failure without delivering a message."
     body: Rejected while the broker is stopped
     headers:
       Authorization: Bearer snapshot-stopped-broker
@@ -3623,6 +3712,7 @@ scenarios:
           brokerAction:
             action: stop
   - id: restarted-broker
+    expectedBehavior: "Reconnect and deliver after RabbitMQ restarts."
     body: Accepted after broker restart
     headers:
       Authorization: Bearer snapshot-restarted-broker
@@ -3652,6 +3742,7 @@ scenarios:
           brokerAction:
             action: start
   - id: after-restart
+    expectedBehavior: "Deliver a fresh message through the recovered broker connection."
     body: Accepted on the recovered connection
     headers:
       Authorization: Bearer snapshot-after-restart
@@ -3677,6 +3768,7 @@ scenarios:
           X-Request-Id: incoming-after-restart
           X-Snapshot-Header: after-restart
   - id: before-missing-exchange
+    expectedBehavior: "Deliver successfully before publishing to a missing exchange."
     body: Accepted before missing exchange
     headers:
       Authorization: Bearer snapshot-before-missing-exchange
@@ -3702,6 +3794,7 @@ scenarios:
           X-Request-Id: incoming-before-missing-exchange
           X-Snapshot-Header: before-missing-exchange
   - id: missing-exchange
+    expectedBehavior: "Observe channel close code 404 for the missing exchange and deliver no message."
     body: Rejected by missing exchange
     headers:
       Authorization: Bearer snapshot-missing-exchange
@@ -3732,6 +3825,7 @@ scenarios:
         properties:
           expectedChannelCloseCode: 404
   - id: after-missing-exchange
+    expectedBehavior: "Deliver a fresh message to the valid exchange after the channel error."
     body: Accepted on a replacement channel
     headers:
       Authorization: Bearer snapshot-after-missing-exchange
@@ -3757,6 +3851,7 @@ scenarios:
           X-Request-Id: incoming-after-missing-exchange
           X-Snapshot-Header: after-missing-exchange
   - id: before-write-revocation
+    expectedBehavior: "Deliver successfully before revoking exchange Write permission."
     body: Accepted before write revocation
     headers:
       Authorization: Bearer snapshot-before-write-revocation
@@ -3782,6 +3877,7 @@ scenarios:
           X-Request-Id: incoming-before-write-revocation
           X-Snapshot-Header: before-write-revocation
   - id: denied-write
+    expectedBehavior: "Observe channel close code 403 and no delivery while exchange Write permission is denied."
     body: Rejected without write permission
     headers:
       Authorization: Bearer snapshot-denied-write
@@ -3814,6 +3910,7 @@ scenarios:
             vhost: /snapshot-sender
           expectedChannelCloseCode: 403
   - id: restored-write
+    expectedBehavior: "Deliver after restoring exchange Write permission."
     body: Accepted after write permission restoration
     headers:
       Authorization: Bearer snapshot-restored-write
@@ -3845,11 +3942,15 @@ scenarios:
             username: snapshot-sender
             vhost: /snapshot-sender
 - id: publishes-through-maas-with-custom-credentials-and-vhost
+  expectedBehavior: >-
+    Resolve the exported MaaS classifier to custom credentials and vhost and reuse the resulting RabbitMQ
+    connection.
   scope: Long
   deployment: rabbitmq-sender-maas
   endpointUri: cip-chain:6c39bf8f-06fb-4c08-8b3a-068551d60e26
   invocations:
   - id: resolved-vhost
+    expectedBehavior: "Resolve the configured MaaS classifier and publish using its custom credentials and vhost."
     body: Message through MaaS
     headers:
       Authorization: Bearer snapshot-maas-first
@@ -3881,6 +3982,7 @@ scenarios:
             contentType: text/plain
             contentEncoding: UTF-8
   - id: reused-connection
+    expectedBehavior: "Deliver the next message using the existing MaaS-resolved connection."
     body: Second message through MaaS
     headers:
       Authorization: Bearer snapshot-maas-second

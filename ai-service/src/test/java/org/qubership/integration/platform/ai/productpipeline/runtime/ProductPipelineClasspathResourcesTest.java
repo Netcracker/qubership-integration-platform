@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -36,20 +38,15 @@ class ProductPipelineClasspathResourcesTest {
 
   @Test
   void createProfilesArePackagedOnClasspath() throws Exception {
-    try (InputStream chain =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml");
-        InputStream chainV2 =
+    assertNull(getClass().getResource("/product-pipelines/profiles/create-chain-v1.yaml"));
+    try (InputStream chainV2 =
             getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       assertTrue(
           getClass().getResourceAsStream("/product-pipelines/profiles/create-plan-v1.yaml") == null,
           "create-plan-v1.yaml must be absent after hard cutover");
-      assertNotNull(chain, "create-chain-v1.yaml must be on the ai-service classpath");
       assertNotNull(chainV2, "create-chain-v2.yaml must be on the ai-service classpath");
-      ProductPipelineProfile createChain = ProductPipelineProfileParser.parse(chain);
       ProductPipelineProfile createChainV2 = ProductPipelineProfileParser.parse(chainV2);
-      assertFalse(createChain.stages().isEmpty());
       assertFalse(createChainV2.stages().isEmpty());
-      assertEquals("1", createChain.profileVersion());
       assertEquals("2", createChainV2.profileVersion());
     }
   }

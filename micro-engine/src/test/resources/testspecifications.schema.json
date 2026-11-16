@@ -422,6 +422,10 @@
         "id": {
           "$ref": "#/definitions/nonblankString"
         },
+        "expectedBehavior": {
+          "$ref": "#/definitions/nonblankString",
+          "description": "Expected behavior shown when a scenario fails."
+        },
         "expectedStartupFailure": {
           "$ref": "#/definitions/failure",
           "description": "Expected deployment startup failure. The runner checks its type, message, and cause chain, then closes the environment without executing invocations."
@@ -707,6 +711,10 @@
       "properties": {
         "id": {
           "$ref": "#/definitions/nonblankString"
+        },
+        "expectedBehavior": {
+          "$ref": "#/definitions/nonblankString",
+          "description": "Expected behavior shown when this invocation fails. Overrides the scenario description."
         },
         "endpointUri": {
           "anyOf": [

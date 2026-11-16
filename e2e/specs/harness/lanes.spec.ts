@@ -24,7 +24,7 @@ const SCRIPT = path.join(repoRoot(), "e2e", "support", "lanes.mjs");
 const WORKFLOW = path.join(repoRoot(), ".github", "workflows", "e2e-pr.yaml");
 
 /** Projects that restart a service or read state every worker shares, which a pull request job must not run. */
-const NIGHTLY_ONLY = ["env", "env-micro", "global", "global-micro", "brokers-restart"];
+const NIGHTLY_ONLY = ["process-snapshot", "process-envelope", "env", "env-micro", "global", "global-micro", "brokers-restart"];
 
 /** Every project the Kubernetes target declares with the brokers on, the widest list any lane selects from. */
 const projects = () => withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s")));
@@ -80,7 +80,7 @@ test.describe("lanes", () => {
     }
   });
 
-  test("the workflow calls each lane by the job of its name", () => {
+  test("the workflow maps each job to its declared lane", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const called = Object.entries(jobs).flatMap(([name, job]) =>
       job.with && "lane" in job.with ? [{ job: name, lane: job.with.lane }] : [],

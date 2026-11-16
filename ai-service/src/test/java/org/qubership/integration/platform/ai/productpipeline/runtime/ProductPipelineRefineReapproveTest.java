@@ -35,7 +35,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
@@ -319,7 +318,7 @@ class ProductPipelineRefineReapproveTest {
     return new StageCapability() {
       @Override
       public String capabilityId() {
-        return PlanningCapability.CAPABILITY_ID;
+        return "test-planning";
       }
 
       @Override
@@ -381,7 +380,7 @@ class ProductPipelineRefineReapproveTest {
                 new RetryPolicy(0, 1L)),
             new ProfileStage(
                 "planning",
-                PlanningCapability.CAPABILITY_ID,
+                "test-planning",
                 List.of(new ArtifactTypeRef("requirement-brief", 1)),
                 List.of(
                     new ArtifactTypeRef("implementation-plan", 2),
@@ -400,7 +399,7 @@ class ProductPipelineRefineReapproveTest {
             RequirementDiscoveryCapability.CAPABILITY_ID,
             SpecificationImportCapability.CAPABILITY_ID,
             RequirementAnalysisCapability.CAPABILITY_ID,
-            PlanningCapability.CAPABILITY_ID));
+            "test-planning"));
   }
 
   private RunManifest sampleManifest() {
@@ -414,7 +413,7 @@ class ProductPipelineRefineReapproveTest {
         "profile-sha",
         "baseline",
         "baseline-sha",
-        List.of(new DependencyClosureEntry(PlanningCapability.CAPABILITY_ID, "1", "c1")),
+        List.of(new DependencyClosureEntry("test-planning", "1", "c1")),
         "closure-sha",
         new KnowledgePackageRef(
             "knowledge-1",

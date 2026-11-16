@@ -33,7 +33,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
-import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -317,7 +316,6 @@ public class CreateProductPipelineCoordinatorTest {
     private final InMemoryArtifactBlobStore blobs;
     private final ObjectMapper mapper;
     private final FakeKnowledgeClient knowledge;
-    private final ProductPipelineProfile profile;
     private final ProductPipelineProfileCatalog catalog;
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-22T12:00:00Z"), ZoneOffset.UTC);
     private final AtomicInteger materializationCalls = new AtomicInteger();
@@ -332,33 +330,25 @@ public class CreateProductPipelineCoordinatorTest {
         InMemoryArtifactBlobStore blobs,
         ObjectMapper mapper,
         FakeKnowledgeClient knowledge,
-        ProductPipelineProfile profile,
         ProductPipelineProfileCatalog catalog) {
       this.blobs = blobs;
       this.mapper = mapper;
       this.knowledge = knowledge;
-      this.profile = profile;
       this.catalog = catalog;
     }
 
     static Fixture create() throws Exception {
       ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-      ProductPipelineProfile profileV1;
-      ProductPipelineProfile profileV2;
+      ProductPipelineProfile approvalProfile;
       try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-        profileV1 = ProductPipelineProfileParser.parse(in);
-      }
-      try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
-        profileV2 = ProductPipelineProfileParser.parse(in);
+          Fixture.class.getResourceAsStream("/product-pipelines/profiles/approval-gates.yaml")) {
+        approvalProfile = ProductPipelineProfileParser.parse(in);
       }
       return new Fixture(
           new InMemoryArtifactBlobStore(),
           mapper,
           FakeKnowledgeClient.defaultFixture(),
-          profileV1,
-          new ProductPipelineProfileCatalog(List.of(profileV1, profileV2)));
+          new ProductPipelineProfileCatalog(List.of(approvalProfile)));
     }
 
     CreateProductPipelineCoordinator coordinator() {
@@ -406,7 +396,7 @@ public class CreateProductPipelineCoordinatorTest {
               catalog,
               stubPinResolver(),
               clock,
-              "1");
+              "2");
       CompilationArtifacts artifacts = new CompilationArtifacts(store, mapper, clock);
       ProductPipelineArtifactStore storeFacade = new ProductPipelineArtifactStore(artifacts);
       this.selectionService = selection;
@@ -554,7 +544,7 @@ public class CreateProductPipelineCoordinatorTest {
       return new StageCapability() {
         @Override
         public String capabilityId() {
-          return PlanningCapability.CAPABILITY_ID;
+          return "test-planning";
         }
 
         @Override

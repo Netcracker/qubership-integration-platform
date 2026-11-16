@@ -351,25 +351,10 @@ class ProductPipelineProfileValidatorTest {
   void acceptsImmutableCreateChainProfileWithImplementationGate() throws Exception {
     ProductPipelineProfile createChain;
     try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       createChain = ProductPipelineProfileParser.parse(in);
     }
-    ArtifactSchemaRegistry schemas =
-        ArtifactSchemaRegistry.of(
-            new ArtifactTypeRef("user-input", 1),
-            new ArtifactTypeRef("requirement-draft", 2),
-            new ArtifactTypeRef("requirement-brief", 1),
-            new ArtifactTypeRef("ids-bypass", 1),
-            new ArtifactTypeRef("implementation-plan", 2),
-            new ArtifactTypeRef("plan-validation-result", 1),
-            new ArtifactTypeRef("chain-plan-graph", 1),
-            new ArtifactTypeRef("graph-assembly-result", 1),
-            new ArtifactTypeRef("compiler-validation-bundle", 1),
-            new ArtifactTypeRef("approval-record", 2),
-            new ArtifactTypeRef("materialization-result", 1),
-            new ArtifactTypeRef("materialization-map", 1),
-            new ArtifactTypeRef("catalog-chain-snapshot", 1),
-            new ArtifactTypeRef("reconcile-result", 1));
+    ArtifactSchemaRegistry schemas = profileSchemas(createChain);
 
     assertDoesNotThrow(
         () ->
@@ -380,7 +365,10 @@ class ProductPipelineProfileValidatorTest {
                     "requirement-discovery",
                     "specification-import",
                     "requirement-analysis",
-                    "planning",
+                    "design-input",
+                    "design-planning",
+                    "design-execution",
+                    "auto-uploaded-spec-import",
                     "materialization")));
   }
 
@@ -388,7 +376,7 @@ class ProductPipelineProfileValidatorTest {
   void rejectsImplementationGateWithUnknownWaitingState() throws Exception {
     ProductPipelineProfile createChain;
     try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       createChain = ProductPipelineProfileParser.parse(in);
     }
     ProductPipelineProfile invalid =
@@ -402,25 +390,10 @@ class ProductPipelineProfileValidatorTest {
             createChain.dependencyRoots(),
             createChain.compilerPipeline(),
             new ImplementationGatePolicy(
-                "planning",
+                "design-planning",
                 new ArtifactTypeRef("implementation-plan", 2),
                 "WAITING_FOR_APPROVAL"));
-    ArtifactSchemaRegistry schemas =
-        ArtifactSchemaRegistry.of(
-            new ArtifactTypeRef("user-input", 1),
-            new ArtifactTypeRef("requirement-draft", 2),
-            new ArtifactTypeRef("requirement-brief", 1),
-            new ArtifactTypeRef("ids-bypass", 1),
-            new ArtifactTypeRef("implementation-plan", 2),
-            new ArtifactTypeRef("plan-validation-result", 1),
-            new ArtifactTypeRef("chain-plan-graph", 1),
-            new ArtifactTypeRef("graph-assembly-result", 1),
-            new ArtifactTypeRef("compiler-validation-bundle", 1),
-            new ArtifactTypeRef("approval-record", 2),
-            new ArtifactTypeRef("materialization-result", 1),
-            new ArtifactTypeRef("materialization-map", 1),
-            new ArtifactTypeRef("catalog-chain-snapshot", 1),
-            new ArtifactTypeRef("reconcile-result", 1));
+    ArtifactSchemaRegistry schemas = profileSchemas(createChain);
 
     ProductPipelineProfileValidationException ex =
         assertThrows(
@@ -433,9 +406,26 @@ class ProductPipelineProfileValidatorTest {
                         "requirement-discovery",
                         "specification-import",
                         "requirement-analysis",
-                        "planning",
+                        "design-input",
+                        "design-planning",
+                        "design-execution",
+                        "auto-uploaded-spec-import",
                         "materialization")));
     assertTrue(ex.getMessage().contains("WAITING_FOR_IMPLEMENT"));
+  }
+
+  private static ArtifactSchemaRegistry profileSchemas(ProductPipelineProfile profile) {
+    java.util.Set<ArtifactTypeRef> types = new java.util.HashSet<>(profile.runInputs());
+    for (ProfileStage stage : profile.stages()) {
+      types.addAll(stage.consumes());
+      types.addAll(stage.produces());
+      types.addAll(stage.optionalConsumes());
+      types.addAll(stage.optionalProduces());
+      if (stage.approval() != null) {
+        types.add(stage.approval().artifact());
+      }
+    }
+    return ArtifactSchemaRegistry.of(types.toArray(ArtifactTypeRef[]::new));
   }
 
   private static ProductPipelineProfile copyWithStages(

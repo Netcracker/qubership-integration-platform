@@ -185,7 +185,7 @@ class PlanningPatchLedgerTest {
                 new ArtifactProvenance(
                     runId,
                     "planning",
-                    "create-chain-v1",
+                    "compiler-fixture",
                     "1",
                     "digest",
                     payload.ownerCapabilityId(),

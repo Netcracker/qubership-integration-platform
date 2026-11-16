@@ -3,7 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import java.util.List;
 
 /**
- * Human-readable implementation plan captured before the compiler spine runs.
+ * Human-readable implementation plan presented for approval.
  *
  * <p>Schema version 1 stores only {@code planText} and provenance. Schema version 2 adds
  * structured decision-critical facts that the deterministic renderer must cover.
@@ -91,18 +91,4 @@ public record ImplementationPlan(
         dependencyProvenance);
   }
 
-  public List<String> allStructuredFacts() {
-    return java.util.stream.Stream.of(
-            endpointFacts,
-            branchFacts,
-            scriptOutcomes,
-            serviceBindings,
-            negativeConstraints,
-            skillOwnership,
-            sourceArtifactReferences,
-            dependencyProvenance)
-        .flatMap(List::stream)
-        .filter(fact -> fact != null && !fact.isBlank())
-        .toList();
-  }
 }

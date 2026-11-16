@@ -3,7 +3,7 @@
  */
 import React, { useCallback, useState } from "react";
 import { describe, it, expect, jest } from "@jest/globals";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import {
@@ -35,8 +35,10 @@ jest.mock("../../../../src/api/rest/vscodeExtensionApi.ts", () => ({
   isVsCode: false,
 }));
 
+const mockShowModal = jest.fn();
+
 jest.mock("../../../../src/Modals", () => ({
-  useModalsContext: () => ({ showModal: jest.fn() }),
+  useModalsContext: () => ({ showModal: mockShowModal }),
 }));
 
 jest.mock("../../../../src/hooks/useNotificationService", () => ({
@@ -165,5 +167,93 @@ describe("ServiceApiSpecsTab toolbar (groups)", () => {
       "api-specs-add-group",
     );
     expect(buttons[2]).toHaveAttribute("data-button-type", "primary");
+    expect(buttons[2]).toHaveTextContent("Add Specification Group");
+  });
+
+  it("places the primary Add Specification last in the specifications toolbar", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/services/systems/sys-1/specificationGroups/group-1/specifications",
+        ]}
+      >
+        <ServiceContext.Provider value={makeSystem()}>
+          <ToolbarOutletShell>
+            <Routes>
+              <Route
+                path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
+                element={<ServiceApiSpecsTab />}
+              />
+            </Routes>
+          </ToolbarOutletShell>
+        </ServiceContext.Provider>
+      </MemoryRouter>,
+    );
+
+    const toolbar = await waitFor(() =>
+      within(screen.getByTestId("toolbar-outlet")).getByTestId(
+        "api-specs-specifications-toolbar",
+      ),
+    );
+
+    const buttons = within(toolbar).getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("data-testid"))).toEqual([
+      "api-specs-action-export-selected-specifications",
+      "mock-columns-filter",
+      "api-specs-add-specification",
+    ]);
+    expect(buttons[2]).toHaveTextContent("Add Specification");
+    expect(buttons[2]).toHaveAttribute("data-button-type", "primary");
+  });
+
+  it("passes an implemented service type to the add-group dialog after the service loads", async () => {
+    const { rerender } = render(
+      <MemoryRouter
+        initialEntries={["/services/systems/sys-1/specificationGroups"]}
+      >
+        <ServiceContext.Provider value={null}>
+          <ToolbarOutletShell>
+            <Routes>
+              <Route
+                path="/services/systems/:systemId/specificationGroups"
+                element={<ServiceApiSpecsTab />}
+              />
+            </Routes>
+          </ToolbarOutletShell>
+        </ServiceContext.Provider>
+      </MemoryRouter>,
+    );
+
+    const addGroup = () =>
+      within(screen.getByTestId("toolbar-outlet")).getByTestId(
+        "api-specs-add-group",
+      );
+
+    await waitFor(() => expect(addGroup()).toBeInTheDocument());
+
+    rerender(
+      <MemoryRouter
+        initialEntries={["/services/systems/sys-1/specificationGroups"]}
+      >
+        <ServiceContext.Provider value={makeSystem()}>
+          <ToolbarOutletShell>
+            <Routes>
+              <Route
+                path="/services/systems/:systemId/specificationGroups"
+                element={<ServiceApiSpecsTab />}
+              />
+            </Routes>
+          </ToolbarOutletShell>
+        </ServiceContext.Provider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(addGroup());
+
+    expect(mockShowModal).toHaveBeenCalledTimes(1);
+    const [modal] = mockShowModal.mock.calls[0] as [
+      { component: React.ReactElement<{ isImplementedService?: boolean }> },
+    ];
+    expect(modal.component.props.isImplementedService).toBe(true);
   });
 });

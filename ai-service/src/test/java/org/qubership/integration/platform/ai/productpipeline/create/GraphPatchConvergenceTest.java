@@ -53,7 +53,7 @@ class GraphPatchConvergenceTest {
             "invocation");
 
     PlanningSchedulerState next =
-        CompilerDerivedPlanningSpine.convergeAfterPatchArtifact(
+        DefaultCompilerDagExecutionEngine.convergeAfterPatchArtifact(
             state, "cip-structure-generator", structureChangingPatch);
 
     assertTrue(next.completedSkillIds().contains("cip-naming-generator"));

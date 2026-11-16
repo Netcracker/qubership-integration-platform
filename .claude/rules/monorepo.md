@@ -52,6 +52,10 @@ npm commands, the Node version, and the build order between them.
 The `infrastructure` instruction and `infrastructure/docker/README.md` give the Compose commands, the overlay files,
 the profiles, and the ports.
 
+Before running end-to-end tests on Linux, macOS, native Windows, or WSL, read `e2e/AGENTS.md` and
+the **Quick start** in `e2e/README.md`. It gives the shell, prerequisites, and commands for Compose
+and Kubernetes, including Docker Desktop kubeadm with Istio ambient.
+
 ### Branch model
 
 - `main` — every module at HEAD
