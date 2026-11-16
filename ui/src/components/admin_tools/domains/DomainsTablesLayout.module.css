@@ -66,3 +66,13 @@
     var(--ant-table-cell-padding-inline-sm) + 34px
   ) !important;
 }
+
+.deleteButton {
+  visibility: collapse;
+}
+
+tr:hover {
+  .deleteButton {
+    visibility: visible;
+  }
+}

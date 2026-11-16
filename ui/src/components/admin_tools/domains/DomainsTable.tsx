@@ -136,22 +136,24 @@ const DomainsTable: React.FC<Props> = ({
               record={domain}
               onExpand={toggleRow}
             />
-            {domain.type === DomainType.MICRO ? (
-              <Space size={"small"}>
-                {domain.name}
-                <Tag>micro</Tag>
-                <Tooltip title="Delete domain">
-                  <Button
-                    size={"small"}
-                    type={"text"}
-                    icon={<OverridableIcon name="delete" />}
-                    onClick={() => confirmDeleteMicroDomain(domain.name)}
-                  />
-                </Tooltip>
-              </Space>
-            ) : (
-              domain.name
-            )}
+            <Space size={"small"}>
+              <OverridableIcon name="domains" />
+              <span>{domain.name}</span>
+              {domain.type === DomainType.MICRO && (
+                <>
+                  <Tag>micro</Tag>
+                  <Tooltip title="Delete domain">
+                    <Button
+                      className={layoutStyles.deleteButton}
+                      size={"small"}
+                      type={"text"}
+                      icon={<OverridableIcon name="delete" />}
+                      onClick={() => confirmDeleteMicroDomain(domain.name)}
+                    />
+                  </Tooltip>
+                </>
+              )}
+            </Space>
           </>
         ),
       },
