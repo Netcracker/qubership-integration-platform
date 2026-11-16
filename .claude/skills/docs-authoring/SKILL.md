@@ -8,8 +8,7 @@ description: >
 
 # Product documentation authoring
 
-Product documentation lives in `help/docs/`, organized by product feature and
-UI area. The UI and VS Code extension consume it; see
+Product documentation lives in `help/docs/`, organized by UI area and product feature. The UI and VS Code extension consume it; see
 `ui/docs/DOCUMENTATION_INTEGRATION.md` for the fetch-and-index mechanics.
 
 Before drafting or revising documentation, load `english-developer-style` and

@@ -2,7 +2,7 @@
 
 ## Description
 
-* * *
+---
 
 Cloud Integration Platform (CIP) is an open-source solution built on Apache Camel (for more details see
 [Apache Camel](https://camel.apache.org/index.html)).
@@ -21,7 +21,7 @@ expertise. The platform's modular architecture ensures scalability, adapting to 
 
 ## This Chapter
 
-* * *
+---
 
 **Overview** holds the orientation material: the guided path through the product, the concepts the rest of the
 documentation assumes, and the vocabulary it uses. It describes how the platform works rather than which button to

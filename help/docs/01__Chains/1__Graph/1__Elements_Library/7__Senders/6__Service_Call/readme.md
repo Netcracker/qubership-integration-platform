@@ -212,7 +212,7 @@ The tab is responsible for configuring the handling logic based on response code
 
 **Code-specific handling**
 
-An unmatched `4XX` or `5XX `response (when its status code is not listed in the tab in any way, even with the "None" action) fails the chain with [CIP-0104](../../../../../07__Troubleshooting/1__Error_Reference/readme.md), including when the call has no handlers. To handle every unmatched response instead, add the **Default** code, which is available for HTTP, SOAP, and GraphQL calls. 
+An unmatched `4XX` or `5XX` response (when its status code is not listed in the tab in any way, even with the "None" action) fails the chain with [CIP-0104](../../../../../07__Troubleshooting/1__Error_Reference/readme.md), including when the call has no handlers. To handle every unmatched response instead, add the **Default** code, which is available for HTTP, SOAP, and GraphQL calls.
 
 > ⚠️ A ["Handle Validation Failure" tab](#handle-validation-failure-tab) script or mapping is the exception: its result is kept and nothing is rethrown.
 
