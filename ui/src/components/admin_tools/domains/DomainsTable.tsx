@@ -20,6 +20,7 @@ import { matchesByFields } from "../../table/tableSearch.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
+import { createActionsColumnBase } from "../../table/actionsColumn.ts";
 
 interface Props {
   onRefresh?: () => Promise<void>;
@@ -139,20 +140,7 @@ const DomainsTable: React.FC<Props> = ({
             <Space size={"small"}>
               <OverridableIcon name="domains" />
               <span>{domain.name}</span>
-              {domain.type === DomainType.MICRO && (
-                <>
-                  <Tag>micro</Tag>
-                  <Tooltip title="Delete domain">
-                    <Button
-                      className={layoutStyles.deleteButton}
-                      size={"small"}
-                      type={"text"}
-                      icon={<OverridableIcon name="delete" />}
-                      onClick={() => confirmDeleteMicroDomain(domain.name)}
-                    />
-                  </Tooltip>
-                </>
-              )}
+              {domain.type === DomainType.MICRO && <Tag>micro</Tag>}
             </Space>
           </>
         ),
@@ -171,6 +159,23 @@ const DomainsTable: React.FC<Props> = ({
         title: "Namespace",
         dataIndex: "namespace",
         key: "namespace",
+      },
+      {
+        ...createActionsColumnBase<EngineDomain>(),
+        render: (_: unknown, domain: EngineDomain) =>
+          domain.type === DomainType.MICRO ? (
+            <Tooltip title="Delete domain">
+              <Button
+                className={layoutStyles.deleteButton}
+                size={"small"}
+                type={"text"}
+                icon={<OverridableIcon name="delete" />}
+                onClick={() => confirmDeleteMicroDomain(domain.name)}
+              />
+            </Tooltip>
+          ) : (
+            <></>
+          ),
       },
     ],
     [confirmDeleteMicroDomain, expandedRowKeys, toggleRow],
