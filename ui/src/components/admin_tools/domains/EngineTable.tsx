@@ -17,13 +17,9 @@ interface Props {
   domainName: string;
 }
 
-const columns: ColumnsType<Engine> = [
-  {
-    title: "Engine Name",
-    dataIndex: "name",
-    key: "name",
-    render: (text) => <Typography.Text strong>{text}</Typography.Text>,
-  },
+const EngineExpandIcon = treeExpandIcon<Engine>();
+
+const restColumns: ColumnsType<Engine> = [
   {
     title: "Pod address",
     dataIndex: "host",
@@ -36,9 +32,7 @@ const columns: ColumnsType<Engine> = [
     title: "State",
     dataIndex: "runningStatus",
     key: "runningStatus",
-    render: (status: RunningStatus) => (
-        <RunningStatusValue status={status} />
-    ),
+    render: (status: RunningStatus) => <RunningStatusValue status={status} />,
   },
   {
     title: "Pod status",
@@ -77,6 +71,38 @@ export const EngineTable: React.FC<Props> = ({
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
+  const toggleRow = React.useCallback((engine: Engine) => {
+    setExpandedRowKeys((keys) =>
+      keys.includes(engine.id)
+        ? keys.filter((key) => key !== engine.id)
+        : [...keys, engine.id],
+    );
+  }, []);
+
+  const columns = React.useMemo<ColumnsType<Engine>>(
+    () => [
+      {
+        title: "Engine Name",
+        dataIndex: "name",
+        key: "name",
+        render: (text: string, engine: Engine) => (
+          <>
+            <EngineExpandIcon
+              prefixCls="ant-table"
+              expanded={expandedRowKeys.includes(engine.id)}
+              expandable
+              record={engine}
+              onExpand={toggleRow}
+            />
+            <Typography.Text strong>{text}</Typography.Text>
+          </>
+        ),
+      },
+      ...restColumns,
+    ],
+    [expandedRowKeys, toggleRow],
+  );
+
   const { columnsWithResize, components } = useTableConfiguration(
     columns,
     {
@@ -90,27 +116,24 @@ export const EngineTable: React.FC<Props> = ({
   );
 
   return (
-      <Spin spinning={isLoading}>
-        <Table
-          rowKey="id"
-          className={layoutStyles.nestedTable}
-          columns={columnsWithResize}
-          dataSource={engines}
-          pagination={false}
-          size="small"
-          tableLayout="fixed"
-          components={components}
-          expandable={{
-            expandIcon: treeExpandIcon(),
-            expandedRowRender: (engine) => (
-                <DeploymentsForEngine engine={engine} domainName={domainName} />
-            ),
-            expandedRowKeys: expandedRowKeys,
-            onExpandedRowsChange: (expandedKeys) =>
-              setExpandedRowKeys(expandedKeys as React.Key[]),
-            rowExpandable: () => true,
-          }}
-        />
-      </Spin>
+    <Spin spinning={isLoading}>
+      <Table
+        rowKey="id"
+        className={layoutStyles.nestedTable}
+        columns={columnsWithResize}
+        dataSource={engines}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        components={components}
+        expandable={{
+          showExpandColumn: false,
+          expandedRowRender: (engine) => (
+            <DeploymentsForEngine engine={engine} domainName={domainName} />
+          ),
+          expandedRowKeys,
+        }}
+      />
+    </Spin>
   );
 };

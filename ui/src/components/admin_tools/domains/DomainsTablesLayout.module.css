@@ -42,3 +42,11 @@
   width: 100%;
   min-width: 0;
 }
+
+/* Ant Design starts a nested table after the parent's expand column. These
+   tables have none, so the nested table starts at the parent's name column. */
+.nestedTable :global(.ant-table) {
+  margin-inline-start: calc(
+    var(--ant-table-cell-padding-inline-sm) * -1
+  ) !important;
+}
