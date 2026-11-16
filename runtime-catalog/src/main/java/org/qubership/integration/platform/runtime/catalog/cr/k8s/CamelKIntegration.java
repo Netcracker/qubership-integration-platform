@@ -117,8 +117,14 @@ public class CamelKIntegration implements KubernetesObject {
                 @SerializedName("limitMemory")
                 private String limitMemory;
 
+                @SerializedName("readOnlyRootFilesystem")
+                private Boolean readOnlyRootFilesystem;
+
                 @SerializedName("runAsUser")
                 private Integer runAsUser;
+
+                @SerializedName("runAsGroup")
+                private Integer runAsGroup;
 
                 @SerializedName("runAsNonRoot")
                 private Boolean runAsNonRoot;
