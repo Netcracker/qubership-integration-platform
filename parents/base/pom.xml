@@ -50,7 +50,7 @@
     <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
     <grpc.version>1.75.0</grpc.version>
     <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-    <lombok.version>1.18.46</lombok.version>
+    <lombok.version>1.18.48</lombok.version>
     <mapstruct.version>1.5.5.Final</mapstruct.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
 
