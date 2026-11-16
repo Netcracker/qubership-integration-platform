@@ -71,10 +71,7 @@ class CatalogBearerTokenFilterTest {
 
   @AfterEach
   void unbind() {
-    UserTokenStore.current().ifPresent(t -> UserTokenStore.remove("conv-1", t));
-    UserTokenStore.remove("conv-1", "user");
-    UserTokenStore.remove("conv-1", "new");
-    UserTokenStore.remove("conv-1", "old");
+    UserTokenStore.clear("conv-1");
     ToolSession.clear();
   }
 

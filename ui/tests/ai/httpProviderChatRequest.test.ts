@@ -402,4 +402,81 @@ describe("HttpAiModelProvider auth failures and token renewal", () => {
       auth.eject();
     }
   });
+
+  function streamingFetch(renewals: Promise<Response>[]) {
+    let endStream: (result: { done: boolean }) => void = () => undefined;
+    const fetchMock = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () => new Promise((resolve) => (endStream = resolve)),
+          }),
+        },
+      } as unknown as Response);
+    renewals.forEach((renewal) => fetchMock.mockReturnValueOnce(renewal));
+    global.fetch = fetchMock;
+    return { fetchMock, endStream: () => endStream({ done: true }) };
+  }
+
+  it("should retry a renewal the server did not accept", async () => {
+    jest.useFakeTimers();
+    let token = "t1";
+    const auth = installBearerAuth(() => token);
+    const { fetchMock, endStream } = streamingFetch([
+      Promise.resolve({ ok: false, status: 500 } as Response),
+      Promise.resolve({ ok: true, status: 204 } as Response),
+    ]);
+    try {
+      const streaming = new HttpAiModelProvider(
+        "https://ai.example.com",
+      ).streamChat(
+        { messages: buildMessages(), conversationId: "c-1" },
+        () => undefined,
+      );
+
+      token = "t2";
+      await jest.advanceTimersByTimeAsync(15_000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(15_000);
+      endStream();
+      await streaming;
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[2][1]).toEqual({
+        method: "POST",
+        headers: { Authorization: "Bearer t2" },
+      });
+    } finally {
+      auth.eject();
+    }
+  });
+
+  it("should not send a second renewal while one is in flight", async () => {
+    jest.useFakeTimers();
+    let token = "t1";
+    const auth = installBearerAuth(() => token);
+    const { fetchMock, endStream } = streamingFetch([
+      new Promise<Response>(() => undefined),
+    ]);
+    try {
+      const streaming = new HttpAiModelProvider(
+        "https://ai.example.com",
+      ).streamChat(
+        { messages: buildMessages(), conversationId: "c-1" },
+        () => undefined,
+      );
+
+      token = "t2";
+      await jest.advanceTimersByTimeAsync(60_000);
+      endStream();
+      await streaming;
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      auth.eject();
+    }
+  });
 });

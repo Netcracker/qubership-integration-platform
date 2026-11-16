@@ -150,6 +150,27 @@ class MaterializationCapabilityTest {
   }
 
   @Test
+  void copyPreflightRunsUnderTheTurnBindingSoCatalogReadsCarryTheBearer(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+    var fixture = mappingFixture(true, false, false);
+    capability.copyMappings = new org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator(compilationArtifacts);
+    var schemas = org.mockito.Mockito.spy(fixture.schemas());
+    var seenConversation = new java.util.concurrent.atomic.AtomicReference<String>();
+    org.mockito.Mockito.doAnswer(invocation -> {
+      seenConversation.set(org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId());
+      return invocation.callRealMethod();
+    }).when(schemas).validateApproved(any());
+    capability.copySchemas = schemas;
+    var prepared = appendHappyPathV2Inputs(fixture.brief(), fixture.semantic(), fixture.graph());
+    parkBeforeWrites(directory);
+
+    capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef()));
+
+    verify(schemas).validateApproved(any());
+    assertEquals(CONVERSATION_ID, seenConversation.get());
+  }
+
+  @Test
   void shouldGenerateAndValidateCopyFromTheApprovedCustomRequestSchema(
       @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
     var fixture = mappingFixture(true, false, false, true);

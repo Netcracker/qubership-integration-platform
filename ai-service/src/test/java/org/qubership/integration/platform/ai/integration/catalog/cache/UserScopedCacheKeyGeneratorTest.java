@@ -17,10 +17,8 @@ class UserScopedCacheKeyGeneratorTest {
 
   @AfterEach
   void unbind() {
-    ToolSession.bind("conv-alice");
-    UserTokenStore.current().ifPresent(t -> UserTokenStore.remove("conv-alice", t));
-    ToolSession.bind("conv-bob");
-    UserTokenStore.current().ifPresent(t -> UserTokenStore.remove("conv-bob", t));
+    UserTokenStore.clear("conv-alice");
+    UserTokenStore.clear("conv-bob");
     ToolSession.clear();
   }
 

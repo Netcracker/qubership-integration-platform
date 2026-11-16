@@ -64,7 +64,12 @@ import java.util.Map;
       WebApplicationException.class
     },
     abortOn = CatalogNonRetryableResponseException.class)
-@CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 2, delayUnit = ChronoUnit.SECONDS)
+@CircuitBreaker(
+    requestVolumeThreshold = 4,
+    failureRatio = 0.5,
+    delay = 2,
+    delayUnit = ChronoUnit.SECONDS,
+    skipOn = CatalogAccessDeniedException.class)
 public interface CatalogRestClient {
 
   // ── Chains ───────────────────────────────────────────────────────────────

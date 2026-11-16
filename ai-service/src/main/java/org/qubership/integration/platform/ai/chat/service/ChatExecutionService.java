@@ -50,8 +50,6 @@ public class ChatExecutionService {
   private static final Logger LOG = Logger.getLogger(ChatExecutionService.class);
   private static final String TOKEN_EVENT_PREFIX = "event: token\ndata: ";
   private static final String PATH_LABEL = "v1-sse";
-  static final String SESSION_EXPIRED_MESSAGE = "Your session has expired. Sign in again to continue.";
-  static final String ACCESS_DENIED_MESSAGE = "You don't have permission to perform this action.";
 
   private final ScenarioRouter router;
   private final ConversationService conversationService;
@@ -303,21 +301,19 @@ public class ChatExecutionService {
     request.setClarificationOfferId(matchedOffer);
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
-    if (request.getUserToken() != null) {
-      UserTokenStore.put(conversationId, request.getUserToken());
-    }
+    UserTokenStore.Turn tokenTurn =
+        request.getUserToken() == null ? null : UserTokenStore.put(conversationId, request.getUserToken());
     try {
-      return startTurn(request, conversationId, matchedOffer);
+      return startTurn(request, conversationId, matchedOffer, tokenTurn);
     } catch (RuntimeException setupFailure) {
       // onTermination never runs when setup throws, so the token is dropped here.
-      if (request.getUserToken() != null) {
-        UserTokenStore.remove(conversationId, request.getUserToken());
-      }
+      UserTokenStore.remove(conversationId, tokenTurn);
       throw setupFailure;
     }
   }
 
-  private Multi<String> startTurn(ChatRequest request, String conversationId, String matchedOffer) {
+  private Multi<String> startTurn(
+      ChatRequest request, String conversationId, String matchedOffer, UserTokenStore.Turn tokenTurn) {
     Map<String, Object> submitted = new LinkedHashMap<>();
     submitted.put("attachment", request.getAttachment() == null ? "" : request.getAttachment());
     submitted.put(
@@ -468,9 +464,7 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
-              if (request.getUserToken() != null) {
-                UserTokenStore.remove(finalConversationId, request.getUserToken());
-              }
+              UserTokenStore.remove(finalConversationId, tokenTurn);
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,
@@ -512,11 +506,8 @@ public class ChatExecutionService {
   /** Ends the turn with fixed copy once the catalog rejected the turn bearer; the UI matches it. */
   static void failOnCatalogRejection(String conversationId) {
     int status = UserTokenStore.rejection(conversationId);
-    if (status == 401) {
-      throw new IllegalStateException(SESSION_EXPIRED_MESSAGE);
-    }
-    if (status == 403) {
-      throw new IllegalStateException(ACCESS_DENIED_MESSAGE);
+    if (status == 401 || status == 403) {
+      throw new IllegalStateException(UserTokenStore.rejectionMessage(status));
     }
   }
 

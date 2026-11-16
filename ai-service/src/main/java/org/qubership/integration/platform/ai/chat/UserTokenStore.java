@@ -15,42 +15,60 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class UserTokenStore {
 
+  /** The fixed copy a turn ends with when the catalog rejects its token as expired. */
+  public static final String SESSION_EXPIRED_MESSAGE =
+      "Your session has expired. Sign in again to continue.";
+  /** The fixed copy a turn ends with when the catalog denies the caller's permission. */
+  public static final String ACCESS_DENIED_MESSAGE =
+      "You don't have permission to perform this action.";
+
   private static final Map<String, Turn> TURNS = new ConcurrentHashMap<>();
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private UserTokenStore() {}
 
-  private static final class Turn {
-    final String original;
-    volatile String token;
-    volatile int rejectedStatus;
+  /**
+   * One chat turn's hold on a conversation's token. Two turns can share a conversation and a
+   * token, so release is by identity of this hold, never by token value.
+   */
+  public static final class Turn {
+    private volatile String token;
+    private volatile int rejectedStatus;
 
-    Turn(String token) {
-      this.original = token;
+    private Turn(String token) {
       this.token = token;
     }
   }
 
-  public static void put(String conversationId, String token) {
-    TURNS.put(conversationId, new Turn(token));
+  /** Registers the turn's token; the returned hold must be passed to {@link #remove} when it ends. */
+  public static Turn put(String conversationId, String token) {
+    Turn turn = new Turn(token);
+    TURNS.put(conversationId, turn);
+    return turn;
   }
 
-  /** Removes the entry only while it is the turn that stored {@code token}, so a finished turn cannot drop a newer turn's token. */
-  public static void remove(String conversationId, String token) {
-    TURNS.computeIfPresent(conversationId, (id, turn) -> turn.original.equals(token) ? null : turn);
+  /** Releases {@code turn} only while it still owns the conversation, so a finished turn cannot drop a newer turn's token. */
+  public static void remove(String conversationId, Turn turn) {
+    if (turn != null) {
+      TURNS.remove(conversationId, turn);
+    }
+  }
+
+  /** Drops whatever turn holds the conversation, whichever hold registered it. */
+  public static void clear(String conversationId) {
+    TURNS.remove(conversationId);
   }
 
   /**
    * Makes {@code alias} use the same turn as {@code conversationId}, renewals included, and returns
-   * the token to pass to {@link #remove} for the alias; {@code null} when there is no turn.
+   * the hold to pass to {@link #remove} for the alias; {@code null} when there is no turn.
    */
-  public static String share(String conversationId, String alias) {
+  public static Turn share(String conversationId, String alias) {
     Turn turn = TURNS.get(conversationId);
-    if (turn == null) {
-      return null;
+    if (turn != null) {
+      TURNS.put(alias, turn);
     }
-    TURNS.put(alias, turn);
-    return turn.original;
+    return turn;
   }
 
   /** Swaps in a renewed token; false unless the turn is running and the token has the same {@code sub}. */
@@ -71,6 +89,11 @@ public final class UserTokenStore {
     if (turn != null) {
       turn.rejectedStatus = status;
     }
+  }
+
+  /** The fixed copy for a catalog 401 or 403 that ended a turn. */
+  public static String rejectionMessage(int status) {
+    return status == 401 ? SESSION_EXPIRED_MESSAGE : ACCESS_DENIED_MESSAGE;
   }
 
   /** The catalog 401 or 403 recorded for the conversation's turn, or 0. */

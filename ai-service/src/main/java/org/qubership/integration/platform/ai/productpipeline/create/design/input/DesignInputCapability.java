@@ -235,7 +235,7 @@ public class DesignInputCapability implements StageCapability {
       chatMemorySanitizer.clear(captureConversationId);
     }
     // A clean rebuild runs under its own id, so it shares the turn bearer, renewals included.
-    String sharedToken =
+    UserTokenStore.Turn sharedTurn =
         captureConversationId.equals(context.conversationId())
             ? null
             : UserTokenStore.share(context.conversationId(), captureConversationId);
@@ -269,9 +269,7 @@ public class DesignInputCapability implements StageCapability {
     } finally {
       ProductCapabilityCaptureContext.unbind(captureConversationId);
       session.close();
-      if (sharedToken != null) {
-        UserTokenStore.remove(captureConversationId, sharedToken);
-      }
+      UserTokenStore.remove(captureConversationId, sharedTurn);
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {

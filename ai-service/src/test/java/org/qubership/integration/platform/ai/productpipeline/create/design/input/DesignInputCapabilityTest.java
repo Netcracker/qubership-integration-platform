@@ -733,7 +733,7 @@ class DesignInputCapabilityTest {
 
       assertEquals("caller-token", seenToken.get());
     } finally {
-      UserTokenStore.remove("conv-1", "caller-token");
+      UserTokenStore.clear("conv-1");
     }
   }
 

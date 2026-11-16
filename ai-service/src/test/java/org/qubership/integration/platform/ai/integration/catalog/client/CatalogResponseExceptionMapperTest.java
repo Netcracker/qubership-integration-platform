@@ -8,6 +8,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
@@ -27,6 +28,9 @@ class CatalogResponseExceptionMapperTest {
     assertInstanceOf(WebApplicationException.class, map(429));
     assertTrue(!(map(429) instanceof CatalogNonRetryableResponseException));
     assertTrue(!(map(503) instanceof CatalogNonRetryableResponseException));
+    assertInstanceOf(CatalogAccessDeniedException.class, map(401));
+    assertInstanceOf(CatalogAccessDeniedException.class, map(403));
+    assertTrue(!(map(404) instanceof CatalogAccessDeniedException));
   }
 
   @Test
@@ -40,7 +44,7 @@ class CatalogResponseExceptionMapperTest {
       assertEquals(403, UserTokenStore.rejection("conv-denied"));
     } finally {
       ToolSession.clear();
-      UserTokenStore.remove("conv-denied", "token");
+      UserTokenStore.clear("conv-denied");
     }
   }
 
@@ -71,5 +75,7 @@ class CatalogResponseExceptionMapperTest {
     assertTrue(Arrays.asList(retry.retryOn()).contains(WebApplicationException.class));
     assertTrue(Arrays.asList(retry.retryOn()).contains(TimeoutException.class));
     assertEquals(CatalogNonRetryableResponseException.class, retry.abortOn()[0]);
+    CircuitBreaker breaker = clientType.getAnnotation(CircuitBreaker.class);
+    assertEquals(CatalogAccessDeniedException.class, breaker.skipOn()[0]);
   }
 }

@@ -17,8 +17,8 @@ class UserTokenStoreTest {
 
   @AfterEach
   void unbind() {
-    UserTokenStore.remove("conv-exp", "old");
-    UserTokenStore.remove("conv-exp", jwt("alice", 1));
+    UserTokenStore.clear("conv-exp");
+    UserTokenStore.clear("conv-exp-clean");
     ToolSession.clear();
   }
 
@@ -52,17 +52,29 @@ class UserTokenStoreTest {
   @Test
   void aFinishedTurnDoesNotRemoveANewerTurnsToken() {
     ToolSession.bind("conv-exp");
-    UserTokenStore.put("conv-exp", "old");
+    UserTokenStore.Turn old = UserTokenStore.put("conv-exp", "old");
     UserTokenStore.put("conv-exp", "newer");
 
-    UserTokenStore.remove("conv-exp", "old");
+    UserTokenStore.remove("conv-exp", old);
 
     assertEquals(Optional.of("newer"), UserTokenStore.current());
   }
 
   @Test
+  void aFinishedTurnDoesNotRemoveAnOverlappingTurnWithTheSameToken() {
+    UserTokenStore.Turn first = UserTokenStore.put("conv-exp", "same");
+    UserTokenStore.Turn second = UserTokenStore.put("conv-exp", "same");
+
+    UserTokenStore.remove("conv-exp", first);
+    assertEquals(Optional.of("same"), UserTokenStore.get("conv-exp"));
+
+    UserTokenStore.remove("conv-exp", second);
+    assertEquals(Optional.empty(), UserTokenStore.get("conv-exp"));
+  }
+
+  @Test
   void renewSwapsTheTokenOfTheSameSubjectOnly() {
-    UserTokenStore.put("conv-exp", jwt("alice", 1));
+    UserTokenStore.Turn turn = UserTokenStore.put("conv-exp", jwt("alice", 1));
 
     assertFalse(UserTokenStore.renew("conv-exp", jwt("bob", 2)));
     assertFalse(UserTokenStore.renew("conv-exp", "opaque"));
@@ -70,14 +82,14 @@ class UserTokenStoreTest {
     assertTrue(UserTokenStore.renew("conv-exp", jwt("alice", 2)));
 
     assertEquals(Optional.of(jwt("alice", 2)), UserTokenStore.get("conv-exp"));
-    UserTokenStore.remove("conv-exp", jwt("alice", 1));
+    UserTokenStore.remove("conv-exp", turn);
     assertEquals(Optional.empty(), UserTokenStore.get("conv-exp"));
   }
 
   @Test
   void aSharedAliasSeesRenewalsAndReportsRejectionsToTheTurn() {
     UserTokenStore.put("conv-exp", jwt("alice", 1));
-    String shared = UserTokenStore.share("conv-exp", "conv-exp-clean");
+    UserTokenStore.Turn shared = UserTokenStore.share("conv-exp", "conv-exp-clean");
     try {
       UserTokenStore.renew("conv-exp", jwt("alice", 2));
       assertEquals(Optional.of(jwt("alice", 2)), UserTokenStore.get("conv-exp-clean"));

@@ -155,21 +155,30 @@ export class HttpAiModelProvider implements AiModelProvider {
         );
       }
 
-      // The turn keeps the token it started with; hand it each token the host app renews.
+      // The turn keeps the token it started with; hand it each token the host app renews. One
+      // renewal is in flight at a time so an older token cannot land after a newer one, and the
+      // sent value advances only on success, so a failed delivery is retried on the next tick.
       let sentAuthorization = headers.Authorization;
+      let renewing = false;
       renewTimer = setInterval(() => {
-        if (!conversationId) return;
+        if (!conversationId || renewing) return;
         const path = `/api/v1/chat/${encodeURIComponent(conversationId)}/token`;
         const renewed = getBearerHeader(this.serviceUrl, path);
-        if (
-          !renewed.Authorization ||
-          renewed.Authorization === sentAuthorization
-        )
-          return;
-        sentAuthorization = renewed.Authorization;
-        fetch(`${base}${path}`, { method: "POST", headers: renewed }).catch(
-          (error) => console.warn("[AI] Token renewal failed", error),
-        );
+        const authorization = renewed.Authorization;
+        if (!authorization || authorization === sentAuthorization) return;
+        renewing = true;
+        fetch(`${base}${path}`, { method: "POST", headers: renewed })
+          .then((response) => {
+            if (response.ok) {
+              sentAuthorization = authorization;
+            } else {
+              console.warn("[AI] Token renewal rejected", response.status);
+            }
+          })
+          .catch((error) => console.warn("[AI] Token renewal failed", error))
+          .finally(() => {
+            renewing = false;
+          });
       }, TOKEN_RENEW_CHECK_MS);
 
       const reader = response.body.getReader();

@@ -23,6 +23,7 @@ public final class CatalogResponseExceptionMapper implements ResponseExceptionMa
       if (status == 401 || status == 403) {
         // A tool may turn the error into a normal result, so the chat turn reads it from the store.
         UserTokenStore.rejectCurrent(status);
+        return new CatalogAccessDeniedException(response, bodySnippet);
       }
       return new CatalogNonRetryableResponseException(response, bodySnippet);
     }

@@ -815,7 +815,7 @@ class ChatExecutionServiceTest {
     assertFalse(frames.stream().anyMatch(frame -> frame.startsWith("event: token\n")), frames::toString);
     assertEquals(
         List.of(
-            "event: error\ndata: " + ChatExecutionService.ACCESS_DENIED_MESSAGE + "\n\n",
+            "event: error\ndata: " + UserTokenStore.ACCESS_DENIED_MESSAGE + "\n\n",
             "event: done\ndata: " + CONVERSATION_ID + "\n\n"),
         frames.subList(Math.max(0, frames.size() - 2), frames.size()));
     assertEquals(0, UserTokenStore.rejection(CONVERSATION_ID));
@@ -831,10 +831,10 @@ class ChatExecutionServiceTest {
           org.junit.jupiter.api.Assertions.assertThrows(
               IllegalStateException.class,
               () -> ChatExecutionService.failOnCatalogRejection("conv-401"));
-      assertEquals(ChatExecutionService.SESSION_EXPIRED_MESSAGE, failure.getMessage());
+      assertEquals(UserTokenStore.SESSION_EXPIRED_MESSAGE, failure.getMessage());
     } finally {
       ToolSession.clear();
-      UserTokenStore.remove("conv-401", "token");
+      UserTokenStore.clear("conv-401");
     }
   }
 

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
@@ -21,6 +23,7 @@ import org.a2aproject.sdk.server.tasks.AgentEmitter;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.MessageSendParams;
 import org.a2aproject.sdk.spec.TextPart;
+import org.mockito.ArgumentCaptor;
 import org.a2aproject.sdk.transport.rest.context.RestContextKeys;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
@@ -91,6 +94,33 @@ class CipAssistA2aAgentExecutorTest {
     try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
       assertTrue(UserTokenStore.current().isEmpty());
     }
+  }
+
+  @Test
+  void aCatalogRejectionFailsTheTaskInsteadOfAnsweringWithTheChatText() throws Exception {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(ChatRequest.class), anyString())).thenAnswer(invocation -> {
+      UserTokenStore.rejectCurrent(401);
+      return Multi.createFrom().item(ChatEvent.token("Could not read the chains."));
+    });
+    CipAssistA2aAgentExecutor executor =
+        new CipAssistA2aAgentExecutor(
+            router,
+            new ConversationService(),
+            () -> new CallerContext("local", "local-user"),
+            new LocalPermitAllTaskAccessPolicy(),
+            null,
+            Duration.ofSeconds(1));
+    AgentEmitter emitter = mock(AgentEmitter.class);
+
+    executor.execute(contextWithBearer(UUID.randomUUID().toString(), "List chains"), emitter);
+
+    ArgumentCaptor<Message> failure = ArgumentCaptor.forClass(Message.class);
+    verify(emitter).fail(failure.capture());
+    assertEquals(
+        UserTokenStore.SESSION_EXPIRED_MESSAGE,
+        ((TextPart) failure.getValue().parts().getFirst()).text());
+    verify(emitter, never()).complete(any(Message.class));
   }
 
   private static RequestContext contextWithBearer(String resolvedId, String text) {

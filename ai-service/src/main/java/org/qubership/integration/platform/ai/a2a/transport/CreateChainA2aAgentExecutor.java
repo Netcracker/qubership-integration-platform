@@ -270,16 +270,15 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
 
     String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
     AtomicReference<String> tokenKey = new AtomicReference<>(context.getTaskId());
+    AtomicReference<UserTokenStore.Turn> tokenTurn = new AtomicReference<>();
     if (callerBearer != null) {
-      UserTokenStore.put(tokenKey.get(), callerBearer);
+      tokenTurn.set(UserTokenStore.put(tokenKey.get(), callerBearer));
     }
     try (ToolSession.Handle ignored =
         callerBearer == null ? null : ToolSession.open(tokenKey.get())) {
-      executeDispatched(context, emitter, callerBearer, tokenKey);
+      executeDispatched(context, emitter, callerBearer, tokenKey, tokenTurn);
     } finally {
-      if (callerBearer != null) {
-        UserTokenStore.remove(tokenKey.get(), callerBearer);
-      }
+      UserTokenStore.remove(tokenKey.get(), tokenTurn.get());
     }
   }
 
@@ -287,7 +286,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       RequestContext context,
       AgentEmitter emitter,
       String callerBearer,
-      AtomicReference<String> tokenKey) {
+      AtomicReference<String> tokenKey,
+      AtomicReference<UserTokenStore.Turn> tokenTurn) {
     CallerContext caller = callerContextProvider.current();
     String taskId = context.getTaskId();
     String contextId = context.getContextId();
@@ -403,8 +403,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       if (claim instanceof A2aCallerMessageClaimResult.Incomplete incomplete) {
         taskId = incomplete.taskId();
         if (callerBearer != null && !taskId.equals(tokenKey.get())) {
-          UserTokenStore.remove(tokenKey.get(), callerBearer);
-          UserTokenStore.put(taskId, callerBearer);
+          UserTokenStore.remove(tokenKey.get(), tokenTurn.get());
+          tokenTurn.set(UserTokenStore.put(taskId, callerBearer));
           // The handle opened in execute restores the caller's binding on close.
           ToolSession.bind(taskId);
           tokenKey.set(taskId);

@@ -194,11 +194,11 @@ public class SkillHarnessResource {
     if (token == null) {
       return run.get();
     }
-    UserTokenStore.put(conversationId, token);
+    UserTokenStore.Turn tokenTurn = UserTokenStore.put(conversationId, token);
     try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
       return run.get();
     } finally {
-      UserTokenStore.remove(conversationId, token);
+      UserTokenStore.remove(conversationId, tokenTurn);
     }
   }
 
