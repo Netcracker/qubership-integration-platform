@@ -177,8 +177,10 @@ export const ResizableTitle = React.forwardRef<
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
+  // The <col> carries the width. A width here would also size the column that
+  // useTableConfiguration leaves without one to absorb spare table width.
   const thStyle: React.CSSProperties | undefined = isResizable
-    ? { position: "relative", ...restProps.style, width }
+    ? { position: "relative", ...restProps.style }
     : restProps.style;
 
   return (
