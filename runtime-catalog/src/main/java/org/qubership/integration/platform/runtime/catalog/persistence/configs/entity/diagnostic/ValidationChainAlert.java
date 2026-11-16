@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic;
 
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlert;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -73,7 +73,7 @@ public class ValidationChainAlert implements ValidationAlert {
     protected User createdBy;
 
     @Builder.Default
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> properties = new LinkedHashMap<>();
 

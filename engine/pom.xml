@@ -126,14 +126,19 @@
         <version>${atlasmap.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.google.auth</groupId>
+        <artifactId>google-auth-library-credentials</artifactId>
+        <version>${google-auth.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.google.protobuf</groupId>
         <artifactId>protobuf-java</artifactId>
-        <version>${protobuf-java.version}</version>
+        <version>${protobuf-engine.version}</version>
       </dependency>
       <dependency>
         <groupId>com.google.protobuf</groupId>
         <artifactId>protobuf-java-util</artifactId>
-        <version>${protobuf-java.version}</version>
+        <version>${protobuf-engine.version}</version>
       </dependency>
       <dependency>
         <groupId>com.arakelian</groupId>
