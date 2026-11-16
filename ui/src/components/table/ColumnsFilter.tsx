@@ -170,7 +170,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   };
 
   const getLabel = (key: string): string => {
-    const fromMap = labelsByKey?.[key];
+    const fromMap = labelsByKey?.[clearColumnMetadata(key)];
     if (typeof fromMap === "string" && fromMap.length > 0) return fromMap;
     return humanizeKey(key);
   };
