@@ -29,7 +29,6 @@ const deploymentColumns: ColumnsType<ChainDeployment> = [
     render: (text) => (
       <Typography.Text type="secondary">{text}</Typography.Text>
     ),
-    align: "right",
   },
   {
     title: "State",
@@ -42,7 +41,6 @@ const deploymentColumns: ColumnsType<ChainDeployment> = [
         runtimeState={record.state}
       />
     ),
-    align: "right",
   },
 ];
 
