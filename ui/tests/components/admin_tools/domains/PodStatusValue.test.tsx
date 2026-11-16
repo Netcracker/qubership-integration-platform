@@ -10,7 +10,7 @@ import { PodStatusValue } from "../../../../src/components/admin_tools/domains/P
 describe("PodStatusValue", () => {
   it.each([
     [true, "Ready", "ant-tag-green"],
-    [false, "Not Ready", "ant-tag-red"],
+    [false, "Not Ready", "ant-tag-gold"],
   ])(
     "should show the label and color when ready is %s",
     (ready, text, colorClass) => {

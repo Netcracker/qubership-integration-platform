@@ -10,7 +10,7 @@ function getStatusText(ready: boolean): string {
 }
 
 function getStatusColor(ready: boolean) {
-  return ready ? "green" : "red";
+  return ready ? "green" : "gold";
 }
 
 export const PodStatusValue: React.FC<PodStatusValueProps> = ({
