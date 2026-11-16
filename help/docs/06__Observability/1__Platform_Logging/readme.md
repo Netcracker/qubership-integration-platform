@@ -530,7 +530,7 @@ Message sample:
 
 ### DPT Logs
 
-This type of logs are being produced only if specific option selected on "[Logging](../../01__Chains/5__Logging/readme.md)" tab for Chains. The purpose of this type of log is to track session start, finish and intermediate state(check-point).
+This type of logs are being produced only if specific option selected on "[Logging](../../01__Chains/5__Logging/readme.md)" tab for Chains. The purpose of this type of log is to track session start, finish and intermediate state (checkpoint).
 
 **Message format:**
 
@@ -663,11 +663,11 @@ Body
         "snapshotId": "f993945b-8158-4a88-92c5-5ca3beae967d",
         "deploymentId": "fca94b81-2ecc-466c-af1e-432901e90661",
         "tenant": "Tenant Name",
-        "business_identifiers": {
+        "businessIdentifiers": {
             "quotaId": "3b24b4ad-a04a-4472-bb67-8f7ab7e4b077",
             "taskId": "adab30dd-4a8f-4602-b5fc-7a4ba778d95b"
         },
-        "extended_parameters": {
+        "extendedParameters": {
             "taskParams": {
                 "name": "task #199",
                 "dateStart": "1706015608"
@@ -676,10 +676,10 @@ Body
                 "name": "order #1",
                 "orderNum": 1,
                 "id": "8b861d20-fc38-4ad5-90e9-2087f458e7b5"
-            },
-            "eventDate": 1623392004283,
-            "enginesDomain": "default"
-        }
+            }
+        },
+        "eventDate": 1623392004283,
+        "enginesDomain": "default"
     }
 }
 ```
