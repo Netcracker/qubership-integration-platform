@@ -60,16 +60,6 @@ test.describe("chain editor", () => {
     await expect(form.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("e2e-fixture");
     await expect(form.getByRole("textbox", { name: "Value", exact: true })).toHaveValue(corpus.run);
 
-    // Cancel can move between pointer-down and pointer-up while the modal opens.
-    await expect
-      .poll(() =>
-        form.evaluate(
-          (dialog) =>
-            getComputedStyle(dialog).opacity === "1" &&
-            dialog.getAnimations().every((animation) => animation.playState === "finished"),
-        ),
-      )
-      .toBe(true);
     await form.getByRole("button", { name: "Cancel" }).click();
     await expect(form).toBeHidden();
     await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/graph$`));
@@ -123,9 +113,9 @@ test.describe("chain editor", () => {
     const graph = new ChainGraphPage(page);
 
     await graph.goto(chain.id);
-    const form = await graph.openElement(element.id);
+    const form = await graph.openElement(element.id, { waitForAnimation: false });
     const level = form.getByRole("combobox", { name: "Log as" });
-    // A click waits for the form's zoom animation to end, so it would land after the focus move.
+    // Keyboard input opens the select before the form's zoom animation ends.
     await level.focus();
     await level.press("ArrowDown");
     await expect(level).toHaveAttribute("aria-expanded", "true");

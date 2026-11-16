@@ -1,6 +1,6 @@
 import type { FrameLocator, Locator, Page } from "@playwright/test";
 
-/** How long `dropFromLibrary` waits for the library item to come fully into view, in ms. */
+/** How long page interactions wait for an opening animation, in ms. */
 const SETTLE_MS = 10_000;
 
 /**
@@ -77,8 +77,25 @@ export class ChainGraphPage {
   }
 
   /** Opens an element's form, which is what a double click on its node does. */
-  async openElement(elementId: string): Promise<Locator> {
+  async openElement(elementId: string, options: { waitForAnimation?: boolean } = {}): Promise<Locator> {
     await this.node(elementId).dblclick();
+    if (options.waitForAnimation !== false) {
+      await this.elementForm.waitFor({ state: "visible" });
+      // A zooming modal can move a button between pointer-down and pointer-up.
+      await this.elementForm.evaluate((dialog, timeout) => new Promise<void>((resolve, reject) => {
+        const deadline = performance.now() + timeout;
+        const check = () => {
+          if (getComputedStyle(dialog).opacity === "1" && dialog.getAnimations().every((animation) => animation.playState === "finished")) {
+            resolve();
+          } else if (performance.now() >= deadline) {
+            reject(new Error("The element form did not finish its opening animation."));
+          } else {
+            requestAnimationFrame(check);
+          }
+        };
+        check();
+      }), SETTLE_MS);
+    }
     return this.elementForm;
   }
 
