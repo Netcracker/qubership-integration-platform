@@ -249,7 +249,7 @@ export const commonIcons = {
   liveExchanges: NodeIndexOutlined,
   domains: HddOutlined,
   accessControl: LockOutlined,
-  refresh: RedoOutlined,
+  refresh: SyncOutlined,
   cloudSync: CloudSyncOutlined,
   importInstructions: ImportOutlined,
   warning: WarningOutlined,
