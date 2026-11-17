@@ -13,6 +13,7 @@ import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTas
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,7 +37,7 @@ class DtoLibrariesBuildServiceTest {
     private final DtoLibraryCompilationService dtoLibraryCompilationService =
         mock(DtoLibraryCompilationService.class);
 
-    private final MavenProject project = mock(MavenProject.class);
+    private final MavenProject project = mockProject();
     private final MavenProjectHelper projectHelper = mock(MavenProjectHelper.class);
 
     // Real, not a mock: these tests build on the services the load leaves in the catalog.
@@ -57,6 +58,17 @@ class DtoLibrariesBuildServiceTest {
 
         assertArrayEquals(JAR_DATA, Files.readAllBytes(outputDirectory().resolve("orders.jar")));
         assertArrayEquals(JAR_DATA, Files.readAllBytes(outputDirectory().resolve("invoices.jar")));
+    }
+
+    @Test
+    void recordsEachJarForClean() throws Exception {
+        registerService("payments", specification("orders"), specification("invoices"));
+        when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
+
+        buildService.buildLibraries(taskContext());
+
+        assertEquals(Set.of("orders.jar", "invoices.jar"),
+            Set.copyOf(Files.readAllLines(outputDirectory().resolve(".cip-generated-orders-app"))));
     }
 
     @Test
@@ -173,5 +185,11 @@ class DtoLibrariesBuildServiceTest {
             .projectHelper(projectHelper)
             .taskParameters(parameters)
             .build();
+    }
+
+    private static MavenProject mockProject() {
+        MavenProject mock = mock(MavenProject.class);
+        when(mock.getArtifactId()).thenReturn("orders-app");
+        return mock;
     }
 }

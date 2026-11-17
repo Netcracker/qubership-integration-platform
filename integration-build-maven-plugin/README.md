@@ -31,13 +31,14 @@ The generated YAML files land in `target/`. The DTO libraries are built only on 
 | --- | --- | --- |
 | `build-crs` | `compile` | One YAML file per Kubernetes resource: the Camel K `Integration`, its ConfigMaps, `Service`, `ServiceMonitor`, and the Istio route resources. |
 | `build-libs` | none | One `<specificationId>.jar` per service specification whose protocol has a code generator. |
+| `clean` | `clean` | None. It deletes the files the build goals listed in `.cip-generated-<artifactId>`. |
 
-Each goal starts its own Spring context and reads every source root. By default it fails the build on the
+Each build goal starts its own Spring context and reads every source root. By default it fails the build on the
 first error; see [Error handling](#error-handling) to collect every error in one run instead.
 
 ## Source layout
 
-Both goals walk each source root recursively and pick files by name. The output directory is skipped
+Both build goals walk each source root recursively and pick files by name. The output directory is skipped
 during the walk, so a source root may contain it.
 
 | File | Recognized names |
@@ -326,6 +327,36 @@ Each JAR is attached to the project as an artifact of type `jar`, classified by 
 By default, the integrations configuration from `build-crs` points the engine at runtime-catalog, not at
 these files. To use them, publish them where the engine can reach them and set `libraryUrlTemplate` to
 match; see [Library URL](#library-url).
+
+## The `clean` goal
+
+`mvn clean` deletes only `target/`. Files that `build-crs` and `build-libs` wrote to another
+`outputDirectory` stay behind, and `clean` removes them. Each build goal records the files it writes in
+`<outputDirectory>/.cip-generated-<artifactId>`, named after the module's `artifactId`.
+Each module keeps its own list, so modules that share an output directory clean only their own files.
+
+The goal deletes the files listed there, then the list itself. It keeps every other file in the directory,
+and the directory too. The list holds the names from every build since the last clean, including files of
+chains that have since been removed.
+
+Bind the goal in an execution. It runs in the `clean` phase. Give it the same `outputDirectory` as the build goals, and add one
+execution per directory if they differ:
+
+```xml
+<execution>
+  <id>clean</id>
+  <goals>
+    <goal>clean</goal>
+  </goals>
+</execution>
+```
+
+With the default `outputDirectory`, `maven-clean-plugin` removes `target/` anyway, list included, so this goal
+has nothing left to do.
+
+| Parameter | Type | User property | Default | Description |
+| --- | --- | --- | --- | --- |
+| `outputDirectory` | `String` | `cip.outputDirectory` | `${project.build.directory}` | Directory that holds the `.cip-generated-<artifactId>` list. |
 
 ## Error handling
 
