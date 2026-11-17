@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.sessions.openapi;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -78,6 +80,24 @@ class OpenApiSpecGeneratorTest {
     void generateOpenApiSpecFile() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
         Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), fetchApiDocsYaml());
+    }
+
+    @Test
+    @DisplayName("serve the document as a JSON object")
+    void servesApiDocsAsJsonObject() throws IOException {
+        String rawJson = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build()
+                .get()
+                .uri("/v3/api-docs")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+        JsonNode document = new ObjectMapper().readTree(rawJson);
+        assertThat(document.isObject()).as("/v3/api-docs returns a JSON object").isTrue();
+        assertThat(document.path("paths").size()).as("/v3/api-docs documents the paths").isPositive();
     }
 
     @Test
