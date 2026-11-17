@@ -265,9 +265,12 @@ export const ActionsLog: React.FC = () => {
     const icon = EntityTypeIconsMap[type] ?? (
       <OverridableIcon name="question" />
     );
-    return React.cloneElement(icon as React.ReactElement<any>, {
-      style: { marginRight: 10 },
-    });
+    return React.cloneElement(
+      icon as React.ReactElement<{ style?: React.CSSProperties }>,
+      {
+        style: { marginRight: 10 },
+      },
+    );
   };
 
   const columns: ColumnsTypeWithSettings<ActionLog> = useMemo(

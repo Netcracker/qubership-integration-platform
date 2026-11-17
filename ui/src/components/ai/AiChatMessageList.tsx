@@ -52,11 +52,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
   onRegenerate,
   onDecisionAnswer,
 }) => (
-  <div
-    ref={scrollContainerRef as React.Ref<HTMLDivElement>}
-    className="ai-message-list"
-    onScroll={onScroll}
-  >
+  <div ref={scrollContainerRef} className="ai-message-list" onScroll={onScroll}>
     {visibleMessages.length === 0 ? (
       <div className="ai-empty-state">
         <Typography.Text type="secondary">

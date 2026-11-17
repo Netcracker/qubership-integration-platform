@@ -21,7 +21,7 @@ export type MenuItem = {
   key: string;
   label: React.ReactNode;
   name: string;
-  icon?: ReactElement<any>;
+  icon?: ReactElement;
   children?: MenuItem[];
 };
 

@@ -43,7 +43,7 @@ export const AiChatInput: React.FC<AiChatInputProps> = ({
   <div className="ai-input">
     <input
       type="file"
-      ref={fileInputRef as React.Ref<HTMLInputElement>}
+      ref={fileInputRef}
       multiple
       accept={ACCEPT_ATTR}
       style={{ display: "none" }}
@@ -96,7 +96,7 @@ export const AiChatInput: React.FC<AiChatInputProps> = ({
       </div>
     )}
     <Input.TextArea
-      ref={inputRef as React.Ref<TextAreaRef>}
+      ref={inputRef}
       value={inputValue}
       onChange={(e) => setInputValue(e.target.value)}
       placeholder={

@@ -23,7 +23,7 @@ import { IconWithDomColorNormalize } from "./IconWithDomColorNormalize.tsx";
 export type IconSource =
   | React.ComponentType<AntdIconProps>
   | string
-  | React.ReactElement<any>;
+  | React.ReactElement;
 
 const allIcons = {
   ...commonIcons,
@@ -108,8 +108,8 @@ export type IconOverrides = {
 };
 
 type RenderedSource =
-  | { kind: "element"; render: () => React.ReactElement<any> }
-  | { kind: "string"; render: () => React.ReactElement<any> }
+  | { kind: "element"; render: () => React.ReactElement }
+  | { kind: "string"; render: () => React.ReactElement }
   | { kind: "component"; component: React.ComponentType<AntdIconProps> }
   | null;
 
@@ -124,10 +124,13 @@ const buildSource = (
     const normalized = isMonochromeSvgElement(IconComponent)
       ? normalizeSvgElementPaintToCurrentColor(IconComponent)
       : IconComponent;
-    const wrappedNode = React.cloneElement(normalized, {
-      width: "1em",
-      height: "1em",
-    });
+    const wrappedNode = React.cloneElement(
+      normalized as React.ReactElement<React.SVGProps<SVGSVGElement>>,
+      {
+        width: "1em",
+        height: "1em",
+      },
+    );
     const render = () => wrappedNode;
     return { kind: "element", render };
   }
@@ -157,7 +160,7 @@ const buildSource = (
 
   return {
     kind: "component",
-    component: IconComponent as React.ComponentType<AntdIconProps>,
+    component: IconComponent,
   };
 };
 

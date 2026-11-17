@@ -23,7 +23,7 @@ export const ElementNameInlineEdit = forwardRef<
 >(function ElementNameInlineEdit(
   { value, typeLabel, onSave, disabled = false },
   ref,
-): React.ReactElement<any> {
+): React.ReactElement {
   const values = useMemo(() => ({ name: value }), [value]);
   const innerRef = useRef<InlineEditWithButtonsRef<{ name: string }>>(null);
 

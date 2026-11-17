@@ -46,7 +46,7 @@ export type MenuItem = {
   key: string;
   label: ReactNode;
   name: string;
-  icon?: ReactElement<any>;
+  icon?: ReactElement;
   children?: MenuItem[];
 };
 
