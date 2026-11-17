@@ -2,10 +2,10 @@ import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { test, expect } from "@playwright/test";
 import { repoRoot, runToCompletion, stream } from "../../env/host.js";
 import { groupAlive, RecordedServer, stopGroup } from "../../support/process-group.js";
-import { readRunResources, RESOURCES_FILE, SAMPLES_FILE, startResourceSampler, stopResourceSampler } from "../../env/resources.js";
 
 const made: string[] = [];
 const scratch = () => {
@@ -90,21 +90,75 @@ test.describe("host processes", () => {
     expect(fs.readFileSync(file, "utf8").trim()).not.toBe("");
   });
 
-  test("the provisioner records and stops its resource sampler", async () => {
-    const run = "host-process-sampler";
-    const pid = startResourceSampler(run, [], { command: process.execPath, args: ["-e", "console.log('sample')"] });
+  test("the provisioner records and stops its resource sampler", () => {
+    const dir = scratch();
+    const resources = path.join(dir, "resources.json");
+    const samples = path.join(dir, "samples.jsonl");
+    fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
+    const playwrightModule = pathToFileURL(path.join(repoRoot(), "e2e/node_modules/@playwright/test/index.mjs")).href;
+    const resourceModule = pathToFileURL(path.join(repoRoot(), "e2e/env/resources.ts")).href;
+    const processModule = pathToFileURL(path.join(repoRoot(), "e2e/support/process-group.ts")).href;
+    fs.writeFileSync(path.join(dir, "sampler.spec.ts"), `
+      import fs from "node:fs";
+      import { test, expect } from ${JSON.stringify(playwrightModule)};
+      import { readRunResources, RESOURCES_FILE, SAMPLES_FILE, startResourceSampler, stopResourceSampler } from ${JSON.stringify(resourceModule)};
+      import { groupAlive, stopGroup } from ${JSON.stringify(processModule)};
+      test("records and stops the sampler", async () => {
+        const run = "host-process-sampler";
+        const pid = startResourceSampler(run, [], { command: process.execPath, args: ["-e", "console.log('sample')"] });
+        try {
+          expect(pid).not.toBeNull();
+          expect(readRunResources()?.samplerPid).toBe(pid);
+          await expect.poll(() => fs.readFileSync(SAMPLES_FILE, "utf8").trim()).toBe("sample");
+          expect(stopResourceSampler(RESOURCES_FILE, run)).toBe(true);
+          await expect.poll(() => groupAlive(pid!)).toBe(false);
+          expect(readRunResources()?.samplerPid).toBeUndefined();
+        } finally {
+          stopResourceSampler(RESOURCES_FILE, run);
+          if (pid) await stopGroup(pid);
+        }
+      });
+    `);
+    const config = path.join(dir, "playwright.config.ts");
+    fs.writeFileSync(config, `export default ${JSON.stringify({
+      testDir: dir, workers: 1, retries: 0, reporter: "line", outputDir: path.join(dir, "results"),
+    })};`);
+    // A separate module load resolves the sampler paths before it can touch the run's files.
+    execFileSync(process.execPath, [path.join(repoRoot(), "e2e/node_modules/@playwright/test/cli.js"), "test", "--config", config], {
+      cwd: path.join(repoRoot(), "e2e"),
+      env: { ...process.env, E2E_RESOURCES_FILE: resources, E2E_SAMPLES_FILE: samples },
+      stdio: "pipe",
+      timeout: 30_000,
+    });
+    expect(JSON.parse(fs.readFileSync(resources, "utf8"))).toMatchObject({ run: "host-process-sampler", baseline: [] });
+    expect(fs.readFileSync(samples, "utf8").trim()).toBe("sample");
+  });
+
+  test("the sampler probe preserves another run's observations", async () => {
+    const dir = scratch();
+    const resources = path.join(dir, "nightly-resources.json");
+    const samples = path.join(dir, "nightly-samples.jsonl");
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "e2e-observation-owner"], { detached: true, stdio: "ignore" });
+    child.unref();
+    const record = JSON.stringify({ run: "nightly-owner", baseline: [{ role: "engine", startedAt: "original", restarts: 0, metaspace: null }], samplerPid: child.pid });
+    fs.writeFileSync(resources, record);
+    fs.writeFileSync(samples, "original nightly sample\n");
+    const config = path.join(dir, "playwright.config.ts");
+    fs.writeFileSync(config, `export default ${JSON.stringify({
+      testDir: path.join(repoRoot(), "e2e/specs/harness"), testMatch: "host-process.spec.ts",
+      workers: 1, retries: 0, reporter: "line", outputDir: path.join(dir, "results"),
+    })};`);
     try {
-      expect(pid).not.toBeNull();
-      expect(readRunResources()?.samplerPid).toBe(pid);
-      await expect.poll(() => fs.readFileSync(SAMPLES_FILE, "utf8").trim()).toBe("sample");
-      expect(stopResourceSampler(RESOURCES_FILE, run)).toBe(true);
-      await expect.poll(() => groupAlive(pid!)).toBe(false);
-      expect(readRunResources()?.samplerPid).toBeUndefined();
+      execFileSync(process.execPath, [path.join(repoRoot(), "e2e/node_modules/@playwright/test/cli.js"), "test", "--config", config, "--grep", "the provisioner records and stops its resource sampler"], {
+        cwd: path.join(repoRoot(), "e2e"),
+        env: { ...process.env, E2E_RESOURCES_FILE: resources, E2E_SAMPLES_FILE: samples },
+        stdio: "pipe", timeout: 30_000,
+      });
+      expect(groupAlive(child.pid!)).toBe(true);
+      expect(fs.readFileSync(resources, "utf8")).toBe(record);
+      expect(fs.readFileSync(samples, "utf8")).toBe("original nightly sample\n");
     } finally {
-      stopResourceSampler(RESOURCES_FILE, run);
-      if (pid) await stopGroup(pid);
-      fs.rmSync(RESOURCES_FILE, { force: true });
-      fs.rmSync(SAMPLES_FILE, { force: true });
+      await stopGroup(child.pid!);
     }
   });
 });

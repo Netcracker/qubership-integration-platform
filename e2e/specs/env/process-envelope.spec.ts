@@ -14,7 +14,8 @@
  * "did the services survive the run" is exactly the question that has to be answerable against a
  * cluster too, and a cluster has neither command.
  */
-import { test, expect } from "../../support/fixtures.js";
+import { test, expect } from "@playwright/test";
+import { runToken } from "../../support/run.js";
 import { ROLES } from "../../env/containers.js";
 import {
   BANDS,
@@ -22,7 +23,7 @@ import {
   metaspaceOutsideBand,
   outsideBand,
 } from "../../env/resources.js";
-import { capturedValue, readProcessSnapshot } from "../../env/process-snapshot.js";
+import { capturedValue, readProcessSnapshot, type ProcessSnapshot } from "../../env/process-snapshot.js";
 import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
 import type { ProcessEnvelope } from "../../env/index.js";
 
@@ -32,8 +33,11 @@ function identity(envelope: ProcessEnvelope): string {
 }
 
 test.describe("process envelope", { tag: ["@infra"] }, () => {
-  test("every service is still the process the run started", async ({ run }) => {
-    const snapshot = readProcessSnapshot(run);
+  let snapshot: ProcessSnapshot;
+  test.beforeAll(() => {
+    snapshot = readProcessSnapshot(runToken());
+  });
+  test("every service is still the process the run started", async () => {
     const baseline = snapshot.baseline;
     expect(
       baseline.map((each) => each.role).sort(),
@@ -49,8 +53,8 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     ).toEqual(baseline.map(identity));
   });
 
-  test("no service ended the run against its Metaspace ceiling", async ({ run }, testInfo) => {
-    const reported = capturedValue(readProcessSnapshot(run).envelopes).filter((each) => each.metaspace !== null);
+  test("no service ended the run against its Metaspace ceiling", async ({}, testInfo) => {
+    const reported = capturedValue(snapshot.envelopes).filter((each) => each.metaspace !== null);
     // For the CI step summary, which reads the report rather than the console.
     const readings = reported.map((each) => ({ role: each.role, ...each.metaspace, band: BANDS[each.role].metaspaceShare }));
     await testInfo.attach(METASPACE_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
@@ -70,8 +74,8 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
   });
 
-  test("no service left its stated resource band", async ({ run }, testInfo) => {
-    const peaks = capturedValue(readProcessSnapshot(run).peaks);
+  test("no service left its stated resource band", async ({}, testInfo) => {
+    const peaks = capturedValue(snapshot.peaks);
     const readings = peaks.map((each) => ({ ...each, band: { memoryBytes: BANDS[each.role].memoryBytes, cpuPercent: BANDS[each.role].cpuPercent } }));
     await testInfo.attach(PEAKS_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
     expect(
