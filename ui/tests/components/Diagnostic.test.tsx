@@ -136,6 +136,9 @@ async function renderAndWaitForLoad(validations: DiagnosticValidation[] = []) {
   await waitFor(() => {
     expect(mockGetValidations).toHaveBeenCalled();
   });
+  await waitFor(() => {
+    expect(screen.getByTitle("Run Diagnostic")).not.toBeDisabled();
+  });
   return result;
 }
 

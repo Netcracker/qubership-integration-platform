@@ -53,7 +53,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
   onDecisionAnswer,
 }) => (
   <div
-    ref={scrollContainerRef as React.LegacyRef<HTMLDivElement>}
+    ref={scrollContainerRef as React.Ref<HTMLDivElement>}
     className="ai-message-list"
     onScroll={onScroll}
   >

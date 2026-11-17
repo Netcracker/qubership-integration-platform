@@ -28,7 +28,7 @@ type BlockerState = {
   reset: () => void;
 };
 
-const mockShowModal = jest.fn<void, [{ component: React.ReactElement }]>();
+const mockShowModal = jest.fn<void, [{ component: React.ReactElement<any> }]>();
 const mockRequestFailed = jest.fn<void, unknown[]>();
 const mockProceed = jest.fn<void, []>();
 const mockReset = jest.fn<void, []>();

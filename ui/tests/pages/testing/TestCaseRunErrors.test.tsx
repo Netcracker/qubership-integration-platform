@@ -244,7 +244,7 @@ describe("TestCaseRunErrors case run lifetime", () => {
 
   /** Opens another case run the way a route with a new id does. */
   function openCaseRun(
-    rerender: (ui: React.ReactElement) => void,
+    rerender: (ui: React.ReactElement<any>) => void,
     caseRunId: string,
   ) {
     mockUseParams.mockReturnValue({ chainId: "chain-1", caseRunId });

@@ -389,7 +389,7 @@ const resolveSiblingOverlapsAfterResize = (
 
 export const useChainGraph = () => {
   const chainContext = useContext(ChainContext);
-  const finishDragRef = useRef<(() => void) | undefined>();
+  const finishDragRef = useRef<(() => void) | undefined>(undefined);
   useEffect(() => () => finishDragRef.current?.(), []);
   const guardLocalWrite =
     <Args extends unknown[]>(operation: (...args: Args) => Promise<void>) =>

@@ -77,10 +77,10 @@ export const KeyValuePairsTextEditor: React.FC<
   // The text of the pairs last passed to onChange or last taken from value. A
   // value that formats to it brings no new pairs, so the typed text stays as
   // it is, including text that does not parse yet.
-  const syncedTextRef = useRef<string>();
+  const syncedTextRef = useRef<string>(undefined);
 
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const monacoRef = useRef<Monaco>();
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
+  const monacoRef = useRef<Monaco>(undefined);
   const monacoTheme = useMonacoTheme();
   useEffect(() => {
     if (monacoRef.current) {

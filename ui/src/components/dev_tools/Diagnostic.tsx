@@ -77,7 +77,7 @@ export const Diagnostic: React.FC = () => {
   const [diagnosticInProgress, setDiagnosticInProgress] = useState<boolean>();
   const diagnosticInProgressRef = useRef(diagnosticInProgress);
   diagnosticInProgressRef.current = diagnosticInProgress;
-  const pollingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const pollingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [loadedValidations, setLoadedValidations] = useState<Set<string>>(

@@ -35,6 +35,15 @@ jest.mock(
   }),
 );
 
+// The tree ignores expand clicks while the auto-expand on load still animates.
+jest.mock("antd", () => {
+  const antd = jest.requireActual<typeof import("antd")>("antd");
+  const Tree = (props: import("antd").TreeProps) => (
+    <antd.Tree {...props} motion={false} />
+  );
+  return { ...antd, Tree };
+});
+
 import { DocumentationSidebar } from "../../../src/components/documentation/DocumentationSidebar";
 
 const buildTOC = (): TableOfContentNode => ({

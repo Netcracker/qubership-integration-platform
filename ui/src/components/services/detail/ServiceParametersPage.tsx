@@ -1,10 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-  createContext,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, createContext, useContext, useCallback, type JSX } from "react";
 import { Tabs, Typography, Breadcrumb, Flex } from "antd";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { formatTimestamp } from "../../../misc/format-utils.ts";

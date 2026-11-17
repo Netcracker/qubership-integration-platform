@@ -265,7 +265,7 @@ export const ActionsLog: React.FC = () => {
     const icon = EntityTypeIconsMap[type] ?? (
       <OverridableIcon name="question" />
     );
-    return React.cloneElement(icon as React.ReactElement, {
+    return React.cloneElement(icon as React.ReactElement<any>, {
       style: { marginRight: 10 },
     });
   };

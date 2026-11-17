@@ -23,7 +23,7 @@ import { IconWithDomColorNormalize } from "./IconWithDomColorNormalize.tsx";
 export type IconSource =
   | React.ComponentType<AntdIconProps>
   | string
-  | React.ReactElement;
+  | React.ReactElement<any>;
 
 const allIcons = {
   ...commonIcons,
@@ -108,8 +108,8 @@ export type IconOverrides = {
 };
 
 type RenderedSource =
-  | { kind: "element"; render: () => React.ReactElement }
-  | { kind: "string"; render: () => React.ReactElement }
+  | { kind: "element"; render: () => React.ReactElement<any> }
+  | { kind: "string"; render: () => React.ReactElement<any> }
   | { kind: "component"; component: React.ComponentType<AntdIconProps> }
   | null;
 

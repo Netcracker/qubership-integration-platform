@@ -617,7 +617,7 @@ describe("EndpointMockPage unsaved changes", () => {
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
-      mockShowModal.mock.calls[0][0] as { component: React.ReactElement }
+      mockShowModal.mock.calls[0][0] as { component: React.ReactElement<any> }
     ).component as React.ReactElement<{ onNo: () => void }>;
     modal.props.onNo();
 
@@ -663,7 +663,7 @@ describe("EndpointMockPage unsaved changes", () => {
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
-      mockShowModal.mock.calls[0][0] as { component: React.ReactElement }
+      mockShowModal.mock.calls[0][0] as { component: React.ReactElement<any> }
     ).component as React.ReactElement<{ onYes: () => void }>;
     modal.props.onYes();
 

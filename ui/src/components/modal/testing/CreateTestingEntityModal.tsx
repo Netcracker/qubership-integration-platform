@@ -44,7 +44,7 @@ export function CreateTestingEntityModal<T>({
   elementPlaceholder,
   elementPredicate,
   create,
-}: CreateTestingEntityModalProps<T>): React.ReactElement {
+}: CreateTestingEntityModalProps<T>): React.ReactElement<any> {
   const [form] = Form.useForm<CreateTestingEntityFormData>();
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();

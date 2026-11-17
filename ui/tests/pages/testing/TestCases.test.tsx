@@ -789,7 +789,7 @@ describe("TestCases selection lifetime", () => {
     act(() => triggerIntersection());
     await screen.findByText("Second case");
 
-    expect(rowCheckedState()).toEqual([true, true]);
+    await waitFor(() => expect(rowCheckedState()).toEqual([true, true]));
   });
 });
 

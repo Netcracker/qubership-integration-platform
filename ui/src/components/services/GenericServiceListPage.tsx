@@ -54,7 +54,7 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
   const { showModal } = useModalsContext();
   const [searchString, setSearchString] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     onSearch(debouncedSearch);

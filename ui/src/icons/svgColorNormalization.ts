@@ -82,15 +82,15 @@ function collectLiteralPaintsFromReactNode(
   }
 }
 
-export function isMonochromeSvgElement(node: React.ReactElement): boolean {
+export function isMonochromeSvgElement(node: React.ReactElement<any>): boolean {
   const paints = new Set<string>();
   collectLiteralPaintsFromReactNode(node, paints);
   return paints.size <= 1;
 }
 
 export function normalizeSvgElementPaintToCurrentColor(
-  node: React.ReactElement,
-): React.ReactElement {
+  node: React.ReactElement<any>,
+): React.ReactElement<any> {
   const props = node.props as Record<string, unknown>;
   const nextProps: Record<string, unknown> = { ...props };
 
