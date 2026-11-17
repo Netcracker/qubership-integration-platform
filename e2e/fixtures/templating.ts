@@ -133,6 +133,7 @@ export const TRACKED_FIXTURE_DIRS: readonly string[] = [
  */
 export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "script-inline.yaml",
+  "script-empty.yaml",
   "script-failures-syntax.yaml",
   "script-failures-unresolved.yaml",
   "script-failures-nested-syntax.yaml",
