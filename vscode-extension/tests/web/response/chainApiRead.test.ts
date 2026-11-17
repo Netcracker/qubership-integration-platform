@@ -24,6 +24,28 @@ const serviceCall = (properties: Record<string, unknown>): ElementSchema =>
     properties,
   }) as unknown as ElementSchema;
 
+describe("parseElement - separate property files", () => {
+  test("should name the element when its property file cannot be read", async () => {
+    readFile.mockRejectedValue(
+      new Error("Property file not found: /chain/resources/s.groovy"),
+    );
+    const element = {
+      id: "el-2",
+      name: "Script",
+      type: "script",
+      properties: {
+        propertiesToExportInSeparateFile: "script",
+        exportFileExtension: "groovy",
+        propertiesFilename: "s.groovy",
+      },
+    } as unknown as ElementSchema;
+
+    await expect(parseElement(fileUri, element, CHAIN_ID)).rejects.toThrow(
+      'Cannot read "s.groovy" of element "Script" (el-2): Property file not found: /chain/resources/s.groovy',
+    );
+  });
+});
+
 describe("parseElement - service-call before/after blocks", () => {
   test("should read the script file when a script block has a properties filename", async () => {
     readFile.mockResolvedValue("println 'hi'");

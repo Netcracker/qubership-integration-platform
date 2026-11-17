@@ -19,6 +19,7 @@ import type {
   TestsRunView,
   TestCaseRunView,
   TestingValidationError,
+  VSCodeErrorPayload,
 } from "../apiTypes.ts";
 import {
   AccessControlResponse,
@@ -119,7 +120,7 @@ export class VSCodeExtensionApi implements Api {
                   ? error.message
                   : "Unknown error happened on VSCode Extension side",
                 0,
-                undefined,
+                error.responseBody,
                 error,
               ),
             );
@@ -1418,7 +1419,7 @@ export type VSCodeResponse<T> = {
   type: string;
   requestId: string;
   payload?: T;
-  error?: Error;
+  error?: VSCodeErrorPayload;
 };
 
 type MessageResolver = {

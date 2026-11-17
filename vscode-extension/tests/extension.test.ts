@@ -168,7 +168,14 @@ describe("extension.ts", () => {
         expect.objectContaining({
           requestId: "req-1",
           type: "getChain",
-          error: { message: "Something went wrong", name: "TestError" },
+          error: expect.objectContaining({
+            message: "Something went wrong",
+            name: "TestError",
+            responseBody: expect.objectContaining({
+              serviceName: "CIP Extension",
+              errorMessage: "Something went wrong",
+            }),
+          }),
         }),
       );
     });

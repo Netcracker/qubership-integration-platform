@@ -6,7 +6,7 @@ import {
   useNotificationLog,
 } from "../components/notifications/contexts/NotificationLogContext.tsx";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
-import { ApiError } from "../api/apiTypes.ts";
+import { getErrorDetails } from "../misc/error-utils.ts";
 import { useNotificationApi } from "../components/notifications/contexts/NotificationApiContext.tsx";
 
 type DescriptionWithDetailsProps = {
@@ -58,15 +58,15 @@ export const useNotificationService = (): NotificationService => {
 
   const showDetailsClick = useCallback(
     (error: unknown) => {
-      const data = (error as ApiError)?.responseBody;
+      const details = getErrorDetails(error);
 
       showModal({
         component: (
           <ErrorDetails
-            service={data?.serviceName ?? ""}
-            timestamp={data?.errorDate ?? ""}
-            message={data?.errorMessage ?? ""}
-            stacktrace={data?.stacktrace ?? ""}
+            service={details.service}
+            timestamp={details.timestamp}
+            message={details.message}
+            stacktrace={details.stacktrace}
           />
         ),
       });

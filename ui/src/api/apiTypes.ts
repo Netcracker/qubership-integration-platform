@@ -787,6 +787,9 @@ export type ErrorResponse = {
   errorDate: string;
 };
 
+/** An error a VS Code extension request posts back: a plain `Error` plus the REST error body. */
+export type VSCodeErrorPayload = Error & { responseBody?: ErrorResponse };
+
 export function isErrorResponse(obj: unknown): obj is ErrorResponse {
   return (
     typeof obj === "object" &&

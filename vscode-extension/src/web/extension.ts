@@ -25,6 +25,7 @@ import {
 } from "@netcracker/qip-ui";
 import type { ExportImagesCommandConfig } from "./exportImageTypes";
 import { FileCacheService } from "./services/FileCacheService";
+import { toErrorPayload } from "./errorPayload";
 import {
   getAndClearNavigationStateValue,
   initNavigationState,
@@ -490,7 +491,7 @@ async function enrichWebview(
     } catch (e) {
       console.error("Failed to fetch data for CIP Extension API", e);
       if (e instanceof Error) {
-        response.error = { message: e.message, name: e.name };
+        response.error = toErrorPayload(e);
       }
     }
     panel.webview.postMessage(response);

@@ -40,6 +40,23 @@ it("does not overwrite fresh data with a late initial response", async () => {
   await act(async () => finish(chain("Old")));
   expect(view.result.current.chain?.name).toBe("New");
 });
+it("toasts a load failure by default", async () => {
+  const failure = new Error("Property file not found");
+  mockGet.mockRejectedValueOnce(failure);
+  const view = renderHook(() => useChain("a"));
+  await waitFor(() => expect(view.result.current.error).not.toBeNull());
+  expect(mockNotifications.requestFailed).toHaveBeenCalledWith(
+    "Failed to load chain",
+    failure,
+  );
+});
+it("does not toast a load failure when the caller shows it (silentLoadError)", async () => {
+  mockGet.mockRejectedValueOnce(new Error("Property file not found"));
+  const view = renderHook(() => useChain("a", { silentLoadError: true }));
+  await waitFor(() => expect(view.result.current.error).not.toBeNull());
+  expect(view.result.current.error?.message).toBe("Property file not found");
+  expect(mockNotifications.requestFailed).not.toHaveBeenCalled();
+});
 it("clears an initial missing-chain error after a successful background retry", async () => {
   mockGet.mockRejectedValueOnce(new RestApiError("missing", 404));
   const view = renderHook(() => useChain("a"));

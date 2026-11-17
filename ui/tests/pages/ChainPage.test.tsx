@@ -38,6 +38,7 @@ const baseChain: Chain = {
 
 let mockChain: Chain = { ...baseChain };
 let mockIsVsCode = false;
+let mockError: Error | null = null;
 const mockGetChain = jest.fn();
 const mockSetChain = jest.fn();
 
@@ -48,7 +49,7 @@ jest.mock("../../src/hooks/useChain", () => ({
     updateChain: jest.fn().mockResolvedValue(undefined),
     getChain: mockGetChain,
     isLoading: false,
-    error: null,
+    error: mockError,
   }),
 }));
 
@@ -80,6 +81,7 @@ describe("ChainPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockIsVsCode = false;
+    mockError = null;
     mockChain = { ...baseChain, unsavedChanges: false };
     mockGetChain.mockResolvedValue(mockChain);
     mockTestingAvailability.isAvailable = false;
@@ -178,5 +180,53 @@ describe("ChainPage", () => {
       expect(screen.getByText("Chain deleted")).toBeInTheDocument(),
     );
     expect(mockRequestFailed).not.toHaveBeenCalled();
+  });
+
+  it("shows the not-found page when the chain does not exist (404)", () => {
+    mockError = new RestApiError("missing", 404);
+    render(<ChainPage />);
+    expect(screen.getByText("Chain Not Found")).toBeInTheDocument();
+    expect(screen.queryByText("Failed to load chain")).not.toBeInTheDocument();
+  });
+
+  it("shows the load error with the message and a retry action for other failures", async () => {
+    mockError = new RestApiError("Property file not found", 0);
+    render(<ChainPage />);
+    expect(screen.getByText("Failed to load chain")).toBeInTheDocument();
+    expect(screen.getByText("Property file not found")).toBeInTheDocument();
+    expect(screen.queryByText("Chain Not Found")).not.toBeInTheDocument();
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Retry" }).click();
+    });
+    expect(mockGetChain).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Back to Chains on the load error in the web", () => {
+    mockError = new RestApiError("Property file not found", 0);
+    render(<ChainPage />);
+    expect(
+      screen.getByRole("button", { name: "Back to Chains" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Back to Chains in the VS Code extension, where there is no chain list", () => {
+    mockIsVsCode = true;
+    mockError = new RestApiError("Property file not found", 0);
+    render(<ChainPage />);
+    expect(screen.getByText("Failed to load chain")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Back to Chains" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Back to Chains on the not-found page in the VS Code extension", () => {
+    mockIsVsCode = true;
+    mockError = new RestApiError("missing", 404);
+    render(<ChainPage />);
+    expect(screen.getByText("Chain Not Found")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Back to Chains" }),
+    ).not.toBeInTheDocument();
   });
 });

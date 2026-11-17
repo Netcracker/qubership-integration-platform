@@ -309,6 +309,22 @@ async function applyServiceCallBlockProperties(
 }
 
 // Inline the properties an element exported to a separate sidecar file.
+// Names the owning element in the error, so a missing property file points at the element to fix.
+async function readSeparateFile(
+  fileUri: Uri,
+  element: ElementSchema,
+  propertiesFilename: string,
+): Promise<string> {
+  try {
+    return await fileApi.readFile(fileUri, propertiesFilename);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot read "${propertiesFilename}" of element "${element.name}" (${element.id}): ${reason}`,
+    );
+  }
+}
+
 async function loadSeparateFileProperties(
   fileUri: Uri,
   element: ElementSchema,
@@ -328,14 +344,14 @@ async function loadSeparateFileProperties(
   if (elementProperties.exportFileExtension !== "json") {
     elementProperties[
       elementProperties.propertiesToExportInSeparateFile as string
-    ] = await fileApi.readFile(fileUri, propertiesFilename);
+    ] = await readSeparateFile(fileUri, element, propertiesFilename);
     return;
   }
   const propertyNames: string[] | undefined =
     elementProperties.propertiesToExportInSeparateFile
       ?.split(",")
       .map((item: string) => item.trim());
-  const fileContent = await fileApi.readFile(fileUri, propertiesFilename);
+  const fileContent = await readSeparateFile(fileUri, element, propertiesFilename);
   const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
   if (propertyNames) {
     for (const propertyName of propertyNames) {

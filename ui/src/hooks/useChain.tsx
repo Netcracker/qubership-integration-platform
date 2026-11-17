@@ -4,7 +4,13 @@ import { VSCodeExtensionApi } from "../api/rest/vscodeExtensionApi.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
-export const useChain = (chainId?: string, options?: { filePath?: string }) => {
+export type UseChainOptions = {
+  filePath?: string;
+  /** Set when the caller renders a load failure itself, so no toast repeats it. */
+  silentLoadError?: boolean;
+};
+
+export const useChain = (chainId?: string, options?: UseChainOptions) => {
   const [isLoading, setIsLoading] = useState(Boolean(chainId));
   const [chain, setChain] = useState<Chain>();
   const [error, setError] = useState<Error | null>(null);
@@ -64,13 +70,21 @@ export const useChain = (chainId?: string, options?: { filePath?: string }) => {
         if (error instanceof RestApiError && error.responseCode === 404) {
           return;
         }
-        notificationService.requestFailed("Failed to load chain", error);
+        if (!options?.silentLoadError) {
+          notificationService.requestFailed("Failed to load chain", error);
+        }
       } finally {
         if (!background && activeKeyRef.current === activeKey)
           setIsLoading(false);
       }
     },
-    [chainId, notificationService, options?.filePath, activeKey],
+    [
+      chainId,
+      notificationService,
+      options?.filePath,
+      options?.silentLoadError,
+      activeKey,
+    ],
   );
 
   useEffect(() => {

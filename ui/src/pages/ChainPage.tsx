@@ -35,6 +35,9 @@ export const ChainContext = createContext<ChainContextData | undefined>(
   undefined,
 );
 
+const isNotFoundError = (error: Error) =>
+  error instanceof RestApiError && error.responseCode === 404;
+
 const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
@@ -63,8 +66,10 @@ const ChainPage = () => {
   const navigate = useNavigate();
   const activeKey = getActiveTabKey(pathname);
 
-  const { chain, setChain, updateChain, getChain, isLoading, error } =
-    useChain(chainId);
+  const { chain, setChain, updateChain, getChain, isLoading, error } = useChain(
+    chainId,
+    { silentLoadError: isVsCode },
+  );
 
   useEffect(() => {
     if (!isVsCode && chain?.name) {
@@ -207,6 +212,41 @@ const ChainPage = () => {
     );
   }
 
+  if (error && !deleted && !isNotFoundError(error)) {
+    return (
+      <Flex className={styles.stretched} gap={"middle"} vertical>
+        <Row className={styles.stretched}>
+          <Col span={24}>
+            <Result
+              status="error"
+              title="Failed to load chain"
+              subTitle={error.message || undefined}
+              extra={[
+                <Button
+                  type="primary"
+                  key="retry"
+                  onClick={() => void getChain()}
+                >
+                  Retry
+                </Button>,
+                ...(isVsCode
+                  ? []
+                  : [
+                      <Button
+                        key="back"
+                        onClick={() => void navigate("/chains")}
+                      >
+                        Back to Chains
+                      </Button>,
+                    ]),
+              ]}
+            />
+          </Col>
+        </Row>
+      </Flex>
+    );
+  }
+
   if (error || !chain || (deleted && activeKey !== "properties")) {
     return (
       <Flex className={styles.stretched} gap={"middle"} vertical>
@@ -220,15 +260,19 @@ const ChainPage = () => {
                   ? "This chain was deleted from the catalog."
                   : `Chain with ID "${chainId}" does not exist.`
               }
-              extra={[
-                <Button
-                  type="primary"
-                  key="back"
-                  onClick={() => void navigate("/chains")}
-                >
-                  Back to Chains
-                </Button>,
-              ]}
+              extra={
+                isVsCode
+                  ? []
+                  : [
+                      <Button
+                        type="primary"
+                        key="back"
+                        onClick={() => void navigate("/chains")}
+                      >
+                        Back to Chains
+                      </Button>,
+                    ]
+              }
             />
           </Col>
         </Row>
