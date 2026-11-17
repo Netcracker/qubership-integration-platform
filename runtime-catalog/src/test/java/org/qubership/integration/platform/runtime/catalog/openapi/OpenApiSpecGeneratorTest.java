@@ -24,14 +24,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import javax.sql.DataSource;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 /**
@@ -84,7 +87,29 @@ class OpenApiSpecGeneratorTest {
     @DisplayName("generate OpenAPI specification")
     void generateOpenApiSpecFile() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
-        String rawYaml = RestTestClient.bindToServer()
+        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), fetchApiDocsYaml());
+    }
+
+    @Test
+    @DisplayName("document the canonical GET /v1/chains operation")
+    void documentsCanonicalOperation() {
+        Map<String, Object> chains = documentedPaths().get("/v1/chains");
+        assertThat(chains).as("the /v1/chains path").isNotNull();
+        assertThat(chains.get("get")).as("GET /v1/chains in the generated document").isNotNull();
+    }
+
+    @Test
+    @DisplayName("hide the proxy aliases")
+    void hidesProxyAliases() {
+        assertThat(documentedPaths().keySet().stream()
+                .filter(path -> path.startsWith("/api") || path.startsWith("/cip"))
+                .toList())
+                .as("proxy alias paths in the generated document")
+                .isEmpty();
+    }
+
+    private String fetchApiDocsYaml() {
+        return RestTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build()
                 .get()
@@ -94,6 +119,11 @@ class OpenApiSpecGeneratorTest {
                 .expectBody(String.class)
                 .returnResult()
                 .getResponseBody();
-        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), rawYaml);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> documentedPaths() {
+        Map<String, Object> document = new Yaml().load(fetchApiDocsYaml());
+        return (Map<String, Map<String, Object>>) document.get("paths");
     }
 }
