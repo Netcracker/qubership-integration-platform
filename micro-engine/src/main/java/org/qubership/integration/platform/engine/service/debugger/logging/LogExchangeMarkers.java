@@ -19,9 +19,9 @@ public class LogExchangeMarkers extends AbstractTruncatedFieldLogger {
 
     public List<StructuredArgument> buildExchangeMarkers(String body, String headers, String properties) {
         List<StructuredArgument> result = new ArrayList<>();
-        result.add(kv("exchange_body", truncateValue(body)));
-        result.add(kv("exchange_headers", truncateValue(headers)));
         result.add(kv("exchange_properties", truncateValue(properties)));
+        result.add(kv("exchange_headers", truncateValue(headers)));
+        result.add(kv("exchange_body", truncateValue(body)));
         return result;
     }
 }
