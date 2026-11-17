@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.ChainLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
@@ -356,6 +357,11 @@ public class ChainService extends ChainBaseService {
         chainCopy.setCurrentSnapshot(null);
         chainCopy.setDeployments(new ArrayList<>());
         chainCopy.setValidationAlerts(new ArrayList<>());
+        Set<MaskedField> maskedFields = chain.getMaskedFields().stream()
+                .map(MaskedField::copy)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        maskedFields.forEach(field -> field.setChain(chainCopy));
+        chainCopy.setMaskedFields(maskedFields);
         chainCopy.getElements().forEach(element -> {
             element.setValidationAlerts(new ArrayList<>());
             if (element instanceof ContainerChainElement container) {
