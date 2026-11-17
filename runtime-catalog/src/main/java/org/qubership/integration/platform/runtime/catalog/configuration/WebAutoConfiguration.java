@@ -20,8 +20,12 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder.Str
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.format.FormatterRegistry;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.List;
 
 @AutoConfiguration
 public class WebAutoConfiguration implements WebMvcConfigurer {
@@ -43,5 +47,19 @@ public class WebAutoConfiguration implements WebMvcConfigurer {
     public void addFormatters(FormatterRegistry registry) {
         WebMvcConfigurer.super.addFormatters(registry);
         registry.addConverter(stringToFolderContentFilterConverter);
+    }
+
+    /**
+     * The Jackson 2 converter bean is registered ahead of the defaults and writes a {@code byte[]}
+     * response as a base64 JSON string, which left {@code /v3/api-docs} unreadable to its consumers.
+     */
+    @Override
+    public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+        for (int i = 0; i < converters.size(); i++) {
+            if (converters.get(i) instanceof ByteArrayHttpMessageConverter) {
+                converters.add(0, converters.remove(i));
+                return;
+            }
+        }
     }
 }
