@@ -339,8 +339,8 @@ The goal deletes the files listed there, then the list itself. It keeps every ot
 and the directory too. The list holds the names from every build since the last clean, including files of
 chains that have since been removed.
 
-Bind the goal in an execution. It runs in the `clean` phase. Give it the same `outputDirectory` as the build goals, and add one
-execution per directory if they differ:
+Bind the goal in an execution. It runs in the `clean` phase. Give it the same `outputDirectory` as the build
+goals, and add one execution per directory if they differ:
 
 ```xml
 <execution>
@@ -350,6 +350,13 @@ execution per directory if they differ:
   </goals>
 </execution>
 ```
+
+A `cip.outputDirectory` set on the command line applies only to that command. Pass it to `mvn clean` as well,
+or clean and build in one command, such as `mvn clean install -Dcip.outputDirectory=deploy`. A plain
+`mvn clean` looks for the list in `target/` and deletes nothing.
+
+Files written by a plugin version without this goal are on no list, so `clean` keeps them. Delete them by hand
+once after upgrading; from then on, the build goals record every file they write.
 
 With the default `outputDirectory`, `maven-clean-plugin` removes `target/` anyway, list included, so this goal
 has nothing left to do.
