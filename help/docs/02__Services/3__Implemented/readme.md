@@ -35,6 +35,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Used By** - chains that use the service, specification group, or specification. A row with chains shows their number, such as "2 chains", and clicking it lists the chains. Each chain name opens its graph. A row that no chain uses shows "No chains".
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying (hidden by default).
@@ -212,7 +213,7 @@ To add specification group to Implemented service:
 3. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) endpoint, configured within a particular chain and create API Specification from it.
-> ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) in the list.
+> ℹ️  Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) in the list.
 
 4. Confirm operation with **"Import File"** button.
 
@@ -223,13 +224,13 @@ To add API specification into existing specification group:
 1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-    > ℹ️ **Note:**
+    > ℹ️ **Notes:**
     > - API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
     > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
     > - For **WSDL/GraphQL** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) endpoint, configured within a particular chain and create API Specification from it.
-    > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).
+    > ℹ️  Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).
 3. Confirm operation with **"Import File"** button.
 
 ### Add Environment
@@ -294,7 +295,7 @@ During the import, system follows next logic:
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.
-> ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
+> ℹ️  If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
   - For all new services system will increment standard UUID, so it is possible to operate with it in order to maintain services uniqueness.
   - For **Swagger** system will build specification version from "version" parameter in specification file.

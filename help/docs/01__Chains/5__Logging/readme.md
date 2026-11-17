@@ -45,7 +45,7 @@ Cloud Integration Platform will apply its own default hardcoded option and notif
   - **Info** - only completed inbound/outbound communications, as well as failed sessions are going to be logged. When mentioned elements are part of sub-chain(s), session will also contain Chain Call(s) to maintain proper structure. This level of logging has a medium effect on performance in general, as well as on memory and storage capacity consumption.
   - **Debug** - all available parameters will be logged: session status, status of each chain element, headers, body (request and response). This level of logging _drastically_ increases the consumption of memory and storage capacity, as well as negatively affects the performance in general, hence shall be used carefully.
 
-> ℹ️ **Note:** You can also log a particular transaction with a **Debug** session level by sending **"TraceMe"** header with "true" value in the HTTP request, which will make all available session parameters logged at **Debug level**, regardless of the current state of chain's logging settings.
+> ℹ️  You can also log a particular transaction with a **Debug** session level by sending **"TraceMe"** header with "true" value in the HTTP request, which will make all available session parameters logged at **Debug level**, regardless of the current state of chain's logging settings.
 
 - **Session log details** - controls session entries written to JSON microservice logs. Possible values:
   - **Off** _(Default value)_ - no session start or session step entries are written.

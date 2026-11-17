@@ -7,7 +7,7 @@ Services, located outside of environment are called **External Services**. To in
 - **REST/SOAP and GraphQL**: When new environment is created for external services, working through the REST, SOAP or GraphQL, its address, being located outside K8S environment, will be registered in Egress gateway routing table. Due to this, address must be carefully validated before plain call to the service.
 - **Kafka/RabbitMQ**: For external services, working through Kafka or RabbitMQ, there is no need to register environment address in Egress gateway. The address will be stored to database, hence engine domain will call the service directly in runtime mode.
 
-> ℹ️ **Note:** External services might have **multiple environments** in the system, so it is possible to quickly switch between them according to the needs. To properly apply the changes after switching the environment, it is **required to redeploy all affected chains**, making new address registered in Egress Gateway.
+> ℹ️  External services might have **multiple environments** in the system, so it is possible to quickly switch between them according to the needs. To properly apply the changes after switching the environment, it is **required to redeploy all affected chains**, making new address registered in Egress Gateway.
 
 ## Process Initialization
 
@@ -35,6 +35,7 @@ Table with External services is accessible by navigating to **Services** → **E
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Used By** - chains that use the service, specification group, or specification. A row with chains shows their number, such as "2 chains", and clicking it lists the chains. Each chain name opens its graph. A row that no chain uses shows "No chains".
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying (hidden by default).
@@ -173,7 +174,7 @@ At the top of the table the following options are available:
   - **To Specifications** - returns to the list of specifications in the current group.
   - **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
 
-    > ℹ️ **Note:** In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+    > ℹ️  In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
 
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
   - ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
@@ -209,7 +210,7 @@ To add specification group to the external service:
 1. Select ![plus](img/plus.svg) "**Add Specification Group**" option.
 2. Specify the **name** of the specification group on the opened pop-up.
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-> ℹ️ **Note:**
+> ℹ️ **Notes:**
 > - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 > - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 4. Confirm operation with **"Import File"** button.
@@ -220,7 +221,7 @@ When API specification is added you will see the specification group with respec
 To add API specification into existing specification group:
 1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-> ℹ️ **Note:**
+> ℹ️ **Notes:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
 > - For a **Kafka** operation in an **AsyncAPI 3.0** specification, the MaaS classifier name is the value of the operation's `x-maas-classifier-name` extension. When the operation has none, the extension on its channel is used, and a reply operation (declared with `reply`) takes the extension from its reply channel. An **AsyncAPI 2.x** specification takes the extension from the operation only.
@@ -278,11 +279,11 @@ Default properties are unique for different protocols and described below:
 | saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see <http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml>.                                                                                                                                                                 | GSSAPI                                                                                              |
 | saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                              | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
 | securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                  | PLAINTEXT                                                                                           |
-| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - offset is copied from lowest offset for this group. ℹ️ **Note:** This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
+| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - offset is copied from lowest offset for this group. ℹ️  This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
 | sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise.                                                            | TLSv1,TLSv1.1,TLSv1.2                                                                               |
 | sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                           | HTTPS                                                                                               |
 
-> ℹ️ **Note:** When message processing is slow, it could lead to interruption due to reached timeout.
+> ℹ️  When message processing is slow, it could lead to interruption due to reached timeout.
 > In such cases, it is recommended to specify parameter **maxPollIntervalMs**
 > (The maximum delay between invocations of polls when using consumer group management.)
 > with value **higher**, than default **300000** and parameter **maxPollRecords**
@@ -303,7 +304,7 @@ Additionally, if it is required to use same connection for multiple requests of 
 ### Switch Environment
 To switch the environment, click the radio button near appropriate environment and then confirm your choice in dialog window.
 
-> ⚠️ **Warning:** **Switching of environment requires chain redeploy**, as new active address will be registered on Egress Gateway.
+> ⚠️  **Switching of environment requires chain redeploy**, as new active address will be registered on Egress Gateway.
 
 ### Import Service(s)
 
@@ -322,13 +323,13 @@ During the import, system follows next logic:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 
-> ℹ️ **Note:** If import is done as a part of deployment process, or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
+> ℹ️  If import is done as a part of deployment process, or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
   - For all new services system will increment standard UUID, so it is possible to operate with it in order to maintain services uniqueness.
   - For **Swagger** and **AsyncAPI** system will build specification version from "version" parameter in specification file.
   - For **WSDL**, **GraphQL** and **Protobuf** API specifications, their versions will be generated by autoincrement (1.0.0, 2.0.0, etc.), but it is also possible to manually rename specifications before import.
 
-> ⚠️ **Warning:** When importing **grpc** services, it is absolutely required to have protobuf files properly
+> ⚠️  When importing **grpc** services, it is absolutely required to have protobuf files properly
 > structured within the archive, according to the native logic, described in public
 > **Protocol Buffers Documentation Language Guide (proto 3)**. Following this logic, protobuf files must be placed
 > to the folders, fully corresponding to the path, described in **"import"** statements of the files.

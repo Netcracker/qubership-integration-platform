@@ -53,7 +53,7 @@ which data goes where.
 | Microservice logs                                                                                                                        | Not stored by the platform                                                                          | Written to standard output and collected by the surrounding platform.                                                                                |
 | Tracing data                                                                                                                             | Not stored by the platform                                                                          |                                                                                                                                                      |
 
-> ℹ️ **Note:** Retention and sampling are what make a session disappear from the **Sessions** tab. See
+> ℹ️  Retention and sampling are what make a session disappear from the **Sessions** tab. See
 > [Retention Settings](../../08__Features/3__Retention_Settings/readme.md) and
 > [Platform Logging](../../06__Observability/1__Platform_Logging/readme.md) for the variables that control them.
 

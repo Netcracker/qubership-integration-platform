@@ -16,7 +16,7 @@
 ---
 On the "**Graph**" tab user can view and edit a particular chain by adding, updating and removing the elements and connections between them.
 
-> ℹ️ **Note:** When configuration graph is opened, system reviews the chain to detect deprecated elements:
+> ℹ️  When configuration graph is opened, system reviews the chain to detect deprecated elements:
 > - If **only simple (non-container) deprecated elements are detected**, the system displays a warning message stating they may be removed in future releases.
 > - If **deprecated container elements (the presence of deprecated simple elements has no impact) are detected** in the chain, the system recommends migrating them to their latest versions.
 > After confirmation, the system first attempts to save the current chain state as a new snapshot and then updates the chain with the latest versions of container elements. A notification message will indicate the migration process results.
@@ -116,7 +116,7 @@ To open window with a table, that contains all utilized exchange properties in t
 
 When property record is expanded, it shows related element's information as well as property usage (e.g. Set or Get). Clicking the element in the list will show it on the graph. Double-click will open this element in edit mode on respective tab. Search and filter functionality are also available for this table to quickly find respective data.
 
-> ℹ️ **Note:** Please note, that this view might not contain property usage record when property participates in complex scenarios (e.g. when property is declared and then fetched via "GET" as a variable).
+> ℹ️  Please note, that this view might not contain property usage record when property participates in complex scenarios (e.g. when property is declared and then fetched via "GET" as a variable).
 
 ### Open Chain's Text View
 **`⛔ Not available via the VS Code extension`**

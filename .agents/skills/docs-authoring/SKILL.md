@@ -1,37 +1,68 @@
 ---
 name: docs-authoring
 description: >
-  Update the product documentation under help/docs/ for a feature. Use after
-  implementing a feature, when asked to "update the docs" or "document issue
-  #N", or when invoked by name with an issue number. Reads the issue, maps
-  changed code to the right doc page, follows the help/docs structure and
-  style, and leaves edits unstaged for human review.
+  Create or maintain product documentation under help/docs/, including assets
+  and structure, from an issue, PR, commit, local changes, or a sufficiently
+  specific request.
 ---
 
-# Feature documentation authoring
+# Product documentation authoring
 
-Product documentation lives in-repo at `help/docs/`. The UI and the VS Code
-extension consume it at runtime (see `ui/docs/DOCUMENTATION_INTEGRATION.md`
-for the fetch-and-index mechanics). Docs are organized **by the product feature
-and UI area, not by backend module**, so start from what the user sees, then
-find the code that changed behind it.
+Product documentation lives in `help/docs/`, organized by UI area and product feature. The UI and VS Code extension consume it; see
+`ui/docs/DOCUMENTATION_INTEGRATION.md` for the fetch-and-index mechanics.
 
-## Working rules
+Before drafting or revising documentation, load `english-developer-style` and
+follow its wording guidance. This skill governs content selection, structure,
+placement, and repository conventions.
 
-- **Read the linked issue in full first.** The issue description is the
-  source of truth for *why* a feature exists and how it should behave —
-  edge cases the diff alone won't show. If an issue number is given, run
-  `gh issue view <N> --json title,body,comments` before writing anything;
-  without `--json` it fails on Projects classic. If the user gave no issue
-  number, ask for it, or for the branch to diff, before editing anything.
-- **Never commit, push, or open a pull request unless the prompt asks for
-  it.** Leave doc edits as unstaged working-tree changes for a human to
-  review and commit.
-- **Don't describe planned behavior as shipped.** Every UI label, parameter,
-  and route you document must match the actual code diff and the issue.
-- **Ask before creating a new page or section folder.** If a change doesn't
-  map to an existing page, search `help/docs/` for the closest match first;
-  don't invent a new subtree silently.
+## Select the change
+
+Resolve the task from available context before asking for missing information.
+Read a supplied issue and its relevant implementation or PR. For an issue,
+use `gh issue view <N> --json title,body,comments` (plain output fails on
+Projects classic). A clear correction request needs no issue or branch diff.
+
+Choose the comparison base from the PR, target branch, or request. Read the
+relevant committed diff and staged, unstaged, and newly created content;
+`git status --short` alone is insufficient. Preserve unrelated working-tree
+edits. Use the issue for intent and the selected revision's implementation,
+configuration, and tests for behavior, including relevant code outside the
+diff. Report material discrepancies; do not present unimplemented requirements
+as available.
+
+Decide what the reader needs to do or understand differently, then map that
+need to pages and read the affected pages in full. Leave documentation unchanged
+when the existing text, icon assets, and navigation already cover the change,
+and explain why. Add a justified topic within an established section when the
+task authorizes it. Ask only when missing information or a structural choice
+materially affects the result and cannot be resolved from context.
+
+## Choose the content
+
+Make the smallest documentation update that fully meets the reader's need.
+Use plain, direct language and preserve necessary conditions and limitations.
+Update the existing owning page where possible, and link to existing
+explanations instead of duplicating them. Add sections, tables, examples, or
+glossary entries only when they improve understanding. Keep unrelated rewrites,
+reorganizations, and new tooling outside the task. Scale verification to the
+change.
+
+Choose structure by purpose: procedures need prerequisites, imperative actions,
+and an observable result; references describe behavior and relevant options;
+troubleshooting connects symptoms to checks and corrective action. Use
+descriptive sentences for references. Match established terminology and
+navigation conventions. Remove stale or duplicate material in the affected
+passage; leave unrelated pages and historical formatting outside the update.
+
+Verify the relevant client, engine variant, permissions, and configuration when
+they affect the reader's actions. Establish VS Code availability from the
+extension's actual product flow and configuration. For a new operation confirmed
+unavailable there, place this exact marker beside that operation, without
+implying that other operations on the page are unavailable:
+
+```markdown
+**`⛔ Not available via the VS Code extension`**
+```
 
 ## Documentation layout
 
@@ -63,8 +94,8 @@ topic is its own `N__Title_Name` folder with a `readme.md` and an optional
 Each section has a landing page, `<section>/readme.md`, such as
 `01__Chains/readme.md`. Most of them list their pages as
 `- [Title](N__Folder/readme.md) - one-line summary`; when you add, move, or
-remove a page, update that list. Moving a page also means fixing every
-relative link to its old path: `grep -rn "<old folder>" help/docs`.
+remove a page, update that list. Search repository-wide with `rg` for references
+to moved or removed paths, and check affected heading links when headings change.
 
 `00__Overview/` holds orientation material, not a screen. Sections 01 through
 04 mirror the product's UI areas, so a feature that has a screen belongs there.
@@ -84,13 +115,14 @@ which one a new page goes into:
 
 Two pages are indices over the whole tree: `00__Overview/4__Glossary/readme.md`
 has one `###` entry per term, each ending in a link to the page that owns it,
-and `07__Troubleshooting/readme.md` has the symptom table. A new term
-gets a glossary entry; a new failure mode a reader can hit gets a symptom row.
+and `07__Troubleshooting/readme.md` has the symptom table. Add entries for
+reusable product concepts and actionable failures a reader can encounter.
+Link to the owning explanation instead of duplicating it.
 
 ## Code area to doc mapping
 
 Docs are feature-organized, so a code change usually maps to a UI area rather
-than to a one-to-one file. Use this to find the affected page(s):
+than to a one-to-one file. Use these mappings as search starting points:
 
 - `runtime-catalog/**` (chains, elements, deployments, snapshots,
   specifications, systems, variables) → `help/docs/01__Chains/`
@@ -109,63 +141,97 @@ than to a one-to-one file. Use this to find the affected page(s):
   `08__Features/3__Retention_Settings/`.
 - `testing-service/**` → `help/docs/01__Chains/8__Testing/` (one chain) and
   `help/docs/03__Admin_Tools/9__Testing/` (all chains, test runs).
-- `schemas/**` (JSON Schema for chains, services, elements) → the matching
-  element page under `01__Chains/1__Graph/1__Elements_Library/`. Folder names
-  map to element types: `6__Triggers/1__HTTP_Trigger/readme.md` documents the
-  `http-trigger` element.
-- `ui/**` and `vscode-extension/**` → both render the whole `help/docs` tree;
-  UI feature areas map one-to-one to the numbered sections. Integration
-  mechanics belong in `ui/docs/DOCUMENTATION_INTEGRATION.md`, not in
-  `help/docs/`.
-- `infrastructure/**` → no `help/docs/` coverage. Documented only in
-  `infrastructure/docker/README.md` and the ADRs under `infrastructure/docs/adr/`.
+- `schemas/**` → the actual subject: chain and graph pages for chain schemas,
+  `02__Services/` for service schemas, and the matching element page for
+  element schemas, such as `6__Triggers/1__HTTP_Trigger/readme.md` for
+  `http-trigger`.
+- `integration-build-pipeline/**` → the affected element, import, or feature
+  page when compiler templates or import migrations change documented behavior.
+- `ui/**` and `vscode-extension/**` → the affected UI area. Both consume the
+  documentation tree; this does not establish feature availability.
+  Integration mechanics belong in `ui/docs/DOCUMENTATION_INTEGRATION.md`.
+- `infrastructure/**` → the affected product page when deployment configuration
+  controls documented behavior. Keep deployment procedures in infrastructure
+  documentation, such as `infrastructure/docker/README.md`.
 
-## Documentation style
+## Formatting and assets
 
-Match the existing pages — verify against a neighbor before you write.
-
-- **One H1 per page** (`# Title`), then `## Section` headings. Pages often
-  place a `---` horizontal rule directly under an H2 as a divider.
-- **Topic pages share one H2 skeleton**: `Description`, `Process
-  Initialization`, `User Interface`, `Data Storage`, `Configuration`, and
-  `Constraints` where they apply. Keep the order and leave out a section that
-  has nothing to say rather than writing a placeholder. Landing pages use
-  `Description` and a link list instead (`Topics`, `Tasks`).
-- **No YAML front matter.** Pages start straight at the `# Title`.
-- **No changelog, "Since", or version-history sections.** Don't add one.
-- **Third-person, product-reference voice** ("The HTTP Trigger exposes the
-  chain over HTTP"). Name UI elements in bold.
+- Use one H1 per page, followed by H2 sections as needed. Pages start at the
+  title without YAML frontmatter. Keep version history and changelogs out.
+- Name UI elements in bold.
 - **Parameter tables** use the columns `Parameter | Mandatory | Data Type |
   Description | Sample`, where Mandatory is `M`, `O`, or `C`.
-- **Callouts** use the `> ℹ️ **Note:**` form already in the pages.
-- **Cross-links are relative** between doc pages and end in `/readme.md`
-  (`../../1__Routing/9__Try-Catch-Finally/readme.md`). Images live in the
-  page's `img/` folder.
-- **Navigation is derived from folder order**, not a nav file.
-  `ui/scripts/build-doc-index.mjs` sorts the paths as strings, so the order is
-  lexicographic: `10__Split_Async` comes before `1__`, not after `9__`. The
-  text after `__` becomes the display title, with underscores as spaces. There
-  is no `mkdocs.yml` or `SUMMARY.md` to update.
+- Use relative links between pages, ending in `/readme.md`. Keep images in
+  the page's local `img/` folder.
 
-## Task flow
+Apply these callout forms to new or revised callouts. A single statement uses
+only its corresponding emoji, even when it wraps across lines. Two or more
+distinct points use the exact label `Notes` or `Warning` and a list:
 
-1. Read the linked issue in full (see above).
-2. Review the change (`git status --short`, `git diff origin/main...HEAD`)
-   to see which UI areas and elements the code touched.
-3. Map each changed path to its doc page(s) using the mapping above; search
-   `help/docs/` for the closest match if a path isn't listed.
-4. Read each affected page in full before editing.
-5. Write the update:
-   - New feature → add a section or a `N__Title_Name` page folder following
-     the neighbor's structure, including at least one parameter table or
-     runnable example.
-   - Changed behavior → update the description, tables, and samples; remove
-     stale text about the old behavior.
-   - Breaking change → add a `> ℹ️ **Note:**` callout, and a short migration
-     note if a migration path exists.
-   - New or moved page → update the landing page's link list, the glossary,
-     and the troubleshooting table where the change reaches them.
-6. Verify every parameter, label, route, and sample against the diff and the
-   issue.
-7. End with a plain-text summary of which files you changed and why. Do not
-   write that summary into any file.
+```markdown
+> ℹ️ <single informational statement>
+
+> ⚠️ <single warning statement>
+
+> ℹ️ **Notes:**
+>
+> - <first informational point>
+> - <second informational point>
+
+> ⚠️ **Warning:**
+>
+> - <first warning point>
+> - <second warning point>
+```
+
+For a breaking change, use the same callout rule and include a short migration
+note when a migration path exists. Do not reformat unrelated callouts.
+
+For each UI icon added or updated by the change, trace the actual affected
+control, starting with `ui/src/icons/IconDefinitions.tsx` and `ui/src/assets/`,
+then its imports or provider as needed. Copy the matching asset into the owning
+page's `img/` directory, or update its existing copy. Reference it beside the
+control or operation with meaningful alt text, such as
+`![Refresh](img/refresh.svg)`. For component or library icons, obtain a faithful
+static asset from that implementation. Report an unresolved source instead of
+guessing. Check the image's appearance and link in the documentation renderer.
+
+## Structure and navigation
+
+Preserve numbered folders, `readme.md` pages, and relative links. Navigation
+comes from `ui/scripts/build-doc-index.mjs`, which sorts paths lexicographically:
+`10__Split_Async` precedes `1__`, rather than following `9__`. Text after `__`
+becomes the display title, with underscores as spaces; there is no separate nav
+file. Element folder names are functional identifiers:
+`ui/scripts/element-documentation-mapping.mjs` derives Help destinations from
+them and applies aliases. For an element-page move or rename, verify the
+element's Help destination as well as links and navigation. Keep broad renaming
+or ordering cleanup outside unrelated updates.
+
+After additions, removals, moves, or renames anywhere beneath `help/docs/`,
+including nested topics, elements, pages, and image directories, compare the
+resulting tree with this skill's layout, mappings, naming, path examples,
+asset guidance, and navigation rules. Record that the skill remains accurate
+or name the maintained rules needing an update. Make those edits when authorized
+by the task; otherwise report the follow-up. A structural change can require
+no skill edit.
+
+## Verify and hand off
+
+- Verify changed claims, labels, routes, samples, and capability restrictions
+  against the selected implementation evidence.
+- Check changed Markdown with `.github/linters/.markdownlint.json`, and check
+  affected links and image paths. Reuse the link-checker configuration in
+  `.github/workflows/link-checker.yaml` where applicable.
+- For new or moved pages, image or navigation changes, or formatting changes to
+  tables or callouts, run `npm -w @netcracker/qip-ui run fetch-docs` and inspect the
+  affected result. `help/docs/` is the source; `ui/public/doc/` is generated.
+  For a running-stack browser check, use `http://localhost:8080` through nginx.
+- Do not rely on UI or extension build workflows for a docs-only PR: their
+  path filters omit `help/docs/`. A prose correction needs no full stack build.
+
+Leave edits unstaged by default. Respect authorization already given in the
+conversation for later commit or PR work. End with a short summary of changed
+pages and assets, why they changed, checks performed, and unresolved factual
+or structural-guidance questions. A no-change result includes its reason.
+Keep this handoff out of product documentation.

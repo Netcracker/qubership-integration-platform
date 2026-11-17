@@ -7,7 +7,7 @@
 ---
 Tab is specifically designed to contain developer tools for the purposes of testing and debugging.
 
-> ⚠️ **Warning:** Tab is **only** available for non-production environments, and provided tools shall not serve to any other purposes besides testing and debugging.
+> ⚠️  Tab is **only** available for non-production environments, and provided tools shall not serve to any other purposes besides testing and debugging.
 
 ## User Interface
 

@@ -49,6 +49,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 > - Checkpoint cannot be processed within the [Loop] element.
 > - Retry mechanism restores objects of the original classes if these classes implement **serializable interface**, for example: public class **ObjectNode** implements **java.io.Serializable** {...}.
 > - Properties of object type won't be restored as part of Retry process, if the classes for such properties were defined via scripts.
+> - An engine domain accepts a retry request only for a chain that is deployed on that domain. Otherwise it responds with HTTP 404 and the message `Chain <chainId> is not deployed on this engine; can't retry session with id: <sessionId>` The micro-engine applies this check to retry from the last checkpoint and to retry from a specific checkpoint, while the classic engine applies it to retry from the last checkpoint only.
 
 ## Process Initialization
 

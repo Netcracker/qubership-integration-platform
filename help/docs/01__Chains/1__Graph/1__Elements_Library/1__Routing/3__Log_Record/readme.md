@@ -6,7 +6,7 @@
 Message could be built from a property, variable, script outcome, constant text or via using SIMPLE language.
 Message, that has been configured within this element will be logged as a new record in microservice logs with common Cloud Integration Platform parameters and format preserved.
 
-> ℹ️ **Note:** Message won't be logged if chain is deployed with a logging level higher than selected in this list.
+> ℹ️  Message won't be logged if chain is deployed with a logging level higher than selected in this list.
 
 ## User Interface
 
