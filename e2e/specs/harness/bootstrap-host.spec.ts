@@ -10,26 +10,40 @@ const made: string[] = [];
 function bootstrap(args: string[], failCni = false, existing = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-bootstrap-"));
   made.push(dir);
-  const log = path.join(dir, "commands.jsonl");
-  const program = `#!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
-const tool = path.basename(process.argv[1]);
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.HOST_BOOTSTRAP_LOG, JSON.stringify([tool, ...args]) + '\\n');
-if (tool === 'kind' && args[0] === 'get' && process.env.HOST_EXISTING_KIND) console.log('qip');
-if (tool === 'kubectl' && args.join(' ') === 'config current-context') console.log('docker-desktop');
-if (tool === 'kubectl' && args.includes('get') && args.includes('metrics-server')) console.log('v0.9.0 --kubelet-insecure-tls');
-if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || args.includes('daemonset/ztunnel'))) process.exit(19);
-`;
-  for (const tool of ["kubectl", "helm", "kind", "istioctl"]) {
-    fs.writeFileSync(path.join(dir, tool), program, { mode: 0o755 });
-  }
-  const result = spawnSync(bashExecutable(), [path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh").split(path.sep).join("/"), ...args], {
+  const log = path.join(dir, "commands");
+  const stubs = path.join(dir, "tools.sh");
+  // Source the stubs in Git Bash to avoid a Node startup for every command.
+  fs.writeFileSync(stubs, String.raw`
+fake_tool() {
+  printf '%s\0' "$#" "$@" >> "$HOST_BOOTSTRAP_LOG"
+  local tool="$1"
+  shift
+  if [[ -n "$HOST_FAIL_CNI" && "$tool" == kubectl ]]; then
+    case " $* " in
+      *" daemonset/istio-cni-node "*|*" daemonset/ztunnel "*) return 19 ;;
+    esac
+  fi
+  case "$tool:$*" in
+    "kind:get clusters")
+      if [[ -n "$HOST_EXISTING_KIND" ]]; then echo qip; fi
+      ;;
+    "kubectl:config current-context") echo docker-desktop ;;
+    kubectl:*" get deployment metrics-server "*) echo 'v0.9.0 --kubelet-insecure-tls' ;;
+  esac
+}
+kubectl() { fake_tool kubectl "$@"; }
+kind() { fake_tool kind "$@"; }
+helm() { fake_tool helm "$@"; }
+istioctl() { fake_tool istioctl "$@"; }
+`);
+  const bashPath = (file: string) => file.split(path.sep).join("/");
+  const script = bashPath(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"));
+  const result = spawnSync(bashExecutable(), [
+    "-ec", 'source "$1"; script="$2"; shift 2; source "$script" "$@"', "bootstrap-host", bashPath(stubs), script, ...args,
+  ], {
     env: {
       ...process.env,
-      PATH: `${dir}${path.delimiter}${process.env.PATH}`,
-      HOST_BOOTSTRAP_LOG: log,
+      HOST_BOOTSTRAP_LOG: bashPath(log),
       HOST_FAIL_CNI: failCni ? "1" : "",
       HOST_EXISTING_KIND: existing ? "1" : "",
       E2E_ZTUNNEL_ORIG_SRC: "false",
@@ -37,7 +51,14 @@ if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || a
     encoding: "utf8",
     timeout: 10_000,
   });
-  const commands = fs.readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
+  if (result.error) throw result.error;
+  const fields = fs.readFileSync(log, "utf8").split("\0");
+  const commands: string[][] = [];
+  for (let i = 0; i < fields.length - 1;) {
+    const count = Number(fields[i++]);
+    commands.push(fields.slice(i, i + count));
+    i += count;
+  }
   return { ...result, commands };
 }
 
@@ -59,7 +80,7 @@ test.describe("cluster bootstrap host", () => {
 
   test("a failed CNI rollout stops the cluster bootstrap", () => {
     const result = bootstrap([], true);
-    expect(result.status).toBe(19);
+    expect(result.status, result.stderr).toBe(19);
     expect(result.commands.some((args) => args[0] === "helm")).toBe(false);
   });
 
