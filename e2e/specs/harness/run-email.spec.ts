@@ -31,7 +31,7 @@ const RUN = `${REPO}/actions/runs/38898485986`;
 
 type Test = { projectName: string; status: string; annotations?: { type: string; description?: string }[]; results: { status?: string; errors?: { message: string; location?: { file: string; line: number } }[] }[] };
 type Spec = { title: string; file: string; line: number; tests: Test[] };
-type Suite = { title: string; specs: Spec[]; suites?: Suite[] };
+type Suite = { title: string; file?: string; specs: Spec[]; suites?: Suite[] };
 
 /** A report over `projects`, each name mapped to the projects it depends on. */
 function reportOf(projects: Record<string, string[]>, suites: Suite[], errors: { message: string }[] = []) {
@@ -88,6 +88,15 @@ test.describe("run email", () => {
   const retryOf = (command: string) => new RegExp(command.match(/-g "(.*)"$/)![1]);
 
   test.describe("retry command", () => {
+    test("selects the entry file for a shared suite", () => {
+      const spec = { ...failing("runtime", "answers", "Error: wrong body", 9), file: "../suites/http-echo.ts" };
+      const entry = { ...file("runtime/http-echo.spec.ts", [], [file("HTTP echo chain", [spec])]), file: "runtime/http-echo.spec.ts" };
+      const report = reportOf({ runtime: [] }, [entry]);
+      const failure = emailOf({ report, env: ENV }).failed[0];
+      expect(failure.retry).toBe('npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts -g "HTTP echo chain.*answers"');
+      expect(failure.location.href).toBe(`${REPO}/blob/${SHA}/e2e/suites/http-echo.ts#L9`);
+    });
+
     test("reuses the captured run for process checks only", () => {
       const report = reportOf({ "process-envelope": [], api: [] }, [
         file("env/process-envelope.spec.ts", [failing("process-envelope", "checks readings", "Error: over budget")]),

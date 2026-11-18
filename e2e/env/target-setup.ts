@@ -1,3 +1,4 @@
+import { suiteExtension } from "./suite-extension.js";
 /**
  * What differs between the two targets, behind one interface.
  *
@@ -294,6 +295,7 @@ function k8sSetup(): TargetSetup {
 }
 
 /** The setup of `name`, which defaults to the target `CIP_TARGET` names. */
-export function targetSetup(name: Target = target()): TargetSetup {
-  return name === "compose" ? composeSetup() : k8sSetup();
+export function targetSetup(name?: Target): TargetSetup {
+  const base = (name ?? target()) === "compose" ? composeSetup() : k8sSetup();
+  return name === undefined ? suiteExtension().target?.(base) ?? base : base;
 }

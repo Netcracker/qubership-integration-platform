@@ -1,3 +1,4 @@
+import { suiteExtension } from "../env/suite-extension.js";
 /**
  * Builds `schemas/` once per run, before the `ui-server` setup bundles the UI.
  *
@@ -28,6 +29,8 @@ export async function schemasAreStale(schemasDir = path.resolve(repoRoot(), "sch
 
 /** Builds the schemas when they are stale, and reports whether it did. */
 export async function ensureSchemas(): Promise<boolean> {
+  const override = suiteExtension().lifecycle?.schemas;
+  if (override) return await override();
   const state = schemasBuildState();
   const fingerprint = state.fingerprint();
   if (!(await state.isStale(fingerprint))) return false;

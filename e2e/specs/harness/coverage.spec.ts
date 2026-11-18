@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 /**
  * The gap detector: the coverage registry against the schemas, and against the run.
  *
@@ -184,7 +185,7 @@ test.describe("coverage registry", () => {
       // registry is the largest guard in the suite, and a guard that has only ever been seen going
       // green is indistinguishable from one that cannot go red. `fixtures/schema-mutation/` holds one
       // element that is not a platform element, so nothing writes into `schemas/` to arrange this.
-      const mutated = "fixtures/schema-mutation";
+      const mutated = fileURLToPath(new URL("../../fixtures/schema-mutation", import.meta.url));
 
       const families = collectElementSchemaFiles(mutated).map(elementNameOf);
       expect(families, "the fixture directory holds the probe and nothing else").toEqual(["gap-probe"]);

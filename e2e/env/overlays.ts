@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "./platform-http.js";
 /**
  * The host-side probes that tell a broker overlay is serving, shared by the Compose and Kubernetes
  * adapters. Each probe resolves to `null` once the broker answers, or to a description of what is

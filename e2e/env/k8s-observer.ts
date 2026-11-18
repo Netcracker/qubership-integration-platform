@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "./platform-http.js";
 /**
  * The Kubernetes observer: the baseline envelope, the resource sampler, and the run header facts.
  *

@@ -39,8 +39,8 @@
  * project by construction: that project is defined as needing no stack.
  */
 import { expect, type APIRequestContext, type APIResponse } from "@playwright/test";
-import { callToken } from "./run.js";
-import { noteSession, noteSessionLookup } from "./diagnostics.js";
+import { callToken } from "./run-token.js";
+import { noteSession, noteSessionLookup } from "./diagnostic-record.js";
 import { noteReached } from "../registry/reached.js";
 import { serviceUrl } from "../env/containers.js";
 

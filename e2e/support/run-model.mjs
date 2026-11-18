@@ -97,9 +97,10 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
     const isFixedPin = fixedPinIn(report);
     const group = groupOf(report);
     const stackless = new Set((report.config.projects ?? []).filter((each) => each.metadata?.stack === false).map((each) => each.name));
-    eachTest(report, (spec, test, title) => {
+    eachTest(report, (spec, test, title, entryFile) => {
       if (test.status !== "unexpected") return;
-      const location = { text: `${spec.file}:${spec.line}`, href: blob(`specs/${spec.file}`, spec.line) };
+      const location = { text: `${spec.file}:${spec.line}`, href: blob(path.posix.normalize(`specs/${spec.file}`), spec.line) };
+      const selection = entryFile && entryFile !== spec.file ? entryFile : location.text;
       if (isFixedPin(test)) {
         const defect = test.annotations?.find((each) => each.type === "fail" && each.description)?.description;
         pins.push({ project: test.projectName, title, location, defect });
@@ -116,7 +117,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
         location,
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
-        retry: rerunCommand(target, test.projectName, location.text, title, !stackless.has(test.projectName), stack?.run),
+        retry: rerunCommand(target, test.projectName, selection, title, !stackless.has(test.projectName), stack?.run),
         history: past,
         novelty: past?.kind ?? (history.length > 0 ? "new" : "unknown"),
         sameCommit: past && past.kind !== "recurring" ? Boolean(sha) && past.previous.sha === sha : undefined,

@@ -97,6 +97,10 @@ jobs:
         working-directory: ai-service/e2e
         run: python -m unittest test_system.tests.test_host test_system.tests.test_runs test_system.tests.test_server test_system.tests.test_acceptance
 
+      - name: Check the npm package in a consumer project
+        if: matrix.target == 'compose'
+        run: npm run build && npm run test:package
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 

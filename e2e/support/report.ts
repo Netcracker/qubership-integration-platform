@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * What the run tested, and what it found: the two documents a person reads after the suite stops.
  *

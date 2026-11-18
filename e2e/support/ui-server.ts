@@ -1,3 +1,5 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
+import { suiteExtension } from "../env/suite-extension.js";
 /**
  * The production bundle on port 4200, where nginx sends every request outside `/api/`.
  *
@@ -158,8 +160,9 @@ async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
  * `stopUiServer`.
  */
 export async function ensureUiServer(): Promise<{ pid: number | null; built: boolean }> {
+  const override = suiteExtension().lifecycle?.startUi;
   try {
-    return await serveBundle();
+    return override ? await override() : await serveBundle();
   } finally {
     // A setup that built nothing lets the `vscode-server` builds go.
     new BuildLock().dropReservation(BUNDLE_HOLDER);
@@ -201,5 +204,7 @@ async function serveBundle(): Promise<{ pid: number | null; built: boolean }> {
  * stay up.
  */
 export async function stopUiServer(): Promise<void> {
+  const override = suiteExtension().lifecycle?.stopUi;
+  if (override) return await override();
   await server.stop();
 }

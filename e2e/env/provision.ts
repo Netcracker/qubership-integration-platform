@@ -1,3 +1,4 @@
+import { apiOptions } from "./suite-extension.js";
 /**
  * The `globalSetup` of every run: the run token, the previous-run sweep, and the dispatch to the
  * target that brings the stack to the commit under test.
@@ -243,7 +244,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // After provisioning, because it needs the catalog answering, and before any project, because a
   // previous run's chains are deployed and hold routes this run's fixtures do not collide with but
   // a person reading the stack does.
-  const api = await request.newContext();
+  const api = await request.newContext(apiOptions("runtime-catalog"));
   try {
     // The candidates are read once and handed to the sweep, so the manifest before and after name
     // the same set of runs and the difference between them is what the sweep forgot.

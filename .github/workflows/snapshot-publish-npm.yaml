@@ -30,6 +30,7 @@ on:
         options:
           - ui
           - vscode-extension
+          - e2e
         default: ui
       release-type:
         description: "Base version bump for the dev pre-release (patch | minor | major)"
@@ -80,8 +81,10 @@ jobs:
           registry-url: "https://npm.pkg.github.com"
           scope: "@netcracker"
           cache: "npm"
+          cache-dependency-path: ${{ inputs.module == 'e2e' && 'e2e/package-lock.json' || 'package-lock.json' }}
 
-      - name: Install dependencies (root workspaces)
+      - name: Install dependencies
+        working-directory: ${{ inputs.module == 'e2e' && 'e2e' || '.' }}
         run: npm ci
 
       # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so

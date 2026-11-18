@@ -27,7 +27,11 @@ const problemsOf = (source: string) => titleProblems(source, "a.spec.ts");
 test.describe("title rules", () => {
   test("every spec keeps them", () => {
     expect(SPEC_FILES, "the lint does not read a known spec file").toEqual(expect.arrayContaining(["harness/title-rules.spec.ts", "api/chains.spec.ts"]));
-    expect(SPEC_FILES.flatMap(problemsIn)).toEqual([]);
+    const suitesDir = path.join(SPECS, "..", "suites");
+    const suites = fs.readdirSync(suitesDir).filter((file) => file.endsWith(".ts"));
+    expect(suites).toEqual(expect.arrayContaining(["chains.ts", "folders.ts", "http-echo.ts"]));
+    const suiteProblems = suites.flatMap((file) => titleProblems(fs.readFileSync(path.join(suitesDir, file), "utf-8"), `suites/${file}`));
+    expect([...SPEC_FILES.flatMap(problemsIn), ...suiteProblems]).toEqual([]);
   });
 
   test.describe("titleProblems", () => {

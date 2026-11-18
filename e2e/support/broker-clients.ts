@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The Kafka, AMQP, Pub/Sub and SFTP clients a broker spec drives itself, host-side.
  *
