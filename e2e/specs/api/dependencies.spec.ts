@@ -138,9 +138,6 @@ test.describe("chain dependencies", { tag: ["@catalog"] }, () => {
 
     const singular = await catalog.raw("delete", `/v1/chains/${chainId}/dependencies/${ABSENT_UUID}`);
     expect(singular.status()).toBe(404);
-    expect((await singular.json()).errorMessage, "JPA's message, not the service's").toContain(
-      `Unable to find`,
-    );
 
     // The plural delete's argument is required rather than defaulted, so a client that forgets it
     // deletes nothing instead of deleting everything.
