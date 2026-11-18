@@ -123,7 +123,11 @@ public class ConsulClient {
     }
 
     public void createOrUpdateKV(String key, Object value) {
-        HttpEntity<Object> entity = new HttpEntity<>(value, buildCommonHeaders());
+        HttpHeaders headers = buildCommonHeaders();
+        if (value instanceof String) {
+            headers.setContentType(MediaType.TEXT_PLAIN);
+        }
+        HttpEntity<Object> entity = new HttpEntity<>(value, headers);
         ResponseEntity<String> response = restTemplate.exchange(consulUrl + CONSUL_KV_PATH + key,
                 HttpMethod.PUT, entity, String.class);
 

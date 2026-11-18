@@ -128,9 +128,9 @@ public class OperationService {
         return operation;
     }
 
-    public String getSpecification(String operationId) {
+    public JsonNode getSpecification(String operationId) {
         Operation operation = getOperation(operationId);
-        return operation.getSpecification().toString();
+        return operation.getSpecification();
     }
 
     public JsonNode getRequestSchema(String operationId, String contentType) {
