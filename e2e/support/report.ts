@@ -1,4 +1,3 @@
-import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * What the run tested, and what it found: the two documents a person reads after the suite stops.
  *
@@ -31,6 +30,7 @@ import { eachSpec, reportTarget } from "../registry/elements.ts";
 import type { JsonReport, JsonResult, JsonTest } from "../registry/elements.ts";
 import { CONTAINER } from "../env/compose-containers.ts";
 import { serviceUrl } from "../env/containers.ts";
+import { platformFetch as fetch } from "../env/platform-http.ts";
 import type { ServiceRole } from "../env/index.ts";
 import type { ProvisionReport } from "../env/provision.ts";
 import { publishedLabel } from "./run-report.mjs";

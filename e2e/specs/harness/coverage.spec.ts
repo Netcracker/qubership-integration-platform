@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 /**
  * The gap detector: the coverage registry against the schemas, and against the run.
@@ -329,6 +331,18 @@ test.describe("coverage registry", () => {
   });
 
   test.describe("reconcile", () => {
+    test("the reconciliation command reads a partial report in Node", ({}, testInfo) => {
+      const report = testInfo.outputPath("report.json");
+      const script = fileURLToPath(new URL("../../registry/reconcile.mjs", import.meta.url));
+      writeFileSync(report, JSON.stringify(reachedReportOf("expected", "catalog GET /v1/folders")));
+
+      const output = execFileSync(process.execPath, ["--experimental-strip-types", script, "--partial", report], {
+        encoding: "utf8",
+      });
+      expect(output).toContain("partial coverage reconciliation");
+      expect(output).toContain("passed");
+    });
+
     test("a covered row backed by a passing declaration reconciles", () => {
       expect(reconcile(reportOf("expected", "condition"), [coveredRow])).toEqual([]);
     });

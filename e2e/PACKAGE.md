@@ -1,6 +1,6 @@
-# Run and extend the full E2E suite
+# Run and extend the full end-to-end suite
 
-`@netcracker/qip-e2e` distributes the complete E2E suite: API, runtime, UI, brokers, restarts, global checks, Kubernetes and micro-engine checks, VS Code, AI tooling, schema checks, and harness checks.
+`@netcracker/qip-e2e` distributes the complete end-to-end suite: API, runtime, UI, brokers, restarts, global checks, Kubernetes and micro-engine checks, VS Code, AI tooling, schema checks, and harness checks.
 The package keeps the original project dependencies, setup, teardown, fixtures, and coverage registries.
 The Compose and Kubernetes profiles select the same cases as the source repository.
 
@@ -92,7 +92,7 @@ The adapter exports a `SuiteExtension` object. Its extension points are:
 | `lifecycle.schemas` | Prepare schema outputs |
 | `lifecycle.startUi` / `stopUi` | Start or reuse the application's UI and release resources owned by the run |
 | `lifecycle.startVsCode` / `stopVsCode` | Prepare and stop the consuming application's VS Code workbench |
-| `kubernetes` | Override Kubernetes commands and deployment, container, or micro-service naming |
+| `kubernetes` | Override Kubernetes commands and deployment, container, or microservice naming |
 
 Import the adapter type with `import type { SuiteExtension } from '@netcracker/qip-e2e/full'`.
 `target` receives the selected reference adapter. You can reuse its operations and replace those that differ in the application.

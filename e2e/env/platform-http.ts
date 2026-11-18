@@ -1,6 +1,6 @@
 import type { APIRequestContext } from "@playwright/test";
-import { apiOptions } from "./suite-extension.js";
-import { ROLES, serviceUrl, proxyUrl } from "./containers.js";
+import { apiOptions } from "./suite-extension.ts";
+import { ROLES, serviceUrl, proxyUrl } from "./containers.ts";
 
 function headersFor(url: string): Record<string, string> {
   if (!process.env.QIP_E2E_API_OPTIONS) return {};

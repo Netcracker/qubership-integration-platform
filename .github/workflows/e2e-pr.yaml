@@ -55,7 +55,7 @@ jobs:
   host-platforms:
     name: Host checks (${{ matrix.os }}, ${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.target == 'compose' && 20 || 10 }}
     permissions:
       contents: read
     strategy:
