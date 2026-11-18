@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -49,16 +50,20 @@ public class WebAutoConfiguration implements WebMvcConfigurer {
         registry.addConverter(stringToFolderContentFilterConverter);
     }
 
-    /**
-     * The Jackson 2 converter bean is registered ahead of the defaults and writes a {@code byte[]}
-     * response as a base64 JSON string, which left {@code /v3/api-docs} unreadable to its consumers.
-     */
+    /** Keep binary response converters ahead of Jackson so byte arrays and resources are written as files. */
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+        int nextPriorityIndex = 0;
         for (int i = 0; i < converters.size(); i++) {
             if (converters.get(i) instanceof ByteArrayHttpMessageConverter) {
-                converters.add(0, converters.remove(i));
-                return;
+                converters.add(nextPriorityIndex++, converters.remove(i));
+                break;
+            }
+        }
+        for (int i = 0; i < converters.size(); i++) {
+            if (converters.get(i) instanceof ResourceHttpMessageConverter) {
+                converters.add(nextPriorityIndex, converters.remove(i));
+                break;
             }
         }
     }

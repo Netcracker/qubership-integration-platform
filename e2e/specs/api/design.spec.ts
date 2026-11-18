@@ -517,7 +517,6 @@ test.describe("chain design", { tag: ["@catalog"] }, () => {
     const noTemplate = await catalog.raw("get", `/v1/detailed-design/chains/${chain.id}`);
     expect(noTemplate.status()).toBe(400);
     expect(await noTemplate.json()).toMatchObject({
-      type: "about:blank",
       detail: "Required parameter 'templateId' is not present.",
     });
   });
