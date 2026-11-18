@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile, rm, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,7 +52,6 @@ export default defineConfig<{}, QipOptions>({
   await writeFile(path.join(consumer, "tsconfig.json"), JSON.stringify({ compilerOptions: {
     module: "NodeNext", moduleResolution: "NodeNext", target: "ES2022", strict: true, noEmit: true,
   }, include: ["*.ts", "tests", "application-tests"] }));
-  const { mkdir } = await import("node:fs/promises");
   await mkdir(path.join(consumer, "tests"));
   await writeFile(path.join(consumer, "tests", "echo.spec.ts"), `
 import { test as base, expect, type EchoChain } from '@netcracker/qip-e2e';
@@ -102,6 +101,23 @@ export default await createSuiteConfig({
   config: { workers: 4, reporter: [['json', { outputFile: 'full-results.json' }]] },
 });
 `);
+  if (process.argv.includes("--host-smoke")) {
+    environment.CIP_TARGET = "compose";
+    const host = await run(process.execPath, [
+      cli, "test", "--config=full.config.ts", "--project=harness", "--workers=2", "--reporter=line",
+      "bootstrap-host.spec.ts", "build-lock.spec.ts", "host-process.spec.ts", "process-group.spec.ts",
+    ]);
+    process.stdout.write(host.stdout);
+  } else {
+    await verifyFullSuite(cli, nodeModules);
+  }
+  assert.deepEqual(await readdir(packageRoot, { recursive: true }), before);
+} finally {
+  await server.close();
+  await rm(consumer, { recursive: true, force: true });
+}
+
+async function verifyFullSuite(cli, nodeModules) {
   await run(process.execPath, ["--input-type=module", "-e", `
 import assert from "node:assert/strict";
 import { prepareSuite } from "@netcracker/qip-e2e/full";
@@ -250,8 +266,4 @@ export const pages = [ChainsPage, ChainGraphPage, VsCodePage];
   assert.deepEqual((await readFile(events, 'utf8')).trim().split('\n'), ['service','broker','ui','ui-stop','schemas','vscode','vscode-stop']);
   server.assertFullClean();
   console.log('Full suite consumer passed: scoped credentials, owned cleanup, fixture extensions, and lifecycle callbacks.');
-  assert.deepEqual(await readdir(packageRoot, { recursive: true }), before);
-} finally {
-  await server.close();
-  await rm(consumer, { recursive: true, force: true });
 }
