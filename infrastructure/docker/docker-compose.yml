@@ -404,7 +404,7 @@ services:
       - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
 
   consul:
-    image: hashicorp/consul:1.15.4
+    image: hashicorp/consul:2.1.0
     container_name: consul
     volumes:
       - ./consul/server.json:/consul/config/server.json:ro
