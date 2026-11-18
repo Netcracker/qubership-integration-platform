@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile, rm, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, rm, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -111,10 +111,27 @@ export default await createSuiteConfig({
   } else {
     await verifyFullSuite(cli, nodeModules);
   }
+  await verifyRelocation();
   assert.deepEqual(await readdir(packageRoot, { recursive: true }), before);
 } finally {
   await server.close();
   await rm(consumer, { recursive: true, force: true });
+}
+
+async function verifyRelocation() {
+  const moved = `${consumer}-moved`;
+  await rename(consumer, moved);
+  try {
+    const playwright = path.join(moved, "node_modules/@playwright/test/cli.js");
+    const result = await run(process.execPath, [
+      playwright, "test", "--config=full.config.ts", "--project=harness", "--reporter=line",
+      "host-process.spec.ts", "--grep", "the provisioner records and stops its resource sampler",
+    ], moved);
+    assert.match(result.stdout, /1 passed/);
+    console.log("The installed suite reuses its workspace after the consumer directory moves.");
+  } finally {
+    await rename(moved, consumer);
+  }
 }
 
 async function verifyFullSuite(cli, nodeModules) {
@@ -192,6 +209,12 @@ export default {
     vscodeGuard: async ({}, use) => { await use(); },
     vscode: async ({}, use) => { await use(Object.assign(Object.create(VsCodePage.prototype), {application:true})); },
   }),
+  kubernetes: {
+    async kubectl(args) {
+      if (args[0] !== 'top') throw new Error('Expected a resource sample');
+      return 'cip-engine-v1-deployment-pod cip-engine 12m 20Mi';
+    },
+  },
   lifecycle: {
     schemas: async () => { event('schemas'); return false; },
     startUi: async () => { event('ui'); return { pid: null, built: false }; },
@@ -257,11 +280,32 @@ test('extends the VS Code fixtures without a product stack', async ({vscode}: {v
   expect(vscode).toEqual({application:true});
 });
 `);
+  await writeFile(path.join(consumer, 'application-tests', 'sampler.spec.ts'), `
+import { test, expect } from '@playwright/test';
+import { pathToFileURL } from 'node:url';
+const env = process.env.QIP_E2E_WORKSPACE + '/e2e/env/';
+test('samples Kubernetes through the installed suite adapter', async () => {
+  const { targetSetup } = await import(pathToFileURL(env + 'target-setup.ts').href);
+  const { readK8sPeaks } = await import(pathToFileURL(env + 'k8s-observer.ts').href);
+  const { stopResourceSampler } = await import(pathToFileURL(env + 'resources.ts').href);
+  const stop = targetSetup('k8s').observer.startSampler('application-sampler', []);
+  try {
+    await expect.poll(() => readK8sPeaks()).toEqual([
+      { role: 'engine', memoryBytes: 20 * 1024 * 1024, cpuPercent: 1.2, samples: 1 },
+    ]);
+  } finally {
+    stop?.();
+    stopResourceSampler(undefined, 'application-sampler');
+  }
+});
+`);
   await writeFile(path.join(consumer, 'page-imports.ts'), `
 import { ChainsPage, ChainGraphPage, VsCodePage } from '@netcracker/qip-e2e/pages';
 export const pages = [ChainsPage, ChainGraphPage, VsCodePage];
 `);
   await run(process.execPath, [path.join(nodeModules, 'typescript/bin/tsc')]);
+  environment.E2E_RESOURCES_FILE = path.join(consumer, 'adapter-resources.json');
+  environment.E2E_SAMPLES_FILE = path.join(consumer, 'adapter-samples.jsonl');
   await run(process.execPath, [cli, 'test', '--config=application.config.ts', '--project=application']);
   assert.deepEqual((await readFile(events, 'utf8')).trim().split('\n'), ['service','broker','ui','ui-stop','schemas','vscode','vscode-stop']);
   server.assertFullClean();

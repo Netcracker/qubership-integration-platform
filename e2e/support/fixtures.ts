@@ -1,6 +1,6 @@
-import { authenticatedRequest } from "../env/platform-http.js";
+import { authenticatedRequest, newPlatformRequest } from "../env/platform-http.js";
 import { platformFetch as fetch } from "../env/platform-http.js";
-import { apiOptions, extendSuiteTest } from "../env/suite-extension.js";
+import { extendSuiteTest } from "../env/suite-extension.js";
 /**
  * The entities a run creates, and the two mechanisms that remove them again.
  *
@@ -186,7 +186,7 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
 
   catalog: [
     async ({ playwright }, use) => {
-      const api = await playwright.request.newContext(apiOptions("runtime-catalog"));
+      const api = await newPlatformRequest(playwright.request, "runtime-catalog");
       await use(new Catalog(api));
       await api.dispose();
     },
@@ -195,7 +195,7 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
 
   engine: [
     async ({ playwright, env }, use) => {
-      const api = await playwright.request.newContext(apiOptions("engine"));
+      const api = await newPlatformRequest(playwright.request, "engine", env.engineUrl());
       await use(new Engine(api, env.engineUrl()));
       await api.dispose();
     },
@@ -204,7 +204,7 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
 
   testingService: [
     async ({ playwright, env }, use) => {
-      const api = await playwright.request.newContext(apiOptions("testing-service"));
+      const api = await newPlatformRequest(playwright.request, "testing-service", env.url("testing-service"));
       await use(new TestingService(api, env));
       await api.dispose();
     },
@@ -840,7 +840,7 @@ export default async function globalTeardown(): Promise<void> {
   // all.
   stopResourceSampler(RESOURCES_FILE, run);
 
-  const api = await playwrightRequest.newContext(apiOptions("runtime-catalog"));
+  const api = await newPlatformRequest(playwrightRequest, "runtime-catalog");
   const catalog = new Catalog(api);
   try {
     // Outside the sweep because nothing can delete it: a secret named after this run is a leak that

@@ -8,6 +8,7 @@ import type { PlaywrightTestConfig } from "@playwright/test";
 import type { SuiteExtension, RequestOptions } from "../env/suite-extension.js";
 import type { ServiceRole } from "../env/index.js";
 import type { Target } from "../env/target.js";
+import { setServiceUrls } from "../env/containers.js";
 
 export type { SuiteExtension, RequestOptions };
 export type { Env, EngineKind, ServiceRole } from "../env/index.js";
@@ -56,9 +57,22 @@ function linkDependencies(root: string): void {
   fs.mkdirSync(directory, { recursive: true });
   for (const name of names) {
     const destination = path.join(directory, name);
-    if (fs.existsSync(destination)) continue;
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.symlinkSync(packageRoot(name), destination, process.platform === "win32" ? "junction" : "dir");
+    const existing = fs.lstatSync(destination, { throwIfNoEntry: false });
+    if (existing && !existing.isSymbolicLink()) continue;
+    const target = packageRoot(name);
+    const parent = path.dirname(destination);
+    if (existing) {
+      if (fs.existsSync(destination) && fs.realpathSync(destination) === target) continue;
+      fs.rmSync(destination, { force: true });
+    }
+    fs.mkdirSync(parent, { recursive: true });
+    const link = process.platform === "win32" ? target : path.relative(parent, target);
+    try {
+      fs.symlinkSync(link, destination, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST"
+        || fs.realpathSync(destination) !== target) throw error;
+    }
   }
 }
 
@@ -108,7 +122,10 @@ export async function prepareSuite(options: Pick<FullSuiteOptions, "workspaceDir
   if (options.sourceRoot) return path.resolve(options.sourceRoot);
   const snapshot: Snapshot = JSON.parse(fs.readFileSync(path.join(PACKAGE, "snapshot.json"), "utf8"));
   const root = path.resolve(options.workspaceDir ?? path.join(process.cwd(), ".qip-e2e", `${snapshot.version}-${snapshot.digest.slice(0, 12)}`));
-  if (matchesSnapshot(root, snapshot)) return root;
+  if (matchesSnapshot(root, snapshot)) {
+    linkDependencies(root);
+    return root;
+  }
   try {
     fs.rmdirSync(root);
   } catch (error) {
@@ -144,11 +161,7 @@ export async function createSuiteConfig(options: FullSuiteOptions): Promise<Play
   process.env.CIP_TARGET = options.target;
   if (options.kubernetes?.namespace) process.env.QIP_E2E_NAMESPACE = options.kubernetes.namespace;
   if (options.kubernetes?.release) process.env.QIP_E2E_RELEASE = options.kubernetes.release;
-  const variables: Record<ServiceRole, string> = {
-    "runtime-catalog": "CIP_CATALOG_URL", engine: "CIP_ENGINE_URL",
-    "sessions-management": "CIP_SESSIONS_URL", "testing-service": "CIP_TESTING_SERVICE_URL",
-  };
-  for (const [role, url] of Object.entries(options.services ?? {})) process.env[variables[role as ServiceRole]] = url;
+  setServiceUrls(options.services ?? {});
   if (options.proxyUrl) process.env.CIP_PROXY_URL = options.proxyUrl;
   process.env.QIP_E2E_API_OPTIONS = JSON.stringify({ common: options.request, services: options.serviceRequests });
   const extension: SuiteExtension = options.adapter

@@ -6,13 +6,13 @@ import { platformFetch as fetch } from "./platform-http.js";
  * --containers`, which metrics-server answers. Its rows name the service container apart from the
  * Istio sidecar, and only the service container is counted.
  */
-import type { SampleCommand } from "./resources.js";
 import fs from "node:fs";
 import type { ProcessEnvelope, ResourcePeak, ServiceRole } from "./index.js";
 import { ROLES, serviceUrl } from "./containers.js";
 import { capture } from "./host.js";
 import { containerOf, deploymentOf, helm, k8sProcessEnvelope, kubectl, NAMESPACE, RELEASE } from "./k8s.js";
-import { mergePeaks, SAMPLES_FILE } from "./resources.js";
+import { mergePeaks, SAMPLES_FILE, startCallbackSampler, startResourceSampler } from "./resources.js";
+import { suiteExtension } from "./suite-extension.js";
 import type { ProvisionReport } from "./provision.js";
 import type { ReleaseFacts, ServiceFacts, StackFacts } from "../support/report.js";
 import { collectCommitFacts } from "../support/report.js";
@@ -69,8 +69,11 @@ export function readK8sPeaks(file: string = SAMPLES_FILE): ResourcePeak[] {
   return peaks;
 }
 
-export function topSample(): SampleCommand {
-  return { command: "kubectl", args: ["top", "pod", "--containers", "--no-headers", "-n", NAMESPACE] };
+export function startK8sSampler(run: string, baseline: readonly ProcessEnvelope[]): (() => void) | void {
+  const args = ["top", "pod", "--containers", "--no-headers", "-n", NAMESPACE];
+  const override = suiteExtension().kubernetes?.kubectl;
+  if (override) return startCallbackSampler(run, baseline, () => override(args));
+  startResourceSampler(run, baseline, { command: "kubectl", args });
 }
 
 export async function k8sBaseline(): Promise<ProcessEnvelope[]> {

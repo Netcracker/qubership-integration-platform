@@ -1,5 +1,6 @@
 import type { APIRequest } from "@playwright/test";
 import type { DomainType } from "../support/catalog.js";
+import { authenticatedRequest, pathWithin } from "../env/platform-http.js";
 
 export type Endpoint = Omit<NonNullable<Parameters<APIRequest["newContext"]>[0]>, "baseURL"> & {
   url: string;
@@ -18,9 +19,12 @@ export interface QipOptions {
   qip: QipConnection | undefined;
 }
 
-export function endpointOptions(endpoint: Endpoint): Parameters<APIRequest["newContext"]>[0] {
-  const { url, ...options } = endpoint;
-  return { ...options, baseURL: url };
+export async function endpointRequest(request: APIRequest, endpoint: Endpoint) {
+  const { url, extraHTTPHeaders, ...options } = endpoint;
+  const api = await request.newContext({ ...options, baseURL: url });
+  if (!extraHTTPHeaders) return api;
+  const base = new URL(url);
+  return authenticatedRequest(api, url, (target) => pathWithin(target, base) === undefined ? {} : extraHTTPHeaders);
 }
 
 export function connection(value: QipConnection | undefined): QipConnection {

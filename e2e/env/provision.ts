@@ -1,4 +1,4 @@
-import { apiOptions } from "./suite-extension.js";
+import { newPlatformRequest } from "./platform-http.js";
 /**
  * The `globalSetup` of every run: the run token, the previous-run sweep, and the dispatch to the
  * target that brings the stack to the commit under test.
@@ -220,7 +220,7 @@ export function needsStack(config: FullConfig): boolean {
   return !selected.every((name) => stackFree.has(name));
 }
 
-export default async function globalSetup(config: FullConfig): Promise<void> {
+export default async function globalSetup(config: FullConfig): Promise<(() => void) | void> {
   // Before the run token is minted, because everything downstream of it — the sweep, the run
   // manifest, the header, the sampler — addresses a stack this run has none of.
   if (!needsStack(config)) {
@@ -244,7 +244,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // After provisioning, because it needs the catalog answering, and before any project, because a
   // previous run's chains are deployed and hold routes this run's fixtures do not collide with but
   // a person reading the stack does.
-  const api = await request.newContext(apiOptions("runtime-catalog"));
+  const api = await newPlatformRequest(request, "runtime-catalog");
   try {
     // The candidates are read once and handed to the sweep, so the manifest before and after name
     // the same set of runs and the difference between them is what the sweep forgot.
@@ -270,13 +270,10 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     absent: setup.absent,
   });
 
-  // The envelope every service is compared against at the end, taken after provisioning has
-  // finished restarting things and before any project has asked the stack to do anything. The
-  // sampler runs for the rest of the run: a peak lasts seconds, so nothing read afterwards is it.
-  setup.observer.startSampler(run, await setup.observer.baseline());
-
   // Before any worker starts, so the `vscode-server` builds cannot take the lock first.
+  const baseline = await setup.observer.baseline();
   if (await reserveBundleBuild(runProjects(config).map((project) => project.name))) {
     console.log("[build-lock] reserved for the UI bundle, which builds before the vscode-server builds");
   }
+  return setup.observer.startSampler(run, baseline);
 }

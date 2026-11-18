@@ -9,7 +9,7 @@ const runtimeTest = test.extend<{ echo: EchoChain }>({
     const chain = seedChain(corpus, "http-echo");
     await use({
       id: chain.id, url: env.chainUrl(chain.contextPath), marker: corpus.run,
-      markerHeader: "e2e-fixture", elementNames: ["HTTP Trigger", "Validate Request", "Header Modification"],
+      markerHeader: "e2e-fixture",
     });
   },
 });

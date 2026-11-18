@@ -71,7 +71,7 @@ export class ChainsPage {
   }
 
   /** Picks an item from a row's actions menu, whose button shows only while the row is hovered. */
-  async rowAction(name: string, action: string): Promise<void> {
+  async rowAction(name: string, action: string): Promise<Locator> {
     const row = this.row(name);
     await row.hover();
     await row.getByTestId("chains-row-actions").click();
@@ -88,6 +88,6 @@ export class ChainsPage {
       await popup.dispose();
     }
     await item.click();
-    await menu.waitFor({ state: "hidden" });
+    return menu;
   }
 }

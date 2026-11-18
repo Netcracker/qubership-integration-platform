@@ -39,7 +39,7 @@ export function registerHttpEchoTests<T extends EchoSuiteFixtures, W extends obj
       expect(session.externalSessionCipId).toBe(token);
       // Recursive, and that is the assertion: `Validate Request` is a child of the trigger, so a
       // reader that stops at the top level cannot see which branch an exchange took.
-      expect(elementNames(session)).toEqual(echo.elementNames);
+      expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "Header Modification"]);
       expect(failedElements(session)).toEqual([]);
     });
 

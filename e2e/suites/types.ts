@@ -13,7 +13,6 @@ export interface EchoChain {
   url: string;
   marker: string;
   markerHeader: string;
-  elementNames: string[];
 }
 
 export interface EchoSuiteFixtures {

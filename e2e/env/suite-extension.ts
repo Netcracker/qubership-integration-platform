@@ -43,12 +43,12 @@ export function extendSuiteTest<T extends TestType<any, any>>(base: T, kind: "pl
   return ((extend as ((value: T) => T) | undefined)?.(base) ?? base);
 }
 
-export function apiOptions(role?: ServiceRole): RequestOptions {
+export function apiOptions(role?: ServiceRole): Record<string, string> {
   const options = JSON.parse(process.env.QIP_E2E_API_OPTIONS ?? "{}") as {
     common?: RequestOptions;
     services?: Partial<Record<ServiceRole, RequestOptions>>;
   };
   const headers = new Headers(options.common?.extraHTTPHeaders);
   if (role) new Headers(options.services?.[role]?.extraHTTPHeaders).forEach((value, name) => headers.set(name, value));
-  return { extraHTTPHeaders: Object.fromEntries(headers) };
+  return Object.fromEntries(headers);
 }

@@ -5,7 +5,7 @@ import { Sessions, callChain } from "../support/sessions.js";
 import { createDeployableChain, MARKER_HEADER } from "../support/chain-builder.js";
 import { generateRunToken, tokenized, workerFolderName } from "../support/run-token.js";
 import type { CatalogSuiteFixtures, EchoChain } from "../suites/types.js";
-import { connection, endpointOptions, baseUrl, type QipOptions } from "./connection.js";
+import { connection, endpointRequest, baseUrl, type QipOptions } from "./connection.js";
 
 export interface QipTestFixtures {
   sessions: Sessions;
@@ -24,17 +24,17 @@ export const test = base.extend<QipTestFixtures, QipOptions & QipWorkerFixtures>
   qip: [undefined, { option: true, scope: "worker" }],
 
   _catalogRequest: [async ({ playwright, qip }, use) => {
-    const api = await playwright.request.newContext(endpointOptions(connection(qip).catalog));
+    const api = await endpointRequest(playwright.request, connection(qip).catalog);
     try { await use(api); } finally { await api.dispose(); }
   }, { scope: "worker" }],
 
   _engineRequest: [async ({ playwright, qip }, use) => {
-    const api = await playwright.request.newContext(endpointOptions(connection(qip).engine));
+    const api = await endpointRequest(playwright.request, connection(qip).engine);
     try { await use(api); } finally { await api.dispose(); }
   }, { scope: "worker" }],
 
   _sessionsRequest: [async ({ playwright, qip }, use) => {
-    const api = await playwright.request.newContext(endpointOptions(connection(qip).sessions));
+    const api = await endpointRequest(playwright.request, connection(qip).sessions);
     try { await use(api); } finally { await api.dispose(); }
   }, { scope: "worker" }],
 
@@ -51,7 +51,7 @@ export const test = base.extend<QipTestFixtures, QipOptions & QipWorkerFixtures>
   },
 
   request: async ({ playwright, qip }, use) => {
-    const api = await playwright.request.newContext(endpointOptions(connection(qip).engine));
+    const api = await endpointRequest(playwright.request, connection(qip).engine);
     try { await use(api); } finally { await api.dispose(); }
   },
 
@@ -89,10 +89,7 @@ export const test = base.extend<QipTestFixtures, QipOptions & QipWorkerFixtures>
       const warmup = await callChain(_engineRequest, url, { data: { ping: "recording" } });
       expect(warmup.response.status()).toBe(200);
       await sessions.byExternalId(warmup.token, { elements: 3 });
-      await use({
-        id: chain.id, url, marker: run, markerHeader: MARKER_HEADER,
-        elementNames: ["HTTP Trigger", "Validate Request", "Header Modification"],
-      });
+      await use({ id: chain.id, url, marker: run, markerHeader: MARKER_HEADER });
     } finally {
       try {
         await catalog.undeployAll(chain.id);

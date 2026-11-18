@@ -1,14 +1,19 @@
 // Shown failing: leaving relative URLs unresolved omits the catalog token from the request.
 // Shown failing: removing the UI setup's finally block leaves the bundle reservation in place.
-import { test, expect, type APIRequestContext } from "@playwright/test";
+// Shown failing: following redirects sends platform headers to the redirect target.
+import { test, expect, request, type APIRequestContext } from "@playwright/test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { once } from "node:events";
 import { configureSuite, suiteExtension, apiOptions } from "../../env/suite-extension.js";
-import { platformFetch, authenticatedRequest } from "../../env/platform-http.js";
+import { platformFetch, authenticatedRequest, newPlatformRequest } from "../../env/platform-http.js";
 import { ensureUiServer, stopUiServer } from "../../support/ui-server.js";
 import { ensureVsCodeServer, stopVsCodeServer } from "../../support/vscode-server.js";
 import { ensureSchemas } from "../../support/schemas-build.js";
 import { targetSetup } from "../../env/target-setup.js";
 import { kubectl, helm, deploymentOf, containerOf, microServiceOf } from "../../env/k8s.js";
 import { BuildLock, BUNDLE_HOLDER } from "../../support/build-lock.js";
+import { endpointRequest } from "../../portable/connection.js";
 import fs from "node:fs";
 
 const initial = suiteExtension();
@@ -48,7 +53,7 @@ test.describe("suite extension", () => {
     await platformFetch("http://platform.test/catalog/v1/chains/owned", { method: "DELETE" });
     expect(received.get("authorization")).toBe("Bearer catalog");
     expect(received.get("x-catalog")).toBe("yes");
-    expect(apiOptions("runtime-catalog").extraHTTPHeaders).toMatchObject({ authorization: "Bearer catalog" });
+    expect(apiOptions("runtime-catalog")).toMatchObject({ authorization: "Bearer catalog" });
   });
 
   test("keeps platform credentials off unrelated endpoints", async () => {
@@ -61,8 +66,51 @@ test.describe("suite extension", () => {
   test("adds credentials to raw Playwright service calls", async () => {
     let received: { headers?: Record<string, string> } | undefined;
     const api = { get: async (_url: string, options?: typeof received) => { received = options; } } as unknown as APIRequestContext;
-    await authenticatedRequest(api, "http://platform.test/catalog/").get("v1/chains", { headers: { "x-test": "case" } });
+    process.env.CIP_CATALOG_URL = "http://PLATFORM.test:80/catalog";
+    const authenticated = authenticatedRequest(api, "http://platform.test/catalog/");
+    await authenticated.get("v1/chains", { headers: { "x-test": "case" } });
     expect(received?.headers).toEqual({ authorization: "Bearer catalog", "x-catalog": "yes", "x-test": "case" });
+    await authenticated.get("http://platform.test/ui/api/cip/v1/folders");
+    expect(received?.headers).toMatchObject({ authorization: "Bearer catalog" });
+  });
+
+  test("returns redirects before forwarding credentials", async () => {
+    const followed: string[] = [];
+    const server = createServer((req, res) => {
+      if (req.url === "/catalog/redirect" || req.url === "/catalog/local-redirect") {
+        const port = (server.address() as AddressInfo).port;
+        const location = req.url === "/catalog/local-redirect" ? "/outside" : `http://localhost:${port}/outside`;
+        res.writeHead(302, { location }).end();
+        return;
+      }
+      followed.push(req.headers["x-catalog"] as string);
+      res.end();
+    });
+    server.listen(0);
+    await once(server, "listening");
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    process.env.CIP_CATALOG_URL = `${origin}/catalog`;
+    process.env.CIP_PROXY_URL = origin;
+    const api = await newPlatformRequest(request, "runtime-catalog");
+    const raw = await request.newContext();
+    const portable = await endpointRequest(request, {
+      url: process.env.CIP_CATALOG_URL,
+      extraHTTPHeaders: { "x-catalog": "yes" },
+    });
+    try {
+      const url = `${origin}/catalog/redirect`;
+      expect.soft((await platformFetch(url)).status).toBe(302);
+      expect.soft((await authenticatedRequest(raw).get(url, { maxRedirects: 5 })).status()).toBe(302);
+      expect.soft((await authenticatedRequest(raw).get(`${origin}/catalog/local-redirect`)).status()).toBe(302);
+      expect.soft((await api.get(url)).status()).toBe(302);
+      expect.soft((await portable.get(url)).status()).toBe(302);
+      expect.soft(followed).toEqual([]);
+      await platformFetch(`${origin}/catalog/../outside`);
+      expect(followed).toEqual([undefined]);
+    } finally {
+      await Promise.all([api.dispose(), raw.dispose(), portable.dispose()]);
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
   });
 
   test("delegates all frontend setup and teardown operations", async ({}, info) => {

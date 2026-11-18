@@ -105,6 +105,7 @@ The tests retain their assertions when an adapter changes how these operations e
 `proxyUrl` supplies the application's UI and API proxy.
 Use `request.extraHTTPHeaders` for headers shared by the platform APIs and `serviceRequests` to override them for a service.
 These options accept headers only. They apply to API clients, raw platform calls, setup, and cleanup.
+Requests carrying these headers return redirects to the caller. Make a separate request when you need to follow one.
 For private certificate authorities, use Node's trusted CA configuration for native HTTP calls.
 For browser sign-in, configure Playwright with `config.use` or a fixture override.
 The broker client's existing `CIP_KAFKA_URL`, `CIP_RABBITMQ_URL`, `CIP_PUBSUB_URL`, `CIP_SFTP_HOST`, and `CIP_SFTP_PORT` options remain available.
@@ -156,7 +157,7 @@ It initializes a local Git index for the checks that inspect tracked files and c
 Reuse the workspace to rerun a kept corpus. Choose another workspace when upgrading the package.
 Add `.qip-e2e/` to the consuming repository's `.gitignore`.
 Default reports and test artifacts are written under the prepared workspace's `e2e/` directory.
-`sourceRoot` selects an existing full source checkout instead of extracting the snapshot.
+`sourceRoot` selects an existing full source checkout instead of extracting the snapshot. Run `npm ci` in that checkout's `e2e/` first.
 
 For the reference UI and VS Code builds, install frontend dependencies in the prepared workspace:
 
