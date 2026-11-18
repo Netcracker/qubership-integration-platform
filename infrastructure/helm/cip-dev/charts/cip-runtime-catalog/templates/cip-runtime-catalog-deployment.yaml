@@ -78,18 +78,18 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
-            - name: MICRO_DOMAIN_CONTAINER_IMAGE
+            - name: MICRO_ENGINE_CONTAINER_IMAGE
               valueFrom:
                 configMapKeyRef:
-                  key: MICRO_DOMAIN_CONTAINER_IMAGE
+                  key: MICRO_ENGINE_CONTAINER_IMAGE
                   name: {{ .Release.Name }}-env
-            - name: MICRO_DOMAIN_DBAAS_ENABLED
+            - name: MICRO_ENGINE_DBAAS_ENABLED
               value: "false"
-            - name: MICRO_DOMAIN_DBAAS_OPERATOR_TYPE
+            - name: MICRO_ENGINE_DBAAS_OPERATOR_TYPE
               value: DBAAS
-            - name: MICRO_DOMAIN_SERVICE_ACCOUNT
+            - name: MICRO_ENGINE_SERVICE_ACCOUNT
               value: {{ .Release.Name }}-service-account
-            - name: MICRO_DOMAIN_ENVIRONMENT
+            - name: MICRO_ENGINE_ENVIRONMENT
               value: |-
                 {
                   CONSUL_URL: 'configmap:{{ .Release.Name }}-env/CONSUL_URL',
@@ -131,11 +131,11 @@ spec:
             - name: ENGINE_SERVICE_NAME
               value: {{ .Release.Name }}-engine
             {{- with .Values.microDomainResources }}
-            - name: MICRO_DOMAIN_RESOURCES
+            - name: MICRO_ENGINE_RESOURCES
               value: {{ join "," . | quote }}
             {{- end }}
             {{- with .Values.microDomainEmptyDirs }}
-            - name: MICRO_DOMAIN_EMPTY_DIRS
+            - name: MICRO_ENGINE_EMPTY_DIRS
               value: {{ join "," . | quote }}
             {{- end }}
             - name: DEPLOYMENT_VERSION

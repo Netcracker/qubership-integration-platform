@@ -64,7 +64,7 @@ cip-runtime-catalog:
       value: DEBUG
     # Without it camel-k caps a micro domain at 500m, and runtime-micro spent most of its CPU periods
     # throttled there. The classic engine has no CPU limit; a micro domain peaked at 2.9 cores under 4.
-    - name: MICRO_DOMAIN_CONTAINER_LIMIT_CPU
+    - name: MICRO_ENGINE_CONTAINER_LIMIT_CPU
       value: "4"
 
 cip-sessions-management:

@@ -243,7 +243,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:192cc7fe4c07cb167bb317ce67a719ac2f440ca5570c0572f8aaebccf811c465
+  content_hash: sha256:5e4b55808dd1716c91c035d2429f1217e0e53b2662b4c1e2af57ef5a1e570f17
 - kind: project-relative
   target: claude
   value: .claude/rules/monorepo.md
@@ -540,7 +540,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
+  content_hash: sha256:ecb567130e68ec0b9b775d6bcc1f259423a05fed167f651a25a6a40bd062cd54
 - kind: project-relative
   target: claude
   value: .claude/skills/english-developer-style
@@ -1134,7 +1134,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:d5acdd196fc6e1d32d77c96f81412a0bc35cf44b674a1cffb4d1de684cdd7d66
+  content_hash: sha256:ddc4611dde1629cb0018e08b7915730711bec45b31bd65c47cd1298fff3ea81a
 - kind: project-relative
   target: cursor
   value: .cursor/rules/monorepo.mdc
@@ -1368,7 +1368,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
+  content_hash: sha256:ecb567130e68ec0b9b775d6bcc1f259423a05fed167f651a25a6a40bd062cd54
 - kind: project-relative
   target: legacy
   value: .agents/skills/fix-issue
@@ -1878,7 +1878,7 @@ local_deployed_file_hashes:
   .agents/skills/e2e-spec-authoring/SKILL.md: sha256:222b7d4c7d6a4bc5f61bee750347c9ea358044ae9ec561c455668fba5626245f
   .agents/skills/e2e-spec-authoring/browser.md: sha256:37d2810790fd6500c3fe0cbca0ac084e942334961c84bd5bee86794c485ac4f7
   .agents/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
-  .agents/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
+  .agents/skills/endpoint-mocking/micro-engine.md: sha256:ecb567130e68ec0b9b775d6bcc1f259423a05fed167f651a25a6a40bd062cd54
   .agents/skills/fix-issue/SKILL.md: sha256:fb0668c820a068d5eb8b2c368772829d0a7f4fd8d371dccfdf05702cd71643d7
   .agents/skills/fix-issue/delivery.md: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
   .agents/skills/fix-issue/k8s.md: sha256:92d34c953a7560c0f8ca8a5c92249c443f32174ca633ecb41b6746b9048e60e0
@@ -1920,7 +1920,7 @@ local_deployed_file_hashes:
   .claude/rules/e2e.md: sha256:9cf8db57b0672f8dfdc16ddbb1d82f6581a34e2f844116f936376452bf86ce1a
   .claude/rules/engine.md: sha256:3692f2f72eb760bb2abff2c4fc52d065e197d9381271aa1447220dee898fb09a
   .claude/rules/infrastructure.md: sha256:d73fc1116ebaf3bec00275d2d9335f468314713c468aee2bef4a242bf6e403cf
-  .claude/rules/micro-engine.md: sha256:192cc7fe4c07cb167bb317ce67a719ac2f440ca5570c0572f8aaebccf811c465
+  .claude/rules/micro-engine.md: sha256:5e4b55808dd1716c91c035d2429f1217e0e53b2662b4c1e2af57ef5a1e570f17
   .claude/rules/monorepo.md: sha256:34c9237cdd377ba397a8f5434038dba1a4efd76f22eee106f42ad440075f61c5
   .claude/rules/npm-workspaces.md: sha256:3f8361e6ca7d8051574472264b59e66fda55fe703af800ffcfc685343248c6b2
   .claude/rules/runtime-catalog.md: sha256:4e11c201176cf1ba2c2b84cbcec1d69681a639f032649331a5716919dfe2cf47
@@ -1941,7 +1941,7 @@ local_deployed_file_hashes:
   .claude/skills/e2e-spec-authoring/SKILL.md: sha256:222b7d4c7d6a4bc5f61bee750347c9ea358044ae9ec561c455668fba5626245f
   .claude/skills/e2e-spec-authoring/browser.md: sha256:37d2810790fd6500c3fe0cbca0ac084e942334961c84bd5bee86794c485ac4f7
   .claude/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
-  .claude/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
+  .claude/skills/endpoint-mocking/micro-engine.md: sha256:ecb567130e68ec0b9b775d6bcc1f259423a05fed167f651a25a6a40bd062cd54
   .claude/skills/fix-issue/SKILL.md: sha256:fb0668c820a068d5eb8b2c368772829d0a7f4fd8d371dccfdf05702cd71643d7
   .claude/skills/fix-issue/delivery.md: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
   .claude/skills/fix-issue/k8s.md: sha256:92d34c953a7560c0f8ca8a5c92249c443f32174ca633ecb41b6746b9048e60e0
@@ -1985,7 +1985,7 @@ local_deployed_file_hashes:
   .cursor/rules/e2e.mdc: sha256:ff6df8514546fe083cf7ff7ef7885c96084834814e5c144ba8cadf7d315caccc
   .cursor/rules/engine.mdc: sha256:ea62cf3608f3fb9bbeb66b7d1a5b32c47a879b9e3ae6da0acbe32b28062fd60f
   .cursor/rules/infrastructure.mdc: sha256:d77869a78d94aafb2aca5a01945cc1f7f87342947125eab4ede87a7ef4620f3b
-  .cursor/rules/micro-engine.mdc: sha256:d5acdd196fc6e1d32d77c96f81412a0bc35cf44b674a1cffb4d1de684cdd7d66
+  .cursor/rules/micro-engine.mdc: sha256:ddc4611dde1629cb0018e08b7915730711bec45b31bd65c47cd1298fff3ea81a
   .cursor/rules/monorepo.mdc: sha256:a17ff5650165bca90bb1b4021e49464bac67ef1961dea6cb89859dba2e4e9f3e
   .cursor/rules/npm-workspaces.mdc: sha256:45b6f4193027005bc12cffdd494c0ca9f6467a2ca3816022b88f30806ee95921
   .cursor/rules/runtime-catalog.mdc: sha256:b07c4adc4a788d55ca78861e8dd4fd218a10ea76a02b566d77dbace1c7559d28
