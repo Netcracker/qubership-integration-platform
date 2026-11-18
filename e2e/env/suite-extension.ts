@@ -1,8 +1,10 @@
-import type { TestType, APIRequest } from "@playwright/test";
+import type { TestType } from "@playwright/test";
 import type { TargetSetup } from "./target-setup.js";
 import type { ServiceRole } from "./index.js";
 
-export type RequestOptions = NonNullable<Parameters<APIRequest["newContext"]>[0]>;
+export interface RequestOptions {
+  extraHTTPHeaders?: Record<string, string>;
+}
 export type PlatformTest = typeof import("../support/fixtures.js").test;
 export type VsCodeTest = typeof import("../support/vscode-guard.js").test;
 
@@ -46,7 +48,7 @@ export function apiOptions(role?: ServiceRole): RequestOptions {
     common?: RequestOptions;
     services?: Partial<Record<ServiceRole, RequestOptions>>;
   };
-  const common = options.common ?? {};
-  const service = role ? options.services?.[role] ?? {} : {};
-  return { ...common, ...service, extraHTTPHeaders: { ...common.extraHTTPHeaders, ...service.extraHTTPHeaders } };
+  const headers = new Headers(options.common?.extraHTTPHeaders);
+  if (role) new Headers(options.services?.[role]?.extraHTTPHeaders).forEach((value, name) => headers.set(name, value));
+  return { extraHTTPHeaders: Object.fromEntries(headers) };
 }

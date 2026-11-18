@@ -159,17 +159,17 @@ async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
  * the bundle is rebuilt when stale and served by `vite preview`, whose process group is recorded for
  * `stopUiServer`.
  */
-export async function ensureUiServer(): Promise<{ pid: number | null; built: boolean }> {
+export async function ensureUiServer(lock = new BuildLock()): Promise<{ pid: number | null; built: boolean }> {
   const override = suiteExtension().lifecycle?.startUi;
   try {
-    return override ? await override() : await serveBundle();
+    return override ? await override() : await serveBundle(lock);
   } finally {
     // A setup that built nothing lets the `vscode-server` builds go.
-    new BuildLock().dropReservation(BUNDLE_HOLDER);
+    lock.dropReservation(BUNDLE_HOLDER);
   }
 }
 
-async function serveBundle(): Promise<{ pid: number | null; built: boolean }> {
+async function serveBundle(lock: BuildLock): Promise<{ pid: number | null; built: boolean }> {
   const owner = server.otherLiveOwner();
   if (owner !== null) {
     throw new Error(
@@ -181,7 +181,7 @@ async function serveBundle(): Promise<{ pid: number | null; built: boolean }> {
   if (await answers(UI_PORT)) return { pid: null, built: false };
   const built = await bundleIsStale();
   if (built) {
-    await new BuildLock().run(BUNDLE_HOLDER, buildBundle).catch((cause: unknown) => {
+    await lock.run(BUNDLE_HOLDER, buildBundle).catch((cause: unknown) => {
       throw new Error(`nothing answers on port ${UI_PORT}: the UI bundle did not build. ${String(cause)}`);
     });
   }

@@ -7,6 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import assert from "node:assert/strict";
 import { packageServer } from "./package-server.mjs";
+import { eachTest } from "../support/run-report.mjs";
 
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -101,15 +102,16 @@ export default await createSuiteConfig({
   config: { workers: 4, reporter: [['json', { outputFile: 'full-results.json' }]] },
 });
 `);
+  await run(process.execPath, ["--input-type=module", "-e", `
+import assert from "node:assert/strict";
+import { prepareSuite } from "@netcracker/qip-e2e/full";
+const roots = await Promise.all([prepareSuite(), prepareSuite()]);
+assert.equal(roots[0], roots[1]);
+`]);
+
   function cases(report) {
     const rows = [];
-    function visit(suite, parents) {
-      for (const spec of suite.specs ?? []) for (const test of spec.tests) {
-        rows.push(`${test.projectName} ${spec.file} ${[...parents, spec.title].join(' > ')}`);
-      }
-      for (const child of suite.suites ?? []) visit(child, [...parents, child.title]);
-    }
-    for (const suite of report.suites) visit(suite, []);
+    eachTest(report, (spec, test, title) => rows.push(`${test.projectName} ${spec.file} ${title}`));
     return rows.sort();
   }
   environment.E2E_AI_RECOVERY = '1';
@@ -126,13 +128,11 @@ export default await createSuiteConfig({
   } catch {
     const report = JSON.parse(await readFile(path.join(consumer, 'full-results.json'), 'utf8'));
     const failures = [];
-    function readFailures(suite) {
-      for (const spec of suite.specs ?? []) for (const test of spec.tests) if (test.status === 'unexpected') {
-        failures.push({ file: spec.file, title: spec.title, errors: test.results.flatMap(result => result.errors ?? []) });
+    eachTest(report, (spec, test, title) => {
+      if (test.status === 'unexpected') {
+        failures.push({ file: spec.file, title, errors: test.results.flatMap(result => result.errors ?? []) });
       }
-      for (const child of suite.suites ?? []) readFailures(child);
-    }
-    for (const suite of report.suites) readFailures(suite);
+    });
     throw new Error(JSON.stringify(failures, null, 2));
   }
   const full = JSON.parse(await readFile(path.join(consumer, 'full-results.json'), 'utf8'));
@@ -147,15 +147,27 @@ import type { SuiteExtension } from '@netcracker/qip-e2e/full';
 import { VsCodePage, MessageRecorder } from '@netcracker/qip-e2e/pages';
 const event = (name: string) => fs.appendFileSync(${JSON.stringify(events)}, name + '\\n');
 export default {
-  target: base => ({ ...base, createEnv(kind, state) {
+  target: base => ({
+    ...base,
+    async provision(mode) {
+      return { mode, durationMs:0, built:[], rebuilt:[], recreated:[], started:[], untouched:[],
+        published:[], staleSupport:[], proxyReloaded:false, proxyConfigChanged:false };
+    },
+    observer: {
+      async baseline() { return []; },
+      startSampler() {},
+      async header(about) {
+        return { ...about, startedAt:new Date().toISOString(), commit:{sha:null, branch:null, dirty:null}, services:[] };
+      },
+    },
+    createEnv(kind, state) {
     return Object.assign(Object.create(base.createEnv(kind, state)), {
       async restartWith() { event('service'); },
       async restartOverlay() { event('broker'); },
     });
   } }),
   extendTest: base => base.extend({
-    run: 'pkg123',
-    folder: async ({}, use) => { await use({id:'application', name:'application'}); },
+    folder: async ({folder}, use) => { await use({ ...folder, name: folder.name + '-adapted' }); },
     diagnostics: async ({}, use) => { await use(); },
   }),
   extendVsCodeTest: base => base.extend({
@@ -175,18 +187,42 @@ export default {
 `);
   await writeFile(path.join(consumer, 'application.config.ts'), `
 import { createSuiteConfig } from '@netcracker/qip-e2e/full';
-export default await createSuiteConfig({ target:'compose', adapter:'./application-adapter.ts',
-  config:{reporter:[['line']]},
-  projects:[{name:'application', testDir:'./application-tests', metadata:{stack:false}}],
+const server = process.env.QIP_PACKAGE_TEST_URL;
+export default await createSuiteConfig({
+  target:'compose', adapter:'./application-adapter.ts',
+  services: {
+    'runtime-catalog': server + '/catalog',
+    'engine': server + '/engine',
+    'sessions-management': server + '/sessions',
+    'testing-service': server + '/testing',
+  },
+  request: { extraHTTPHeaders: { Authorization:'Bearer package-test' } },
+  serviceRequests: {
+    'runtime-catalog': { extraHTTPHeaders: { 'x-service':'catalog' } },
+    'engine': { extraHTTPHeaders: { 'x-service':'engine' } },
+    'sessions-management': { extraHTTPHeaders: { authorization:'Bearer package-sessions', 'x-service':'sessions' } },
+    'testing-service': { extraHTTPHeaders: { 'x-service':'testing' } },
+  },
+  config:{reporter:[['line']], use:{baseURL: server + '/catalog/'}},
+  projects:[{name:'application', testDir:'./application-tests'}],
 });
 `);
   await writeFile(path.join(consumer, 'application-tests', 'extension.spec.ts'), `
 import { loadSuiteFixtures } from '@netcracker/qip-e2e/full';
 import { pathToFileURL } from 'node:url';
 const { test, expect } = await loadSuiteFixtures();
-test('uses the application adapter and extended fixtures', async ({ env, run, folder }) => {
-  expect(run).toBe('pkg123');
-  expect(folder.id).toBe('application');
+test('uses the application adapter and extended fixtures', async ({ env, run, folder, request }) => {
+  expect(folder.name).toMatch(/^e2e-[a-z0-9]+-w[0-9]+-adapted$/);
+  const listing = await request.get('v1/folders');
+  expect(listing.ok()).toBe(true);
+  expect((await listing.json()).some((item: { id: string }) => item.id === folder.id)).toBe(true);
+  const server = process.env.QIP_PACKAGE_TEST_URL;
+  const unrelated = await request.get(server + '/unrelated');
+  expect(await unrelated.json()).toEqual({ authorized:false });
+  const session = await request.post(server + '/sessions/fixture', {
+    data: { chainId: 'e2e-' + run, chainName: 'e2e-' + run + '-application' },
+  });
+  expect(session.status()).toBe(204);
   await env.restartWith('engine', { example:'value' });
   await env.restartOverlay('kafka');
   const support = process.env.QIP_E2E_WORKSPACE + '/e2e/support/';
@@ -212,7 +248,8 @@ export const pages = [ChainsPage, ChainGraphPage, VsCodePage];
   await run(process.execPath, [path.join(nodeModules, 'typescript/bin/tsc')]);
   await run(process.execPath, [cli, 'test', '--config=application.config.ts', '--project=application']);
   assert.deepEqual((await readFile(events, 'utf8')).trim().split('\n'), ['service','broker','ui','ui-stop','schemas','vscode','vscode-stop']);
-  console.log('Full suite consumer extension passed: fixtures, service and broker restarts, UI, schemas, and VS Code lifecycle.');
+  server.assertFullClean();
+  console.log('Full suite consumer passed: scoped credentials, owned cleanup, fixture extensions, and lifecycle callbacks.');
   assert.deepEqual(await readdir(packageRoot, { recursive: true }), before);
 } finally {
   await server.close();

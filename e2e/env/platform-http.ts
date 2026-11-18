@@ -1,4 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Request } from "@playwright/test";
 import { apiOptions } from "./suite-extension.ts";
 import { ROLES, serviceUrl, proxyUrl } from "./containers.ts";
 
@@ -23,17 +23,22 @@ export const platformFetch: typeof globalThis.fetch = (input, init) => {
 
 const methods = new Set(["get", "post", "put", "patch", "delete", "head", "fetch"]);
 
-export function authenticatedRequest(api: APIRequestContext): APIRequestContext {
+export function authenticatedRequest(api: APIRequestContext, baseURL: string | undefined): APIRequestContext {
   return new Proxy(api, {
     get(target, key) {
       const value: unknown = Reflect.get(target, key);
       if (typeof value !== "function") return value;
       if (typeof key !== "string" || !methods.has(key)) return value.bind(target);
-      return (url: string | unknown, options?: { headers?: Record<string, string> }) => {
-        const headers = typeof url === "string" ? headersFor(url) : {};
-        return value.call(target, url, Object.keys(headers).length
-          ? { ...options, headers: { ...headers, ...options?.headers } }
-          : options);
+      return (request: string | Request, options?: { headers?: Record<string, string> }) => {
+        const url = typeof request === "string" ? URL.parse(request, baseURL)?.href : request.url();
+        const additional = url ? headersFor(url) : {};
+        if (Object.keys(additional).length === 0) return value.call(target, request, options);
+        const headers = new Headers(additional);
+        if (typeof request !== "string") {
+          new Headers(request.headers()).forEach((value, name) => headers.set(name, value));
+        }
+        new Headers(options?.headers).forEach((value, name) => headers.set(name, value));
+        return value.call(target, request, { ...options, headers: Object.fromEntries(headers) });
       };
     },
   });

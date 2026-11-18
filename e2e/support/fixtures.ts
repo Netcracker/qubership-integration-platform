@@ -146,8 +146,8 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   // registry row. `registry/reached.ts` says why the recording is here rather than in each caller:
   // a spec that reaches around a transport still reaches the endpoint, and three review passes in a
   // row found a `not-reached` row a raw call had been reaching all along.
-  request: async ({ request }, use) => {
-    await use(recordingRequest(authenticatedRequest(request)));
+  request: async ({ request, baseURL }, use) => {
+    await use(recordingRequest(authenticatedRequest(request, baseURL)));
   },
 
   diagnostics: [

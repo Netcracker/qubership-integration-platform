@@ -1,3 +1,5 @@
+// Shown failing: leaving relative URLs unresolved omits the catalog token from the request.
+// Shown failing: removing the UI setup's finally block leaves the bundle reservation in place.
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { configureSuite, suiteExtension, apiOptions } from "../../env/suite-extension.js";
 import { platformFetch, authenticatedRequest } from "../../env/platform-http.js";
@@ -6,7 +8,7 @@ import { ensureVsCodeServer, stopVsCodeServer } from "../../support/vscode-serve
 import { ensureSchemas } from "../../support/schemas-build.js";
 import { targetSetup } from "../../env/target-setup.js";
 import { kubectl, helm, deploymentOf, containerOf, microServiceOf } from "../../env/k8s.js";
-import { BuildLock, BUILD_LOCK_DIR, BUNDLE_HOLDER } from "../../support/build-lock.js";
+import { BuildLock, BUNDLE_HOLDER } from "../../support/build-lock.js";
 import fs from "node:fs";
 
 const initial = suiteExtension();
@@ -46,7 +48,7 @@ test.describe("suite extension", () => {
     await platformFetch("http://platform.test/catalog/v1/chains/owned", { method: "DELETE" });
     expect(received.get("authorization")).toBe("Bearer catalog");
     expect(received.get("x-catalog")).toBe("yes");
-    expect(apiOptions("runtime-catalog").extraHTTPHeaders).toMatchObject({ Authorization: "Bearer catalog" });
+    expect(apiOptions("runtime-catalog").extraHTTPHeaders).toMatchObject({ authorization: "Bearer catalog" });
   });
 
   test("keeps platform credentials off unrelated endpoints", async () => {
@@ -59,11 +61,11 @@ test.describe("suite extension", () => {
   test("adds credentials to raw Playwright service calls", async () => {
     let received: { headers?: Record<string, string> } | undefined;
     const api = { get: async (_url: string, options?: typeof received) => { received = options; } } as unknown as APIRequestContext;
-    await authenticatedRequest(api).get("http://platform.test/catalog/v1/chains", { headers: { "x-test": "case" } });
-    expect(received?.headers).toEqual({ Authorization: "Bearer catalog", "x-catalog": "yes", "x-test": "case" });
+    await authenticatedRequest(api, "http://platform.test/catalog/").get("v1/chains", { headers: { "x-test": "case" } });
+    expect(received?.headers).toEqual({ authorization: "Bearer catalog", "x-catalog": "yes", "x-test": "case" });
   });
 
-  test("delegates all frontend setup and teardown operations", async () => {
+  test("delegates all frontend setup and teardown operations", async ({}, info) => {
     const calls: string[] = [];
     configureSuite({ lifecycle: {
       schemas: async () => { calls.push("schemas"); return false; },
@@ -73,21 +75,21 @@ test.describe("suite extension", () => {
       stopVsCode: async () => { calls.push("stop-vscode"); },
     } });
     expect(await ensureSchemas()).toBe(false);
-    expect(await ensureUiServer()).toEqual({ pid: null, built: false });
+    expect(await ensureUiServer(new BuildLock(info.outputPath("bundle-lock")))).toEqual({ pid: null, built: false });
     await stopUiServer();
     expect(await ensureVsCodeServer()).toEqual({ pid: 42, built: [] });
     await stopVsCodeServer();
     expect(calls).toEqual(["schemas", "start-ui", "stop-ui", "start-vscode", "stop-vscode"]);
   });
 
-  test("releases the bundle reservation for an external UI", async () => {
+  test("releases the bundle reservation for an external UI", async ({}, info) => {
     configureSuite({ lifecycle: { startUi: async () => ({ pid: null, built: false }) } });
-    const lock = new BuildLock(BUILD_LOCK_DIR, process.ppid);
+    const lock = new BuildLock(info.outputPath("bundle-lock"), process.pid, process.pid);
     const reserved = lock.reserve(BUNDLE_HOLDER);
     try {
       expect(reserved).toBe(true);
-      await ensureUiServer();
-      expect(fs.existsSync(BUILD_LOCK_DIR)).toBe(false);
+      await ensureUiServer(lock);
+      expect(fs.existsSync(lock.file)).toBe(false);
     } finally {
       if (reserved) lock.dropReservation(BUNDLE_HOLDER);
     }

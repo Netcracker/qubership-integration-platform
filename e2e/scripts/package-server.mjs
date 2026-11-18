@@ -9,6 +9,7 @@ export async function packageServer() {
   const log = [];
   let corrupt = false;
   let unauthorized = 0;
+  let fullSessionDeleted = false;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url, "http://localhost");
     const [, role, ...segments] = url.pathname.split("/");
@@ -18,7 +19,15 @@ export async function packageServer() {
       response.writeHead(status, { "Content-Type": "application/json", ...headers });
       response.end(body === undefined ? undefined : JSON.stringify(body));
     };
-    if (request.headers.authorization !== "Bearer package-test" || request.headers["x-service"] !== role) {
+    if (role === "unrelated") {
+      answer({ authorized: Boolean(request.headers.authorization || request.headers["x-service"]) });
+      return;
+    }
+    const fullSessionRequest = role === "sessions" && (
+      path === "/fixture" || path === "/v1/sessions" || url.searchParams.get("chainIds")?.startsWith("e2e-")
+    );
+    const expected = fullSessionRequest ? "Bearer package-sessions" : "Bearer package-test";
+    if (request.headers.authorization !== expected || request.headers["x-service"] !== role) {
       unauthorized++;
       answer({ error: "Unauthorized" }, 401);
       return;
@@ -29,6 +38,16 @@ export async function packageServer() {
     const data = body ? JSON.parse(body) : undefined;
 
     if (role === "catalog") {
+      if (method === "GET") {
+        if (path === "/v1/folders") { answer([...folders.values()]); return; }
+        if (path === "/v1/chains") { answer([...chains.values()]); return; }
+        if (path === "/v1/common-variables") { answer({}); return; }
+        const emptyListings = [
+          "/v1/catalog/domains", "/v1/systems", "/v1/catalog/context-system",
+          "/v1/catalog/mcp-system", "/v1/detailed-design/templates", "/v2/secured-variables",
+        ];
+        if (emptyListings.includes(path)) { answer([]); return; }
+      }
       if (path === "/v1/folders" && method === "POST") {
         const folder = { id: randomUUID(), ...data };
         folders.set(folder.id, folder);
@@ -104,16 +123,34 @@ export async function packageServer() {
       return;
     }
     if (role === "sessions") {
+      if (path === "/fixture" && method === "POST") {
+        sessions.set(data.chainId, data);
+        answer(undefined, 204);
+        return;
+      }
+      if (path === "/v1/sessions" && method === "POST") {
+        const offset = Number(url.searchParams.get("offset"));
+        answer({ sessions: [...sessions.values()].slice(offset) });
+        return;
+      }
       if (path.startsWith("/v1/sessions/external-id/")) {
         const session = sessions.get(segments.at(-1));
         answer(session ?? {}, session ? 200 : 404);
         return;
       }
       if (path === "/v1/sessions/chains" && method === "DELETE") {
-        for (const [token, session] of sessions) if (session.chainId === url.searchParams.get("chainIds")) sessions.delete(token);
+        for (const [token, session] of sessions) {
+          if (session.chainId !== url.searchParams.get("chainIds")) continue;
+          sessions.delete(token);
+          if (session.chainName) fullSessionDeleted = true;
+        }
         answer(undefined, 204);
         return;
       }
+    }
+    if (role === "testing" && path === "/api/v1/endpoint-mocks" && method === "POST") {
+      answer([]);
+      return;
     }
     answer({ error: `Unhandled ${role} ${method} ${path}` }, 404);
   });
@@ -128,6 +165,10 @@ export async function packageServer() {
       assert.equal(unauthorized, 0);
       assert(log.some((line) => line.includes("catalog POST /v1/catalog/chains/")));
       assert(log.some((line) => line.startsWith("sessions DELETE /v1/sessions/chains")));
+    },
+    assertFullClean() {
+      this.assertClean();
+      assert(fullSessionDeleted, "The full suite did not remove its session during global teardown.");
     },
     close() { return new Promise((resolve) => server.close(resolve)); },
   };

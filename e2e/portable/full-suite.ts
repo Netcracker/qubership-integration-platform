@@ -62,43 +62,79 @@ function linkDependencies(root: string): void {
   }
 }
 
+function snapshotMarker(root: string): string {
+  return path.join(root, ".qip-e2e-snapshot.json");
+}
+
+function matchesSnapshot(root: string, snapshot: Snapshot): boolean {
+  const marker = snapshotMarker(root);
+  if (!fs.existsSync(marker)) return false;
+  const previous = JSON.parse(fs.readFileSync(marker, "utf8")) as Snapshot;
+  if (previous.digest !== snapshot.digest) {
+    throw new Error(`The suite workspace ${root} belongs to another snapshot. Choose another workspaceDir.`);
+  }
+  return true;
+}
+
+async function extractSnapshot(root: string, snapshot: Snapshot): Promise<void> {
+  const archive = await JSZip.loadAsync(fs.readFileSync(path.join(PACKAGE, "snapshot.zip")));
+  for (const entry of Object.values(archive.files)) {
+    if (entry.dir) continue;
+    const destination = path.join(root, entry.name);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, await entry.async("nodebuffer"));
+    if (process.platform !== "win32" && typeof entry.unixPermissions === "number") fs.chmodSync(destination, entry.unixPermissions & 0o777);
+    fs.utimesSync(destination, entry.date, entry.date);
+  }
+  for (const [relative, target] of Object.entries(snapshot.links)) {
+    const destination = path.join(root, relative);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    if (process.platform === "win32") fs.writeFileSync(destination, target);
+    else fs.symlinkSync(target, destination);
+  }
+  const git = (args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+  git(["init", "--quiet", "--initial-branch=qip-e2e-snapshot"]);
+  git(["config", "core.autocrlf", "false"]);
+  git(["add", "--force", "--all"]);
+  const tree = git(["write-tree"]).toString().trim();
+  const commit = git(["-c", "user.name=QIP source snapshot", "-c", "user.email=qip-snapshot@example.invalid", "commit-tree", tree, "-m", `Source snapshot ${snapshot.revision}`]).toString().trim();
+  git(["update-ref", "HEAD", commit]);
+  fs.writeFileSync(snapshotMarker(root), `${JSON.stringify(snapshot)}\n`);
+  fs.appendFileSync(path.join(root, ".git/info/exclude"), "\n.qip-e2e-snapshot.json\n");
+  linkDependencies(root);
+}
+
 export async function prepareSuite(options: Pick<FullSuiteOptions, "workspaceDir" | "sourceRoot"> = {}): Promise<string> {
   if (options.sourceRoot) return path.resolve(options.sourceRoot);
   const snapshot: Snapshot = JSON.parse(fs.readFileSync(path.join(PACKAGE, "snapshot.json"), "utf8"));
   const root = path.resolve(options.workspaceDir ?? path.join(process.cwd(), ".qip-e2e", `${snapshot.version}-${snapshot.digest.slice(0, 12)}`));
-  const marker = path.join(root, ".qip-e2e-snapshot.json");
-  if (fs.existsSync(marker)) {
-    const previous = JSON.parse(fs.readFileSync(marker, "utf8"));
-    if (previous.digest !== snapshot.digest) throw new Error(`The suite workspace ${root} belongs to another snapshot. Choose another workspaceDir.`);
-  } else {
-    if (fs.existsSync(root) && fs.readdirSync(root).length) throw new Error(`The suite workspace ${root} must be empty on its first use.`);
-    fs.mkdirSync(root, { recursive: true });
-    const archive = await JSZip.loadAsync(fs.readFileSync(path.join(PACKAGE, "snapshot.zip")));
-    for (const entry of Object.values(archive.files)) {
-      if (entry.dir) continue;
-      const destination = path.join(root, entry.name);
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.writeFileSync(destination, await entry.async("nodebuffer"));
-      if (process.platform !== "win32" && typeof entry.unixPermissions === "number") fs.chmodSync(destination, entry.unixPermissions & 0o777);
-      fs.utimesSync(destination, entry.date, entry.date);
+  if (matchesSnapshot(root, snapshot)) return root;
+  try {
+    fs.rmdirSync(root);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      if (matchesSnapshot(root, snapshot)) return root;
+      if (code === "ENOTEMPTY" || code === "EEXIST") {
+        throw new Error(`The suite workspace ${root} must be empty on its first use.`);
+      }
+      throw error;
     }
-    for (const [relative, target] of Object.entries(snapshot.links)) {
-      const destination = path.join(root, relative);
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      if (process.platform === "win32") fs.writeFileSync(destination, target);
-      else fs.symlinkSync(target, destination);
-    }
-    const git = (args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
-    git(["init", "--quiet", "--initial-branch=qip-e2e-snapshot"]);
-    git(["config", "core.autocrlf", "false"]);
-    git(["add", "--force", "--all"]);
-    const tree = git(["write-tree"]).toString().trim();
-    const commit = git(["-c", "user.name=QIP source snapshot", "-c", "user.email=qip-snapshot@example.invalid", "commit-tree", tree, "-m", `Source snapshot ${snapshot.revision}`]).toString().trim();
-    git(["update-ref", "HEAD", commit]);
-    fs.writeFileSync(marker, `${JSON.stringify(snapshot)}\n`);
-    fs.appendFileSync(path.join(root, ".git/info/exclude"), "\n.qip-e2e-snapshot.json\n");
   }
-  linkDependencies(root);
+
+  fs.mkdirSync(path.dirname(root), { recursive: true });
+  // Publish the complete tree at once. Concurrent callers can reuse the winner's workspace.
+  const staging = fs.mkdtempSync(`${root}.preparing-`);
+  try {
+    await extractSnapshot(staging, snapshot);
+    try {
+      fs.renameSync(staging, root);
+    } catch (error) {
+      if (!matchesSnapshot(root, snapshot)) throw error;
+    }
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
   return root;
 }
 
@@ -141,7 +177,7 @@ export async function createSuiteConfig(options: FullSuiteOptions): Promise<Play
     globalSetup: path.join(root, "e2e/env/provision.ts"),
     globalTeardown: path.join(root, "e2e/support/fixtures.ts"),
     metadata: { ...original.metadata, ...options.config?.metadata, qipSource: { version, revision, digest, source: options.sourceRoot ? "checkout" : "package" } },
-    use: { ...original.use, ...apiOptionsForConfig(options.request), ...options.config?.use },
+    use: { ...original.use, ...options.config?.use },
     projects: [...original.projects.map(project), ...(options.projects ?? []).map((value) => ({ ...value, testDir: path.resolve(value.testDir ?? "tests") }))],
   };
 }
@@ -150,10 +186,4 @@ export async function loadSuiteFixtures(): Promise<typeof import("../support/fix
   const root = process.env.QIP_E2E_WORKSPACE;
   if (!root) throw new Error("Load a configuration created by createSuiteConfig before loading the full suite fixtures.");
   return await import(pathToFileURL(path.join(root, "e2e/support/fixtures.ts")).href);
-}
-
-function apiOptionsForConfig(options: RequestOptions | undefined): object {
-  if (!options) return {};
-  return { extraHTTPHeaders: options.extraHTTPHeaders, httpCredentials: options.httpCredentials,
-    storageState: options.storageState, ignoreHTTPSErrors: options.ignoreHTTPSErrors };
 }

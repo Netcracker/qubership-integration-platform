@@ -103,9 +103,10 @@ The tests retain their assertions when an adapter changes how these operations e
 
 `services` supplies service API roots; each client appends its endpoint paths.
 `proxyUrl` supplies the application's UI and API proxy.
-`serviceRequests` configures API request options by service role; `request` supplies common options.
-Bearer headers apply to API clients, raw platform calls, setup, and cleanup. Use Node's trusted CA configuration for native HTTP calls to private certificate authorities.
-Use `config.use` and fixture overrides for application-specific browser sign-in.
+Use `request.extraHTTPHeaders` for headers shared by the platform APIs and `serviceRequests` to override them for a service.
+These options accept headers only. They apply to API clients, raw platform calls, setup, and cleanup.
+For private certificate authorities, use Node's trusted CA configuration for native HTTP calls.
+For browser sign-in, configure Playwright with `config.use` or a fixture override.
 The broker client's existing `CIP_KAFKA_URL`, `CIP_RABBITMQ_URL`, `CIP_PUBSUB_URL`, `CIP_SFTP_HOST`, and `CIP_SFTP_PORT` options remain available.
 Provision broker addresses reachable from both the runner and the deployed chains, as the reference fixtures require.
 
