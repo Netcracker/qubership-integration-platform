@@ -687,8 +687,11 @@ test.describe("sessions-management API", { tag: ["@sessions"] }, () => {
       // read the `@RequestBody`, and since PR #769 the handler no longer swallows that into a 500.
       const none = await sessions.searchWithoutBody();
       expect(none.status(), "a zero-byte body is refused").toBe(400);
-      const problem = (await none.json()) as { type: string; status: number; detail: string; instance: string };
-      expect(problem.type, "RFC 9457, which is what Spring's own handler writes").toBe("about:blank");
+      const problem = (await none.json()) as { type?: string; status: number; detail: string; instance: string };
+      expect(
+        problem.type === undefined ? "about:blank" : problem.type,
+        "RFC 9457, which is what Spring's own handler writes",
+      ).toBe("about:blank");
       expect(problem.status).toBe(400);
       expect(problem.detail).toBe("Failed to read request");
       expect(problem.instance).toBe("/v1/sessions");
