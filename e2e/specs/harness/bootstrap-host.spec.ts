@@ -1,17 +1,20 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { bashExecutable, repoRoot } from "../../env/host.js";
+import { stopGroup } from "../../support/process-group.js";
 
 const made: string[] = [];
+const running = new Map<ChildProcess, Promise<number | null>>();
 
-function bootstrap(args: string[], failCni = false, existing = false) {
+async function bootstrap(args: string[], failCni = false, existing = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-bootstrap-"));
   made.push(dir);
   const log = path.join(dir, "commands");
   const stubs = path.join(dir, "tools.sh");
+  fs.writeFileSync(log, "");
   // Source the stubs in Git Bash to avoid a Node startup for every command.
   fs.writeFileSync(stubs, String.raw`
 fake_tool() {
@@ -38,7 +41,7 @@ istioctl() { fake_tool istioctl "$@"; }
 `);
   const bashPath = (file: string) => file.split(path.sep).join("/");
   const script = bashPath(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"));
-  const result = spawnSync(bashExecutable(), [
+  const child = spawn(bashExecutable(), [
     "-ec", 'source "$1"; script="$2"; shift 2; source "$script" "$@"', "bootstrap-host", bashPath(stubs), script, ...args,
   ], {
     env: {
@@ -48,38 +51,57 @@ istioctl() { fake_tool istioctl "$@"; }
       HOST_EXISTING_KIND: existing ? "1" : "",
       E2E_ZTUNNEL_ORIG_SRC: "false",
     },
-    encoding: "utf8",
-    timeout: 10_000,
+    detached: true,
+    stdio: ["ignore", "ignore", "pipe"],
+    windowsHide: true,
   });
-  if (result.error) throw result.error;
-  const fields = fs.readFileSync(log, "utf8").split("\0");
-  const commands: string[][] = [];
-  for (let i = 0; i < fields.length - 1;) {
-    const count = Number(fields[i++]);
-    commands.push(fields.slice(i, i + count));
-    i += count;
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", (chunk: string) => { stderr += chunk; });
+  const closed = new Promise<number | null>((resolve, reject) => {
+    child.once("close", resolve);
+    child.once("error", reject);
+  });
+  running.set(child, closed);
+  try {
+    const status = await closed;
+    const fields = fs.readFileSync(log, "utf8").split("\0");
+    const commands: string[][] = [];
+    for (let i = 0; i < fields.length - 1;) {
+      const count = Number(fields[i++]);
+      commands.push(fields.slice(i, i + count));
+      i += count;
+    }
+    return { status, stderr, commands };
+  } finally {
+    running.delete(child);
   }
-  return { ...result, commands };
 }
 
 test.describe("cluster bootstrap host", () => {
-  test.afterEach(() => {
-    for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  test.afterEach(async () => {
+    try {
+      for (const [child, closed] of running) {
+        if (child.pid !== undefined) await stopGroup(child.pid);
+        await closed;
+      }
+    } finally {
+      for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  test("an explicit kind cluster leaves Docker Desktop untouched", () => {
-    const result = bootstrap(["--kind"]);
+  test("an explicit kind cluster leaves Docker Desktop untouched", async () => {
+    const result = await bootstrap(["--kind"]);
     expect(result.status, result.stderr).toBe(0);
     expect(result.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(true);
     expect(result.commands).toContainEqual(["kubectl", "-n", "istio-system", "set", "env", "daemonset/ztunnel", "ENABLE_ORIG_SRC=false"]);
-    const reused = bootstrap(["--kind"], false, true);
+    const reused = await bootstrap(["--kind"], false, true);
     expect(reused.status, reused.stderr).toBe(0);
     expect(reused.commands).toContainEqual(["kubectl", "config", "use-context", "kind-qip"]);
     expect(reused.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(false);
   });
 
-  test("a failed CNI rollout stops the cluster bootstrap", () => {
-    const result = bootstrap([], true);
+  test("a failed CNI rollout stops the cluster bootstrap", async () => {
+    const result = await bootstrap([], true);
     expect(result.status, result.stderr).toBe(19);
     expect(result.commands.some((args) => args[0] === "helm")).toBe(false);
   });
