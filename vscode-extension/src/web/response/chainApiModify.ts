@@ -33,7 +33,9 @@ import {
   resetPropertiesToDefault,
 } from "./chainApiUtils";
 import { Uri } from "vscode";
+import * as yaml from "yaml";
 import { fileApi } from "./file";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import {
   Element as ElementSchema,
   DataType,
@@ -1412,7 +1414,84 @@ export async function deleteChain(chainFileUri: Uri) {
   }
 }
 
-export async function duplicateChain(chainFileUri: Uri): Promise<{name: string, uri: Uri}> {
-  // TODO
-  return Promise.reject("Duplicate chain is not implemented yet");
+export async function duplicateChain(
+  chainFileUri: Uri,
+): Promise<{ name: string; uri: Uri }> {
+  const chain = await getMainChain(chainFileUri);
+  const content = chain.content;
+  const chainId = crypto.randomUUID();
+  const root = fileApi.getRootDirectory();
+  const sourceDirectory = Uri.joinPath(chainFileUri, "..");
+  const targetDirectory =
+    sourceDirectory.path === root.path
+      ? root
+      : Uri.joinPath(sourceDirectory, "..");
+  const uri = Uri.joinPath(
+    targetDirectory,
+    chainId,
+    `${chainId}${FILE_EXTENSIONS.chain}`,
+  );
+
+  const newIds = new Map<string, string>();
+  const newId = (id: string): string => {
+    if (!newIds.has(id)) {
+      newIds.set(id, crypto.randomUUID());
+    }
+    return newIds.get(id)!;
+  };
+
+  for (const element of getElementChildren(content.elements as ElementSchema[])) {
+    await loadElementProperties(chainFileUri, element);
+    element.id = newId(element.id);
+    if (element.parentElementId) {
+      element.parentElementId = newId(element.parentElementId as string);
+    }
+    if (element.swimlaneId) {
+      element.swimlaneId = newId(element.swimlaneId as string);
+    }
+    const properties = element.properties as any;
+    if (properties?.reuseElementId) {
+      properties.reuseElementId = newId(properties.reuseElementId);
+    }
+    // As in the catalog, a type the library lacks, such as the group container, keeps its properties.
+    const libraryElement = await getLibraryElementByType(
+      element.type as unknown as string,
+    ).catch(() => undefined);
+    if (libraryElement) {
+      resetPropertiesToDefault(chainId, element, libraryElement);
+    }
+    await writeElementProperties(uri, element);
+  }
+
+  (content.dependencies as Dependency[] | undefined)?.forEach((dependency) => {
+    dependency.from = newId(dependency.from);
+    dependency.to = newId(dependency.to);
+  });
+  (content.maskedFields as MaskedField[] | undefined)?.forEach(
+    (field) => (field.id = crypto.randomUUID()),
+  );
+  if (content.defaultSwimlaneId) {
+    content.defaultSwimlaneId = newId(content.defaultSwimlaneId as string);
+  }
+  if (content.reuseSwimlaneId) {
+    content.reuseSwimlaneId = newId(content.reuseSwimlaneId as string);
+  }
+  delete content.deployments;
+
+  const takenNames: string[] = [];
+  await fileApi.findAndBuildChainsRecursively(
+    root,
+    (other) =>
+      other?.metaInfo?.group === chain.metaInfo?.group ? other.name : undefined,
+    takenNames,
+  );
+  let copyNumber = 1;
+  while (takenNames.includes(`${chain.name} (${copyNumber})`)) {
+    copyNumber++;
+  }
+  chain.id = chainId;
+  chain.name = `${chain.name} (${copyNumber})`;
+
+  await fileApi.writeFile(uri, new TextEncoder().encode(yaml.stringify(chain)));
+  return { name: chain.name, uri };
 }
