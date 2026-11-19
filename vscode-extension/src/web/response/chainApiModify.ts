@@ -1411,3 +1411,8 @@ export async function deleteChain(chainFileUri: Uri) {
     } catch (error) {}
   }
 }
+
+export async function duplicateChain(chainFileUri: Uri): Promise<{name: string, uri: Uri}> {
+  // TODO
+  return Promise.reject("Duplicate chain is not implemented yet");
+}
