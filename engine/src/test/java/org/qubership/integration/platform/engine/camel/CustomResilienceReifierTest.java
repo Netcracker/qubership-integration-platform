@@ -29,7 +29,6 @@ import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,8 +54,8 @@ class CustomResilienceReifierTest {
     void keepsConfiguredDurationsInSeconds() throws Exception {
         CircuitBreakerDefinition definition = definition();
         definition.getResilience4jConfiguration()
-                .waitDurationInOpenState(60)
-                .slowCallDurationThreshold(60);
+                .waitDurationInOpenState("60")
+                .slowCallDurationThreshold("60");
         CustomResilienceReifier reifier = reifier(definition);
         CircuitBreakerConfig camelDurations = CircuitBreakerConfig.custom()
                 .waitDurationInOpenState(Duration.ofMillis(60))
@@ -83,7 +82,7 @@ class CustomResilienceReifierTest {
         when(route.getCamelContext()).thenReturn(camelContext);
         when(camelContext.resolvePropertyPlaceholders(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         when(camelContext.getTypeConverter()).thenReturn(typeConverter);
-        when(typeConverter.mandatoryConvertTo(eq(Long.class), eq("60"))).thenReturn(60L);
+        when(typeConverter.mandatoryConvertTo(Long.class, "60")).thenReturn(60L);
         return new CustomResilienceReifier(route, definition);
     }
 
