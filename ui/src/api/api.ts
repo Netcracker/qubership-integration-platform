@@ -179,7 +179,7 @@ export interface Api {
     chainId: string,
   ): Promise<ActionDifference>;
 
-  createSnapshot(chainId: string): Promise<Snapshot>;
+  createSnapshot(chainId: string, name?: string): Promise<Snapshot>;
 
   getSnapshots(chainId: string): Promise<Snapshot[]>;
 

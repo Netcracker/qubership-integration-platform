@@ -10,15 +10,20 @@ import {
   DomainsFormItem,
   isDomainSelectionInvalid,
 } from "../SelectDomains.tsx";
+import Input from "antd/es/input/index";
 
 export type SaveAndDeployProps = {
   chainId?: string;
   initialDomains?: Domain[];
-  onSubmit?: (domains: Domain[]) => void | Promise<void>;
+  onSubmit?: (
+    domains: Domain[],
+    snapshotName: string | undefined,
+  ) => void | Promise<void>;
 };
 
 type SaveAndDeployFormData = {
   domains: Domain[];
+  snapshotName?: string;
 };
 
 export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
@@ -68,7 +73,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
       return;
     }
     handleModalSubmit(
-      () => onSubmit?.(data.domains),
+      () => onSubmit?.(data.domains, data.snapshotName),
       setConfirmLoading,
       closeContainingModal,
     );
@@ -98,16 +103,16 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
       <Form<SaveAndDeployFormData>
         id="saveAndDeployForm"
         form={form}
-        layout="horizontal"
+        layout="vertical"
         initialValues={{
           domains: initialDomains ?? [],
         }}
-        labelCol={{ span: 4 }}
-        style={{ maxWidth: 600 }}
-        labelWrap
         onFinish={(values) => handleSubmit(values)}
       >
         <DomainsFormItem disabled={domainsLoading} />
+        <Form.Item name="snapshotName" label="Snapshot name">
+          <Input placeholder="Auto-generated if left blank" />
+        </Form.Item>
       </Form>
     </Modal>
   );

@@ -42,6 +42,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotLabelDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
 import org.qubership.integration.platform.verification.properties.VerificationError;
@@ -154,23 +156,40 @@ public class SnapshotService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Snapshot buildForRequest(String chainId, @Nullable SnapshotRequest snapshotRequest) {
+        Optional<SnapshotRequest> optionalSnapshotRequest = Optional.ofNullable(snapshotRequest);
+        String name = optionalSnapshotRequest.map(SnapshotRequest::getName).orElse(null);
+        List<SnapshotLabelDTO> labels = optionalSnapshotRequest.map(SnapshotRequest::getLabels).orElse(null);
+        return build(chainId, name, labels);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Snapshot build(String chainId) {
         return build(chainId, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Snapshot build(String chainId, Set<String> technicalLabels) {
+        List<SnapshotLabelDTO> labels = Optional.ofNullable(technicalLabels)
+            .map(names -> names.stream().map(name -> SnapshotLabelDTO.builder()
+                .name(name).technical(true).build()).toList())
+            .orElse(null);
+        return build(chainId, null, labels);
+    }
+
+    public Snapshot build(String chainId, @Nullable String name, @Nullable List<SnapshotLabelDTO> labels) {
         Chain chain = chainFinderService.findById(chainId);
         verifyElementProperties(chain);
 
-        String name = snapshotRepository.getNextAvailableName(chainId);
+        String snapshotName = Optional.ofNullable(name)
+            .orElseGet(() -> snapshotRepository.getNextAvailableName(chainId));
 
         Snapshot snapshot = Snapshot.builder()
-            .name(name)
+            .name(snapshotName)
             .chain(chain)
             .build();
-        if (CollectionUtils.isNotEmpty(technicalLabels)) {
-            snapshot.addLabels(getSnapshotTechnicalLabels(technicalLabels, snapshot));
+        if (CollectionUtils.isNotEmpty(labels)) {
+            snapshot.addLabels(buildSnapshotLabels(labels, snapshot));
         }
 
         snapshot = snapshotRepository.saveAndFlush(snapshot);
@@ -210,12 +229,10 @@ public class SnapshotService {
         }
     }
 
-    private Collection<SnapshotLabel> getSnapshotTechnicalLabels(Set<String> technicalLabels, Snapshot snapshot) {
-        List<SnapshotLabel> snapshotLabels = new ArrayList<>();
-        for (String labelName : technicalLabels) {
-            snapshotLabels.add(new SnapshotLabel(labelName, snapshot, true));
-        }
-        return snapshotLabels;
+    private Collection<SnapshotLabel> buildSnapshotLabels(List<SnapshotLabelDTO> labels, Snapshot snapshot) {
+        return labels.stream()
+            .map(l -> new SnapshotLabel(l.getName(), snapshot, l.getTechnical()))
+            .toList();
     }
 
     private void fillServiceEnvironments(List<ChainElement> newElements) {

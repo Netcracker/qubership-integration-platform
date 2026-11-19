@@ -83,9 +83,17 @@ public class SnapshotController {
 
     @PostMapping
     @Operation(description = "Generate snapshot on current chain state")
-    public ResponseEntity<SnapshotResponse> build(@PathVariable @Parameter(description = "Chain id") String chainId) {
+    public ResponseEntity<SnapshotResponse> build(
+        @PathVariable
+        @Parameter(description = "Chain id")
+        String chainId,
+
+        @RequestBody(required = false)
+        @Parameter(description = "Snapshot create request object")
+        SnapshotRequest request
+    ) {
         log.info("Request to build snapshot for chain with id: {}", chainId);
-        var entity = snapshotService.build(chainId);
+        var entity = snapshotService.buildForRequest(chainId, request);
         var response = snapshotMapper.asResponse(entity);
         response.setXmlDefinition(null);
         return ResponseEntity.ok(response);
