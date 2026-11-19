@@ -144,7 +144,7 @@ class ResourceBuildOptionsProviderTest {
     @Test
     void readinessProbeTurnsOffThroughItsVariable() throws IOException {
         HealthOptions health = healthFromApplicationYml(
-                new MockEnvironment().withProperty("MICRO_DOMAIN_HEALTH_READINESS_ENABLED", "false"));
+                new MockEnvironment().withProperty("MICRO_ENGINE_HEALTH_READINESS_ENABLED", "false"));
 
         assertThat(health.getReadiness().isEnabled()).isFalse();
     }

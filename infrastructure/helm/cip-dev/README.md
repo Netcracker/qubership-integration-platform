@@ -130,7 +130,7 @@ helm install ... --set-file 'cip-engine.trustedCerts.ca\.crt=../../docker/kafka-
 ```
 
 `cip-runtime-catalog.microDomainResources` and `cip-runtime-catalog.microDomainEmptyDirs` become
-`MICRO_DOMAIN_RESOURCES` and `MICRO_DOMAIN_EMPTY_DIRS`: the camel-k mount resources and emptyDir
+`MICRO_ENGINE_RESOURCES` and `MICRO_ENGINE_EMPTY_DIRS`: the camel-k mount resources and emptyDir
 volumes of every micro domain. These two give a micro domain the same certificates, and an emptyDir
 for the truststore it builds from them, because its root file system is read-only:
 
