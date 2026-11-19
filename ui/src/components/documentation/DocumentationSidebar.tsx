@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Tree } from "antd";
 import type { DataNode, TreeProps } from "antd/es/tree";
-import { RightOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { TableOfContentNode } from "../../services/documentation/documentationTypes";
 import { useDocumentation } from "../../hooks/useDocumentation";
+import { OverridableIcon } from "../../icons/IconProvider";
 import {
   DOCUMENTATION_ROUTE_BASE,
   toDocRoutePath,
@@ -43,7 +43,6 @@ const convertTOCToTreeData = (
       key,
       children: children.length > 0 ? children : undefined,
       selectable: hasDocument,
-      className: hasDocument ? undefined : "doc-tree-group",
     },
   ];
 };
@@ -188,25 +187,29 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
   }
 
   return (
-    <div className={styles.sidebar}>
-      <Tree
-        treeData={treeData}
-        selectedKeys={selectedKeys}
-        onSelect={handleSelect}
-        expandedKeys={expandedKeys}
-        onExpand={handleExpand}
-        autoExpandParent={false}
-        blockNode
-        expandAction={false}
-        showLine={true}
-        switcherIcon={({ expanded }) => (
-          <RightOutlined
-            className={styles.switcherIcon}
-            rotate={expanded ? 90 : 0}
-          />
-        )}
-      />
-    </div>
+    <Tree
+      className={styles.tree}
+      classNames={{
+        item: styles.row,
+        itemTitle: styles.title,
+        itemSwitcher: styles.switcher,
+      }}
+      treeData={treeData}
+      selectedKeys={selectedKeys}
+      onSelect={handleSelect}
+      expandedKeys={expandedKeys}
+      onExpand={handleExpand}
+      autoExpandParent={false}
+      blockNode
+      expandAction={false}
+      switcherIcon={({ expanded }) => (
+        <OverridableIcon
+          name={expanded ? "up" : "down"}
+          className={styles.switcherIcon}
+          aria-hidden="true"
+        />
+      )}
+    />
   );
 };
 

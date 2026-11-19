@@ -31,7 +31,7 @@ jest.mock(
   "../../../src/components/documentation/DocumentationSidebar.module.css",
   () => ({
     __esModule: true,
-    default: { sidebar: "sidebar" },
+    default: { tree: "tree" },
   }),
 );
 
@@ -202,9 +202,7 @@ describe("DocumentationSidebar", () => {
     expect(screen.queryByText("Service Call")).not.toBeInTheDocument();
   });
 
-  // A custom switcherIcon carries none of antd's own icon classes, so the
-  // arrow has to be turned from React. It used to point right in every state.
-  it("turns the switcher arrow down while a group is expanded", async () => {
+  it("points the switcher up when expanded and down when collapsed", async () => {
     mockPathname = "/doc/01__Chains/service_call";
     await renderAndFlush();
 
@@ -215,7 +213,7 @@ describe("DocumentationSidebar", () => {
       return switcher?.querySelector("svg");
     };
 
-    expect(arrowOf("Chains")).toHaveStyle({ transform: "rotate(90deg)" });
+    expect(arrowOf("Chains")).toHaveAttribute("data-icon", "up");
 
     fireEvent.click(
       Array.from(document.querySelectorAll(".ant-tree-switcher")).find((s) =>
@@ -226,8 +224,6 @@ describe("DocumentationSidebar", () => {
       await flushPromises();
     });
 
-    expect(arrowOf("Chains")?.getAttribute("style") ?? "").not.toContain(
-      "rotate",
-    );
+    expect(arrowOf("Chains")).toHaveAttribute("data-icon", "down");
   });
 });

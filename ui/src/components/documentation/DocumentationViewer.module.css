@@ -40,27 +40,25 @@
 }
 
 .viewer h1 {
-  font-size: 2.1em;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-top: 0.1em;
-  margin-bottom: 0.3em;
+  font-size: 1.43em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 4px;
 }
 
 .viewer h2 {
-  font-size: 1.65em;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-size: 1.29em;
+  font-weight: 600;
   margin-top: 1em;
   margin-bottom: 0.25em;
 }
 
 .viewer h3 {
-  font-size: 1.35em;
+  font-size: 1.14em;
 }
 
 .viewer h4 {
-  font-size: 1.15em;
+  font-size: 1.07em;
 }
 
 .viewer h5 {
@@ -92,7 +90,7 @@
 /* ─── Body copy ─── */
 
 .viewer p {
-  margin: 0.4em 0;
+  margin: 6px 0;
   line-height: 1.55;
 }
 
@@ -141,6 +139,10 @@
   height: 1px;
   margin: 8px 0;
   background: var(--doc-border);
+}
+
+.viewer h2 + hr {
+  display: none;
 }
 
 /* ─── Tables: rounded outer frame, single-line grid ─── */

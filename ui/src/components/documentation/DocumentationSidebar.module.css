@@ -1,98 +1,82 @@
-/* stylelint-disable no-duplicate-selectors */
+.tree:global(.ant-tree) {
+  --doc-tree-selection-background: var(--vscode-list-activeSelectionBackground);
+  --doc-tree-selection-color: var(--vscode-list-activeSelectionForeground);
 
-.sidebar {
-  padding: 0 10px;
-}
-
-/* Main tree background - use theme variable */
-.sidebar :global(.ant-tree) {
   background: transparent;
-  color: var(--vscode-foreground, #000);
+  color: var(--vscode-foreground);
 }
 
-.sidebar :global(.ant-tree .ant-tree-treenode) {
-  padding: 0;
+:global(:root[data-theme="light"]:not(.vscode-webview)) .tree {
+  --doc-tree-selection-background: #e5f7fe;
+  --doc-tree-selection-color: #0063fa;
 }
 
-/* Tree node content wrapper */
-.sidebar :global(.ant-tree .ant-tree-node-content-wrapper) {
-  border-radius: 4px;
-  min-height: 28px;
-  line-height: 28px;
-  padding: 0 8px;
-  color: var(--vscode-foreground, #000);
-  position: relative;
-  z-index: 1;
-}
-
-/* Indent units for hierarchy */
-.sidebar :global(.ant-tree .ant-tree-indent-unit) {
-  width: 12px;
-  position: relative;
-  z-index: 0;
-}
-
-/* Hover state */
-.sidebar :global(.ant-tree .ant-tree-node-content-wrapper:hover) {
-  background-color: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
-}
-
-/* Switcher (expand/collapse icon) */
-.sidebar :global(.ant-tree .ant-tree-switcher) {
-  display: flex;
+.tree .row[role="treeitem"] {
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 28px;
+  min-height: 36px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  line-height: 22px;
 }
 
-.sidebar :global(.ant-tree .ant-tree-switcher-noop) {
-  visibility: hidden;
+.tree .row[aria-selected="false"]:hover,
+.tree .row:not([aria-selected]):has(> .switcher:hover) {
+  background: var(--vscode-list-hoverBackground);
 }
 
-/* Under showLine antd hands a custom switcher the -line-icon class, not the
-   -switcher-icon one its own stylesheet uses, so the arrow is styled through a
-   class of ours and turned from React instead. */
-.switcherIcon {
-  /* antd fills the switcher with colorBgTextHover on hover through a
-     positioned ::before, and this theme maps that token to an opaque colour,
-     so the arrow has to sit above it. */
-  position: relative;
-  z-index: 1;
-  color: var(--vscode-foreground, #000);
-  opacity: 0.6;
-  font-size: 12px;
-  transition:
-    opacity 0.2s ease,
-    color 0.2s ease;
-  display: inline-flex;
+.tree .row[aria-selected="true"] {
+  --doc-tree-text-color: var(--doc-tree-selection-color);
+
+  background: var(--doc-tree-selection-background);
+  font-weight: 500;
 }
 
-.sidebar :global(.ant-tree .ant-tree-switcher:hover) .switcherIcon {
-  opacity: 1;
+.tree .row > :global(.ant-tree-node-content-wrapper) {
+  min-width: 0;
+  padding: 7px 16px;
+  overflow-wrap: anywhere;
 }
 
-/* antd applies the rotation to the svg, so the transition belongs there. */
-.switcherIcon svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-  margin: auto;
-  transition: transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+.tree .row > :global(.ant-tree-node-content-wrapper:hover),
+.tree .row > :global(.ant-tree-node-content-wrapper.ant-tree-node-selected) {
+  background: transparent;
 }
 
-.sidebar :global(.ant-tree-show-line .ant-tree-indent-unit::before) {
-  inset-inline: 8px auto;
-}
-
-/* Non-navigable group nodes (folders without a document) —
-   no pointer cursor, no hover highlight. */
-.sidebar :global(.doc-tree-group > .ant-tree-node-content-wrapper) {
+.tree .row:not([aria-selected]) > :global(.ant-tree-node-content-wrapper) {
   cursor: default;
 }
 
-.sidebar :global(.doc-tree-group > .ant-tree-node-content-wrapper:hover) {
-  background-color: transparent;
+.title,
+.switcherIcon {
+  color: var(--doc-tree-text-color, var(--vscode-foreground));
 }
 
-/* stylelint-enable no-duplicate-selectors */
+.tree .row :global(.ant-tree-indent-unit) {
+  width: 16px;
+}
+
+.tree .row > .switcher {
+  order: 1;
+  width: 44px;
+  margin-inline-end: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree .row > .switcher:global(.ant-tree-switcher-noop) {
+  display: none;
+}
+
+.tree .row > .switcher::before {
+  display: none;
+}
+
+.tree .switcher .switcherIcon {
+  font-size: 12px;
+}
+
+/* Each state supplies its own chevron, so suppress Ant Design's rotation. */
+.tree .row > .switcher .switcherIcon svg {
+  transform: none;
+}
