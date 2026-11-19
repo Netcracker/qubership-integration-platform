@@ -1,0 +1,75 @@
+@startuml
+participant "Domain A" as A #lightgreen
+participant "Identity Provider (IDP)" as I
+box "CIP" #transparent
+    participant "Engine" as E #lightblue
+end box
+participant "Domain B" as B #lightgreen
+autonumber "<b>[00]"
+
+alt #transparent Domain A uses an IDP token
+    A -> I: Log in with client credentials
+    activate A
+    activate I
+    I --> A: Response with IDP token
+    deactivate I
+else Domain A uses a Kubernetes token
+    A -> A: Read service account token
+end
+
+A -> E: Request with M2M token
+activate E
+E -> E: Validate token
+
+alt #transparent Token is valid
+    E -> E: Preserve current Authorization header value
+
+    alt #transparent Kubernetes tokens disabled, or Domain B remembered as IDP-only
+        opt No valid IDP token
+            E -> I: Request IDP token
+            activate I
+            I --> E: Response with IDP token
+            deactivate I
+        end
+        E -> B: Request with IDP token
+        activate B
+        B --> E: Response
+        deactivate B
+    else Kubernetes tokens enabled
+        E -> E: Read service account token
+        opt Service account token available
+            E -> B: Request with Kubernetes token
+            activate B
+            B --> E: Response
+            deactivate B
+        end
+        opt Service account token unavailable, or Domain B responded 401
+            opt No valid IDP token
+                E -> I: Request IDP token
+                activate I
+                I --> E: Response with IDP token
+                deactivate I
+            end
+            E -> B: Repeat request with IDP token
+            activate B
+            B --> E: Response
+            deactivate B
+            opt Response code is 2xx
+                E -> E: Remember Domain B as IDP-only for 5 hours
+            end
+        end
+    end
+
+    E -> E: Reinstate original Authorization header value
+    E --> A: Response
+else Token is invalid
+    E --> A: Response with access error
+    note right of E
+        An HTTP Trigger with RBAC also responds
+        with 403 to a valid Kubernetes token,
+        because that token carries no roles.
+    end note
+end
+deactivate E
+deactivate A
+@enduml

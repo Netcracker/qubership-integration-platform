@@ -286,7 +286,7 @@ Select two chains using the checkboxes and click ![diff](img/diff.svg) to open t
 
 You can view the comparison in three modes, switchable at any time:
 
-- **Graph View** - the default view. Each comparison area shows the chain's configuration graph. The following tools are available:
+- **Graph View** - the default view. Each comparison area shows the chain's chain graph. The following tools are available:
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
   - ![rotate-right](img/rotate-right.svg) - toggles the graph orientation between vertical and horizontal.

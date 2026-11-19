@@ -181,7 +181,7 @@ Possible selectable options:
 - **None** - removes auth settings (removes Authorization header)
 - **Basic Auth** - basic authorization with username and password
 - **Bearer Token** - authorization with bearer token
-- **M2M Token** - service call will put machine to machine token into Authorization header.
+- **M2M Token** - service call will put machine to machine token into Authorization header. For the HTTP and GraphQL protocols, when the environment enables sending Kubernetes tokens, the token is a Kubernetes service account token, and service call falls back to the IDP token if the target rejects it with **401 Unauthorized**. For details, see [Token Processing](../../../../../08__Features/2__Token_Processing/readme.md).
 
 | Parameter | Mandatory | Data Type | Description                                                                                                      | Sample                    |
 |-----------|:----------|:----------|------------------------------------------------------------------------------------------------------------------|---------------------------|

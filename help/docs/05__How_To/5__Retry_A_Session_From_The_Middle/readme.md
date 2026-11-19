@@ -46,7 +46,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 > - Triggering of checkpoints is available only for consumers with the **`ROLE_CIP_SESSION_RETRY`** or **`ROLE_M2M`** access role.
 > - When the retry will be initiated, new exchange property ***checkpointOriginalSessionId*** with id of failed session will be created.
 > - Checkpoint cannot be processed within the sub-chain (chain with start element [Chain Trigger]).
-> - Checkpoint cannot be processed within the [Loop] element.
+> - Checkpoint cannot be processed within the [Loop](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/8__Loop/readme.md) element.
 > - Retry mechanism restores objects of the original classes if these classes implement **serializable interface**, for example: public class **ObjectNode** implements **java.io.Serializable** {...}.
 > - Properties of object type won't be restored as part of Retry process, if the classes for such properties were defined via scripts.
 > - An engine domain accepts a retry request only for a chain that is deployed on that domain. Otherwise it responds with HTTP 404 and the message `Chain <chainId> is not deployed on this engine; can't retry session with id: <sessionId>` The micro-engine applies this check to retry from the last checkpoint and to retry from a specific checkpoint, while the classic engine applies it to retry from the last checkpoint only.
@@ -57,14 +57,13 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 
 Retry session from the middle can be triggered by event to dedicated Kafka topic (see [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/readme.md)) the particular endpoint or via session tab (under the [chain], and [Sessions](../../03__Admin_Tools/5__Sessions/readme.md).
 
-> ℹ️
-> When retrying a failed session (via  [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/readme.md)) or a [specific endpoint]), you can ensure idempotent behavior by using the `"x-idempotency-key"` header. A retry request with a unique header value will be logged (processed) under the original session in the UI. Any duplicate retry request that carries an identical `"x-idempotency-key"` will not be processes.
+> ℹ️ When retrying a failed session (via  [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/readme.md)) or a specific HTTP endpoint, you can ensure idempotent behavior by using the `"x-idempotency-key"` header. A retry request with a unique header value will be logged (processed) under the original session in the UI. Any duplicate retry request that carries an identical `"x-idempotency-key"` will not be processes.
 
 ## User Interface
 
 ---
 
-In the chain [Configuration Graph] user can configure safe point by adding to the chain graph [Checkpoint] element.
+In the chain [Graph](../../01__Chains/1__Graph/readme.md) user can configure safe point by adding to the chain graph [Checkpoint] element.
 
 ## Data Storage
 
@@ -82,4 +81,4 @@ To configure the retry session in the middle, the next steps should be done:
 
 1. Set environment variables before CIP installation to configure cleanup policy for checkpoints and error session. Details are available in [Retention setting](../../08__Features/3__Retention_Settings/readme.md).
 2. After CIP installation add [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/readme.md) to the chain graph and deploy chain.
-3. Set access role **ROLE\_CIP\_SESSION\_RETRY** for the API consumer**.**
+3. Set access role **ROLE\_CIP\_SESSION\_RETRY** for the API consumer.

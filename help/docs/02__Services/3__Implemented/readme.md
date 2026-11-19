@@ -87,7 +87,7 @@ When service is clicked, the system shows the table with all specification group
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the specification group, unique within particular specification group.
-- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
+- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective chain graph.
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modification.
@@ -126,7 +126,7 @@ When particular specification group name is clicked, the system opens new page w
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the specification.
-- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
+- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective chain graph.
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 

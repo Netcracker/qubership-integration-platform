@@ -27,14 +27,14 @@ Import Instructions might be uploaded via file or created manually on "**Import 
 After navigation to "Import Instructions" tab, system initially displays a table, where next information and control elements are presented:
 
 - **Id** - identifies the particular entity. Content depends on the section:
-  - **Chains** - unique identifier of the chain. When the chain exists in CIP, its name is displayed as a clickable link to the chain's Configuration Graph; otherwise the ID is shown as plain text.
+  - **Chains** - unique identifier of the chain. When the chain exists in CIP, its name is displayed as a clickable link to the chain graph; otherwise the ID is shown as plain text.
   - **Services** - unique identifier of the service. When the service exists in CIP, its name is displayed as a clickable link to the service's parameters page; otherwise the ID is shown as plain text.
   - **Common Variables** - unique name of the common variable.
 - **Action** - editable value, describes the action, that will be taken during entity import process. List of available values:
   - **Ignore** - specified entity will be ignored. Applicable for Chains, Services and Common Variables.
   - **Override** - specified chain is going to be overridden by another one. Applicable only for the Chains section. Overridden chain will receive all changes from import archive without snapshot creation and be undeployed. Applicable for Chains only.
-> ℹ️  **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**.
-- **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in CIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
+> ℹ️ **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**.
+- **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in CIP, its name is displayed as a clickable link; clicking it opens the chain's chain graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
 
