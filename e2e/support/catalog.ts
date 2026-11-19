@@ -598,14 +598,18 @@ export class Catalog {
   // -------------------------------------------------------------------------
 
   /**
-   * Compiles the chain's current state into a snapshot, named `V1`, `V2`, … per chain.
+   * Compiles the chain's current state into a snapshot. With no `name` in `request`, the catalog
+   * names it `V1`, `V2`, … per chain.
    *
    * The build response carries no `xmlDefinition` — the controller nulls it before answering, the
    * serializer then drops the key, and the listing and a `light` read behave the same way. Only a
    * full `getSnapshot` has the XML.
    */
-  createSnapshot(chainId: string): Promise<SnapshotView> {
-    return this.call("post", `/v1/catalog/chains/${chainId}/snapshots`);
+  createSnapshot(
+    chainId: string,
+    request?: { name?: string; labels?: Array<{ name: string; technical: boolean }> },
+  ): Promise<SnapshotView> {
+    return this.call("post", `/v1/catalog/chains/${chainId}/snapshots`, request);
   }
 
   listSnapshots(chainId: string): Promise<SnapshotView[]> {
