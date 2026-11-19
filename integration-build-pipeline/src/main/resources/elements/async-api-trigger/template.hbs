@@ -10,7 +10,7 @@
                     jsonQueryParameters=(asyncPropertiesJson)
                     exchangePattern='InOnly'
                     autoDeclare='false'
-                    maximumRetryAttempts='1'
+                    maximumRetryAttempts='0'
                     metricsCollector=(identifier prefix='#'))}}"/>
     {{#if-property (requestFilterHeaderAllowlistName) presented=''}}
         <process ref="requestFilterProcessor"/>
