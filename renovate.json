@@ -8,7 +8,7 @@
     "enabled": false
   },
   "constraints": {
-    "go": "1.22"
+    "go": "1.23"
   },
   "packageRules": [
     {
@@ -18,7 +18,7 @@
       "enabled": true
     },
     {
-      "description": "Keep testing-service buildable on the 1.22 toolchain the downstream build pins: skip releases that declare a newer go directive",
+      "description": "Keep testing-service buildable on the 1.23 toolchain the downstream build pins: skip releases that declare a newer go directive",
       "matchManagers": ["gomod"],
       "constraintsFiltering": "strict"
     }
