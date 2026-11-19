@@ -1477,6 +1477,7 @@ export async function duplicateChain(
     content.reuseSwimlaneId = newId(content.reuseSwimlaneId as string);
   }
   delete content.deployments;
+  delete content.deployAction;
 
   const takenNames: string[] = [];
   await fileApi.findAndBuildChainsRecursively(

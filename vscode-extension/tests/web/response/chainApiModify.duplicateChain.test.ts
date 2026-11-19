@@ -24,6 +24,7 @@ content:
       name: password
   deployments:
     - domain: default
+  deployAction: DEPLOY
   elements:
     - id: lane
       name: Default
@@ -85,6 +86,7 @@ describe("duplicateChain", () => {
     expect(copy.id).not.toBe("orders");
     expect(copy.metaInfo.group).toBe("billing");
     expect(copy.content.deployments).toBeUndefined();
+    expect(copy.content.deployAction).toBeUndefined();
 
     const [lane, trigger, script, group] = copy.content.elements;
     const [reuse, reference] = group.children;
