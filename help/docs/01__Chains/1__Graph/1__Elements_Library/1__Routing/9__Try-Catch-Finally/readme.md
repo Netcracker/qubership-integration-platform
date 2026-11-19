@@ -12,7 +12,7 @@ Configuration of this element must follow simple aspects:
 
 
 > ℹ️ One of the options of accessing error details, captured by **Catch** block, would be using next string in the **Script** element:
->```groovy 
+>```groovy
 > exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
 >```
 
