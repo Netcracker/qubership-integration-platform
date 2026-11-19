@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The broker fixture corpus: imported once, deployed once, torn down once — outside the shared
  * corpus in `support/corpus.ts` on purpose.

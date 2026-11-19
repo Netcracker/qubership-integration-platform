@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The testing service: the suite's **tool** for endpoint mocks, and a subject of its own.
  *

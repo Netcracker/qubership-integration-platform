@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../../env/platform-http.js";
 /**
  * A deployed chain keeps working after the engine or the catalog restarts.
  *
