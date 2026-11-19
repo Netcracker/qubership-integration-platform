@@ -1,4 +1,4 @@
-<from uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}&amp;autoDeclare=false&amp;maximumRetryAttempts=1"/>
+<from uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}&amp;autoDeclare=false&amp;maximumRetryAttempts=0"/>
 <setProperty name="internalProperty_acknowledgeMode">
     <constant>{{property 'acknowledgeMode'}}</constant>
 </setProperty>
