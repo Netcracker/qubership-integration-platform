@@ -37,7 +37,7 @@ integration-platform-skills/
 /.private/
 
 # Local design notes, plans, and specs
-docs/
+/docs/
 
 # Local A2A experiments
 /tools/a2a-lab/

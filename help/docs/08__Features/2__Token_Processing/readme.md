@@ -23,7 +23,7 @@ then token is going to be received by Trigger.
 Trigger might have set of roles configured for additional validation (where for HTTP Trigger the system requires that at least one role must be defined if role-based access control is opted).
 Service Call represents the element that is able to trigger the outbound call, if authorization option "**M2M Token**" is selected, then CIP Engine will put the M2M token to the **Authorization** header when calling Service B.
 
-> ℹ️ **Note:** Currently there are only three elements, that utilize mentioned security aspect, due to mechanism specifics:
+> ℹ️  Currently there are only three elements, that utilize mentioned security aspect, due to mechanism specifics:
 > <br>[HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
 > <br>[HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md)
 > <br>[Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md)

@@ -67,7 +67,7 @@ Navigate to Admin Tools and then "Diagnostic page" tab. Select required validati
 - **Timeout is empty** - rule allows to find chain elements with empty timeout value.
 - **Unsupported elements found in the chain** - rule allows to find chains with elements that are no longer supported by the system.
 
-> ℹ️ **Note:** **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Chain snapshots or deployments do not affect the results of these validations.
+> ℹ️  **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Chain snapshots or deployments do not affect the results of these validations.
 
 ## Data Storage
 

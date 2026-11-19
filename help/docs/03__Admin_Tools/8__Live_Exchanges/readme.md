@@ -41,7 +41,7 @@ The control panel is positioned at the top right of the table and provides the f
 ### Terminate Exchange
 To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![stop](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
 
-> ℹ️ **Note:** Once the "Terminate" button is clicked, termination occurs only after the current chain element finishes executing (the next element will not start). Ensure the exchange is no longer required before initiating termination.
+> ℹ️  Once the "Terminate" button is clicked, termination occurs only after the current chain element finishes executing (the next element will not start). Ensure the exchange is no longer required before initiating termination.
 
 ## Data Storage
 
