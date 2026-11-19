@@ -282,7 +282,7 @@ Select two chains using the checkboxes and click ![diff](img/diff.svg) to open t
 - **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are highlighted in the comparison areas, and property details are displayed above the graphs.
 - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - opens the dialog in full screen and collapses it back.
 
-> ℹ️  The comparison feature is designed for two **similar** chains. It provides little value when comparing two completely different chains.
+> ℹ️ The comparison feature is designed for two **similar** chains. It provides little value when comparing two completely different chains.
 
 You can view the comparison in three modes, switchable at any time:
 
@@ -314,7 +314,7 @@ You can view the comparison in three modes, switchable at any time:
 
 Chain comparison is available from a chain's Git history: use any Visual Studio Code action that opens a diff for a `*.chain.cip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the CIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
 
-> ℹ️  To compare `*.chain.cip.yaml` files with the built-in text diff instead, enable the **"Integration Designer: Use Default Diff View"** VS Code setting.
+> ℹ️ To compare `*.chain.cip.yaml` files with the built-in text diff instead, enable the **"Integration Designer: Use Default Diff View"** VS Code setting.
 
 Because the two compared versions are fixed by Git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
 

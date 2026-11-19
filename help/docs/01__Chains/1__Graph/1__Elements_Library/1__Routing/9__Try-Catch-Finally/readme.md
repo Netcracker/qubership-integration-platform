@@ -11,11 +11,10 @@ Configuration of this element must follow simple aspects:
 - **Finally** block must contain part of the chain, that is going to be executed at the end of Try-Catch-Finally processing. This part will always be executed, whether an error occurred or not.
 
 
-> ℹ️  One of the options of accessing error details, captured by **Catch** block, would be using next string in the **Script** element:
-
-```groovy
-exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
-```
+> ℹ️ One of the options of accessing error details, captured by **Catch** block, would be using next string in the **Script** element:
+>```groovy 
+> exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
+>```
 
 ## User Interface
 

@@ -13,7 +13,7 @@ Engine domains are of two types:
 - **Classic** - a domain with engine pods pre-configured via the deployment descriptor.
 - **Micro** - a domain created on demand: deploying chains under a domain name that does not exist yet provisions the domain as a Camel K custom resource running only the deployed chain(s). A **`micro`** tag marks this domain type wherever a domain is shown, and micro domains can be deleted directly from the **"Domains"** tab.
 
-> ℹ️  Availability of the **Classic** and **Micro** domain types is controlled independently via configuration of specific environment parameters (for the correct parameter names, contact your system administrator). If a domain type is disabled, no domains of that type are available for deployment.
+> ℹ️ Availability of the **Classic** and **Micro** domain types is controlled independently via configuration of specific environment parameters (for the correct parameter names, contact your system administrator). If a domain type is disabled, no domains of that type are available for deployment.
 
 Cloud Integration Platform provides view-only window where domain's information could be seen:
 - Increasing the number of **Classic** engine domains is available **only via deployment descriptor during the deployment** (not in runtime). **Micro** domains, in contrast, are created directly from the deployment dialogs — see [Deployments](../../01__Chains/3__Deployments/readme.md).

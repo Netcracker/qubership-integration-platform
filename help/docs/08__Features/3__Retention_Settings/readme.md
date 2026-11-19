@@ -18,7 +18,7 @@ To avoid extreme space consumptions and be able to follow customer-specific rete
 
 Settings must be specified for configuring either via Consul or via Environment parameters. Please refer to the specialized section below for parameters details.
 
-> ℹ️  The Consul parameters of the engine start with `cip.`. The engine still reads a Consul key that starts with the former `qip.` prefix, for example `qip.opensearch.rollover.min_index_age`.
+> ℹ️ The Consul parameters of the engine start with `cip.`. The engine still reads a Consul key that starts with the former `qip.` prefix, for example `qip.opensearch.rollover.min_index_age`.
 
 ### Sessions Retention
 
@@ -102,7 +102,7 @@ Cloud integration Platform stores the metadata of each import session, such as i
 |:-------------------------------|:-----------------------------------|:----------|:---------------|:--------------------------------------------------------------------------------------------------------------------------------|:---------------------------|
 | IMPORT\_LOG\_LIFETIME\_MINUTES | cloud-integration-platform-catalog | O         | 10080 (7 days) | Time in minutes that import session metadata is stored. Sessions older than this value are deleted when the next import starts. | **Three days**: ```4320``` |
 
-> ℹ️  Once a session is deleted, its ID stays in the Audit log, but the import result for that ID is no longer available. Before this setting was introduced, the lifetime was fixed at 300 minutes (5 hours).
+> ℹ️ Once a session is deleted, its ID stays in the Audit log, but the import result for that ID is no longer available. Before this setting was introduced, the lifetime was fixed at 300 minutes (5 hours).
 
 ## Process Initialization
 

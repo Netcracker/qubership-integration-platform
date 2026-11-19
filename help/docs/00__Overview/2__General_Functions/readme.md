@@ -72,7 +72,7 @@ Each YAML configuration file declares its schema in the `$schema` field:
 `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/<type>`, where `<type>` is `chain`,
 `service`, `context-service`, `mcp-service`, `specification-group`, or `specification`.
 
-> ℹ️  Before the move to the CIP namespace, these files ended in `.qip.yaml` and declared
+> ℹ️ Before the move to the CIP namespace, these files ended in `.qip.yaml` and declared
 > `http://qubership.org/schemas/product/qip/<type>`. Import accepts both `*.qip.yaml` and `*.cip.yaml` files, and both
 > `$schema` values.
 
@@ -159,7 +159,7 @@ properties:
       validationSchemaFilename: response-200-application-json.schema.cip.json
 ```
 
-> ℹ️  Inline schemas remain supported. If both an inline schema and a file reference are present, import uses the file. Web UI export keeps these schemas in the chain YAML.
+> ℹ️ Inline schemas remain supported. If both an inline schema and a file reference are present, import uses the file. Web UI export keeps these schemas in the chain YAML.
 
 ## Filters
 

@@ -4,7 +4,7 @@
 ---
 Mapper is a fully customized module that provides an ability to set up a mapping between the input/source message and the target one. As part of the mapping, it is also possible to apply transformation logic in order to receive the desired message for its further processing.
 
-> ⚠️  During the first launch of the chain with Mapper element **system performance may be impacted** due to resource-intensive data caching. Subsequent requests will perform optimally.
+> ⚠️ During the first launch of the chain with Mapper element **system performance may be impacted** due to resource-intensive data caching. Subsequent requests will perform optimally.
 
 ## User Interface
 
