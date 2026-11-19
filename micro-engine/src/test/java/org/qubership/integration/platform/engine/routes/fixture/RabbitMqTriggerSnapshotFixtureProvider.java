@@ -269,7 +269,7 @@ class RabbitMqTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider 
 
         private static void verifyGeneratedSettings(EndpointSettings settings, SpringRabbitMQCustomEndpoint endpoint, String node) {
             assertFalse(endpoint.isAutoDeclare(), "RabbitMQ trigger must retain autoDeclare=false.");
-            assertEquals(1, endpoint.getMaximumRetryAttempts(), "RabbitMQ trigger must retain one listener attempt.");
+            assertEquals(0, endpoint.getMaximumRetryAttempts(), "RabbitMQ trigger must disable listener retries.");
             assertEquals(settings.parameters().getOrDefault("acknowledgeMode", "AUTO"), endpoint.getAcknowledgeMode().name(),
                     "RabbitMQ trigger must retain the exported acknowledgment mode.");
             assertNotNull(endpoint.getMetricsCollector(), "RabbitMQ trigger must retain the generated metrics collector for " + node);
