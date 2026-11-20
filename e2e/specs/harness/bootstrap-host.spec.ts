@@ -1,65 +1,108 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { bashExecutable, repoRoot } from "../../env/host.js";
+import { stopGroup } from "../../support/process-group.js";
 
 const made: string[] = [];
+const running = new Map<ChildProcess, Promise<number | null>>();
 
-function bootstrap(args: string[], failCni = false, existing = false) {
+async function bootstrap(args: string[], failCni = false, existing = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-bootstrap-"));
   made.push(dir);
-  const log = path.join(dir, "commands.jsonl");
-  const program = `#!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
-const tool = path.basename(process.argv[1]);
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.HOST_BOOTSTRAP_LOG, JSON.stringify([tool, ...args]) + '\\n');
-if (tool === 'kind' && args[0] === 'get' && process.env.HOST_EXISTING_KIND) console.log('qip');
-if (tool === 'kubectl' && args.join(' ') === 'config current-context') console.log('docker-desktop');
-if (tool === 'kubectl' && args.includes('get') && args.includes('metrics-server')) console.log('v0.9.0 --kubelet-insecure-tls');
-if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || args.includes('daemonset/ztunnel'))) process.exit(19);
-`;
-  for (const tool of ["kubectl", "helm", "kind", "istioctl"]) {
-    fs.writeFileSync(path.join(dir, tool), program, { mode: 0o755 });
-  }
-  const result = spawnSync(bashExecutable(), [path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh").split(path.sep).join("/"), ...args], {
+  const log = path.join(dir, "commands");
+  const stubs = path.join(dir, "tools.sh");
+  fs.writeFileSync(log, "");
+  // Source the stubs in Git Bash to avoid a Node startup for every command.
+  fs.writeFileSync(stubs, String.raw`
+fake_tool() {
+  printf '%s\0' "$#" "$@" >> "$HOST_BOOTSTRAP_LOG"
+  local tool="$1"
+  shift
+  if [[ -n "$HOST_FAIL_CNI" && "$tool" == kubectl ]]; then
+    case " $* " in
+      *" daemonset/istio-cni-node "*|*" daemonset/ztunnel "*) return 19 ;;
+    esac
+  fi
+  case "$tool:$*" in
+    "kind:get clusters")
+      if [[ -n "$HOST_EXISTING_KIND" ]]; then echo qip; fi
+      ;;
+    "kubectl:config current-context") echo docker-desktop ;;
+    kubectl:*" get deployment metrics-server "*) echo 'v0.9.0 --kubelet-insecure-tls' ;;
+  esac
+}
+kubectl() { fake_tool kubectl "$@"; }
+kind() { fake_tool kind "$@"; }
+helm() { fake_tool helm "$@"; }
+istioctl() { fake_tool istioctl "$@"; }
+`);
+  const bashPath = (file: string) => file.split(path.sep).join("/");
+  const script = bashPath(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"));
+  const child = spawn(bashExecutable(), [
+    "-ec", 'source "$1"; script="$2"; shift 2; source "$script" "$@"', "bootstrap-host", bashPath(stubs), script, ...args,
+  ], {
     env: {
       ...process.env,
-      PATH: `${dir}${path.delimiter}${process.env.PATH}`,
-      HOST_BOOTSTRAP_LOG: log,
+      HOST_BOOTSTRAP_LOG: bashPath(log),
       HOST_FAIL_CNI: failCni ? "1" : "",
       HOST_EXISTING_KIND: existing ? "1" : "",
       E2E_ZTUNNEL_ORIG_SRC: "false",
     },
-    encoding: "utf8",
-    timeout: 10_000,
+    detached: true,
+    stdio: ["ignore", "ignore", "pipe"],
+    windowsHide: true,
   });
-  const commands = fs.readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
-  return { ...result, commands };
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", (chunk: string) => { stderr += chunk; });
+  const closed = new Promise<number | null>((resolve, reject) => {
+    child.once("close", resolve);
+    child.once("error", reject);
+  });
+  running.set(child, closed);
+  try {
+    const status = await closed;
+    const fields = fs.readFileSync(log, "utf8").split("\0");
+    const commands: string[][] = [];
+    for (let i = 0; i < fields.length - 1;) {
+      const count = Number(fields[i++]);
+      commands.push(fields.slice(i, i + count));
+      i += count;
+    }
+    return { status, stderr, commands };
+  } finally {
+    running.delete(child);
+  }
 }
 
 test.describe("cluster bootstrap host", () => {
-  test.afterEach(() => {
-    for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  test.afterEach(async () => {
+    try {
+      for (const [child, closed] of running) {
+        if (child.pid !== undefined) await stopGroup(child.pid);
+        await closed;
+      }
+    } finally {
+      for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  test("an explicit kind cluster leaves Docker Desktop untouched", () => {
-    const result = bootstrap(["--kind"]);
+  test("an explicit kind cluster leaves Docker Desktop untouched", async () => {
+    const result = await bootstrap(["--kind"]);
     expect(result.status, result.stderr).toBe(0);
     expect(result.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(true);
     expect(result.commands).toContainEqual(["kubectl", "-n", "istio-system", "set", "env", "daemonset/ztunnel", "ENABLE_ORIG_SRC=false"]);
-    const reused = bootstrap(["--kind"], false, true);
+    const reused = await bootstrap(["--kind"], false, true);
     expect(reused.status, reused.stderr).toBe(0);
     expect(reused.commands).toContainEqual(["kubectl", "config", "use-context", "kind-qip"]);
     expect(reused.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(false);
   });
 
-  test("a failed CNI rollout stops the cluster bootstrap", () => {
-    const result = bootstrap([], true);
-    expect(result.status).toBe(19);
+  test("a failed CNI rollout stops the cluster bootstrap", async () => {
+    const result = await bootstrap([], true);
+    expect(result.status, result.stderr).toBe(19);
     expect(result.commands.some((args) => args[0] === "helm")).toBe(false);
   });
 

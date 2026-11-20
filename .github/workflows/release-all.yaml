@@ -60,6 +60,7 @@ jobs:
       release-testing-service: ${{ steps.check.outputs.testing-service }}
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
+      release-e2e: ${{ steps.check.outputs.e2e }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -315,6 +316,18 @@ jobs:
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
+  release-e2e:
+    needs: prepare
+    if: needs.prepare.outputs.release-e2e == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/e2e-release.yaml
+    with:
+      release-type: ${{ inputs.release-type }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
   # ---------------------------------------------------------------------------
   # Bill of Materials: snapshot the released version of every module (derived
   # from the git tags the release jobs just pushed) and attach it as an artifact.
@@ -334,6 +347,7 @@ jobs:
       - release-testing-service
       - release-ui
       - release-vscode-extension
+      - release-e2e
     # Run after every release attempt, regardless of which were skipped/failed,
     # so the BOM reflects whatever was actually tagged. Skip only if the module
     # selection itself failed validation.
@@ -386,6 +400,7 @@ jobs:
       - release-testing-service
       - release-ui
       - release-vscode-extension
+      - release-e2e
     # Not always(): a failed module must not still cut a drop + bump the version.
     if: ${{ !cancelled() && !failure() && inputs.create-github-release && needs.prepare.result == 'success' }}
     runs-on: ubuntu-latest

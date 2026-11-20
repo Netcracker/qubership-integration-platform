@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * What a spec that builds its own chains has to put back.
  *

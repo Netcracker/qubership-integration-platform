@@ -51,6 +51,13 @@ export function serviceUrl(role: ServiceRole): string {
   return process.env[SERVICE[role].urlEnv] ?? `http://localhost:${hostPort(role)}`;
 }
 
+export function setServiceUrls(urls: Partial<Record<ServiceRole, string>>): void {
+  for (const role of ROLES) {
+    const url = urls[role];
+    if (url !== undefined) process.env[SERVICE[role].urlEnv] = url;
+  }
+}
+
 /**
  * The nginx front door: the `/api/` surface, the page a browser opens, and the only thing the proxy
  * reload polls. Here rather than in an adapter, so `playwright.config.ts` can set the `ui` project's

@@ -1,8 +1,7 @@
 {
   "name": "@netcracker/qip-e2e",
-  "private": true,
   "type": "module",
-  "description": "Qubership Integration Platform - end-to-end tests against the local stack",
+  "description": "Reusable end-to-end checks and Playwright fixtures for Qubership Integration Platform",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22.19.0"
@@ -19,11 +18,70 @@
     "check-types": "tsc --noEmit",
     "reconcile": "node --experimental-strip-types registry/reconcile.mjs",
     "refresh-operations": "node --experimental-strip-types registry/refresh-operations.mjs",
-    "frozen-checksums": "node --experimental-strip-types fixtures/archives/write-checksums.mjs"
+    "frozen-checksums": "node --experimental-strip-types fixtures/archives/write-checksums.mjs",
+    "build": "node scripts/build-package.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check-types && npm run build && npm run test:package",
+    "test:package": "node scripts/test-package.mjs"
   },
   "devDependencies": {
     "@apidevtools/json-schema-ref-parser": "^16.0.2",
     "@playwright/test": "^1.62.0",
+    "@types/amqplib": "^0.10.8",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/ssh2-sftp-client": "^9.0.6",
+    "ajv": "^8.20.0",
+    "amqplib": "^2.0.1",
+    "cross-env": "^10.1.0",
+    "cross-spawn": "^7.0.6",
+    "js-yaml": "^4.3.2",
+    "jszip": "^3.10.1",
+    "kafkajs": "^2.2.4",
+    "ssh2-sftp-client": "^12.1.1",
+    "typescript": "^5.9.3"
+  },
+  "version": "1.8.1",
+  "files": [
+    "dist/",
+    "PACKAGE.md",
+    "LICENSE",
+    "snapshot.zip",
+    "snapshot.json"
+  ],
+  "types": "./dist/portable/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/portable/index.d.ts",
+      "import": "./dist/portable/index.js"
+    },
+    "./suites": {
+      "types": "./dist/suites/index.d.ts",
+      "import": "./dist/suites/index.js"
+    },
+    "./full": {
+      "types": "./dist/portable/full-suite.d.ts",
+      "import": "./dist/portable/full-suite.js"
+    },
+    "./pages": {
+      "types": "./dist/portable/pages.d.ts",
+      "import": "./dist/portable/pages.js"
+    }
+  },
+  "peerDependencies": {
+    "@playwright/test": "^1.62.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Netcracker/qubership-integration-platform.git",
+    "directory": "e2e"
+  },
+  "dependencies": {
+    "@apidevtools/json-schema-ref-parser": "^16.0.2",
     "@types/amqplib": "^0.10.8",
     "@types/cross-spawn": "^6.0.6",
     "@types/js-yaml": "^4.0.9",

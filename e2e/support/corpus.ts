@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The shared fixture corpus: imported once, deployed once, read by every runtime spec.
  *

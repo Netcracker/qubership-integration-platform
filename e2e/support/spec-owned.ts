@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * A spec-owned fixture that cannot join the shared corpus because it never goes live: imported,
  * deployed and deleted by the spec that reads it, and named in `SPEC_OWNED_FIXTURES`.
