@@ -21,7 +21,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.consul.ConsulService;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.KVNotFoundException;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.DeploymentsUpdateService;
@@ -175,17 +174,6 @@ public class TasksScheduler {
 
     @Scheduled(fixedDelay = 1000)
     public void checkRuntimeDeploymentProperties() {
-        try {
-            Pair<Boolean, Map<String, DeploymentRuntimeProperties>> response = consulService.waitForChainRuntimeConfig();
-            if (response.getLeft()) { // changes detected
-                debuggerPropertiesService.updateRuntimeProperties(response.getRight());
-            }
-        } catch (KVNotFoundException kvnfe) {
-            log.debug("Runtime deployments properties KV is empty. {}", kvnfe.getMessage());
-            debuggerPropertiesService.updateRuntimeProperties(Collections.emptyMap());
-        } catch (Exception e) {
-            log.error("Failed to get runtime deployments properties from consul", e);
-            consulService.rollbackChainsRuntimeConfigLastIndex();
-        }
+        debuggerPropertiesService.watchRuntimeProperties();
     }
 }

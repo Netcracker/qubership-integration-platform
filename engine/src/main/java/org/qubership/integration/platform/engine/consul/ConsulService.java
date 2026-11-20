@@ -248,20 +248,31 @@ public class ConsulService {
         throw new RuntimeException("Failed to parse response, target key in consul has invalid format/size: " + response);
     }
 
+    public Map<String, DeploymentRuntimeProperties> readChainRuntimeConfig() {
+        try {
+            return parseChainsRuntimeConfig(queryChainRuntimeConfig(0));
+        } catch (KVNotFoundException e) {
+            return Collections.emptyMap();
+        }
+    }
+
     /**
      * @return [changes_detected, [chainId, properties]] map
      */
     public Pair<Boolean, Map<String, DeploymentRuntimeProperties>> waitForChainRuntimeConfig()
         throws KVNotFoundException {
-        Pair<Long, List<KeyResponse>> pair =
-            client.waitForKVChanges(keyPrefix + keyEngineConfigRoot + keyRuntimeConfigurations + keyChains,
-                false, chainsRuntimePropertiesLastIndex, WAIT_TIMEOUT_STRING);
+        Pair<Long, List<KeyResponse>> pair = queryChainRuntimeConfig(chainsRuntimePropertiesLastIndex);
 
         boolean changesDetected = pair.getLeft() != chainsRuntimePropertiesLastIndex;
         chainsRuntimePropertiesPreviousIndex = chainsRuntimePropertiesLastIndex;
         chainsRuntimePropertiesLastIndex = pair.getLeft();
 
         return Pair.of(changesDetected, parseChainsRuntimeConfig(pair));
+    }
+
+    private Pair<Long, List<KeyResponse>> queryChainRuntimeConfig(long index) throws KVNotFoundException {
+        return client.waitForKVChanges(keyPrefix + keyEngineConfigRoot + keyRuntimeConfigurations + keyChains,
+            false, index, WAIT_TIMEOUT_STRING);
     }
 
     // return Map<chainId, props>
