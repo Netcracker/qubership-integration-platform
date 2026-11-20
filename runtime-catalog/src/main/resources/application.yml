@@ -38,6 +38,8 @@ spring:
     database: postgresql
     properties:
       hibernate:
+        type:
+          json_format_mapper: jackson
         physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
         temp:
           use_jdbc_metadata_defaults: false # disable connection during init

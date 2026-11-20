@@ -17,15 +17,15 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element;
 
 import com.google.common.collect.Maps;
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.proxy.HibernateProxy;
+import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -57,12 +57,12 @@ public class ChainElement extends AbstractEntity {
     private SwimlaneChainElement swimlane;
 
     @Builder.Default
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     @DifferenceMember
     private Map<String, Object> properties = new LinkedHashMap<>();
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private ServiceEnvironment environment;
 

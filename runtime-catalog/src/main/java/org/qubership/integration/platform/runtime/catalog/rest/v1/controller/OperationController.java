@@ -114,7 +114,7 @@ public class OperationController {
 
     @GetMapping(value = "/{operationId}/specification", produces = "application/json")
     @io.swagger.v3.oas.annotations.Operation(description = "Get specification part related to specified operation")
-    public Object getSpecification(@PathVariable @Parameter(description = "Operation id") String operationId) {
+    public JsonNode getSpecification(@PathVariable @Parameter(description = "Operation id") String operationId) {
         if (log.isDebugEnabled()) {
             log.debug("Request to get operation {} specification", operationId);
         }

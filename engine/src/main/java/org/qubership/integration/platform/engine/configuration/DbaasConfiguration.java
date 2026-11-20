@@ -5,6 +5,7 @@ import com.netcracker.cloud.dbaas.client.config.EnableDbaasDefault;
 import com.netcracker.cloud.dbaas.client.config.MSInfoProvider;
 import com.netcracker.cloud.dbaas.client.management.DatabasePool;
 import com.netcracker.cloud.dbaas.client.management.classifier.DbaasClassifierFactory;
+import com.netcracker.cloud.security.core.auth.M2MManager;
 import org.qubership.integration.platform.engine.configuration.datasource.DbaasClassifierFactoryWithTenant;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,12 @@ public class DbaasConfiguration {
     @ConditionalOnMissingBean({MSInfoProvider.class})
     MSInfoProvider defaultMsInfoProvider() {
         return new DefaultMSInfoProvider();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    M2MManager m2mManager() {
+        return M2MManager.loadPreferred();
     }
 
     @Primary

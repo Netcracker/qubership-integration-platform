@@ -65,7 +65,7 @@ public class OpenSearchStandaloneAutoConfiguration {
         ApacheHttpClient5TransportBuilder builder = ApacheHttpClient5TransportBuilder
                 .builder(new HttpHost(protocol, host, port))
                 .setHttpClientConfigCallback(httpClientBuilder ->
-                        httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider));
+                        httpClientBuilder.disableContentCompression().setDefaultCredentialsProvider(credentialsProvider));
         return new StandaloneDbaasOpensearchClient(new OpenSearchClient(builder.build()), prefix);
     }
 }

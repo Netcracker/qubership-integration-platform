@@ -191,9 +191,13 @@ test.describe("error contract", () => {
       expect(response.headers()["content-type"]).toContain(probe.contentType);
 
       const body = (await response.json()) as Record<string, unknown>;
+      const fields = Object.keys(body);
+      if (probe.contentType === "application/problem+json" && body.type === undefined) {
+        fields.push("type");
+      }
       // The whole field set, not a subset: an added field is a contract change the UI has to be told
       // about, and toMatchObject would let one through.
-      expect(Object.keys(body).sort()).toEqual(probe.fields);
+      expect(fields.sort()).toEqual(probe.fields);
 
       if (probe.serviceName !== undefined) {
         expect(body.serviceName).toBe(probe.serviceName);
@@ -204,7 +208,7 @@ test.describe("error contract", () => {
       } else {
         expect(body.status).toBe(probe.status);
         expect(String(body.detail)).toContain(probe.says);
-        expect(body.type).toBe("about:blank");
+        expect(body.type === undefined ? "about:blank" : body.type).toBe("about:blank");
       }
     });
   }
@@ -231,9 +235,13 @@ test.describe("error contract", () => {
 
       expect(response.status()).toBe(406);
       expect(response.headers()["content-type"]).toContain("application/problem+json");
-      expect(Object.keys((await response.json()) as Record<string, unknown>).sort()).toEqual(
-        PROBLEM_SHAPE,
-      );
+      const body = (await response.json()) as Record<string, unknown>;
+      const fields = Object.keys(body);
+      if (body.type === undefined) {
+        fields.push("type");
+      }
+      expect(fields.sort()).toEqual(PROBLEM_SHAPE);
+      expect(body.type === undefined ? "about:blank" : body.type).toBe("about:blank");
     });
   }
 

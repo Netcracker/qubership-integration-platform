@@ -18,12 +18,12 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.e
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.proxy.HibernateProxy;
+import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
 import org.qubership.integration.platform.runtime.catalog.util.CompareListUtils;
@@ -63,7 +63,7 @@ public class Environment extends AbstractSystemEntity {
     @Deprecated
     private String maasInstanceId;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private JsonNode properties;
 
