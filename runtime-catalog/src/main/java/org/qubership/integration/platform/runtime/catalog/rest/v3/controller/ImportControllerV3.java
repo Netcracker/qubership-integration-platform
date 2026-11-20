@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v3.controller;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,6 +28,7 @@ import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.chain.EntityDifferenceResponse;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
@@ -111,11 +113,17 @@ public class ImportControllerV3 {
 
         ImportRequest importRequestObject;
         try {
+            // The primary mapper reads an unknown action as null, which deploys a chain as its archive says
             importRequestObject = StringUtils.isNotBlank(importRequest)
-                ? objectMapper.readValue(importRequest, ImportRequest.class)
+                ? objectMapper.readerFor(ImportRequest.class)
+                    .without(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                    .readValue(importRequest)
                 : new ImportRequest();
         } catch (IOException e) {
-            throw new RuntimeException("Unable to deserialize importRequest field value: " + importRequest);
+            throw new BadRequestException("Unable to deserialize importRequest field value: " + e.getMessage());
+        }
+        if (importRequestObject.getChainCommitRequests().stream().anyMatch(request -> StringUtils.isBlank(request.getId()))) {
+            throw new BadRequestException("Every chainCommitRequests entry must have an id");
         }
 
         String importId = importService.importFileAsync(file, importRequestObject, new HashSet<>(technicalLabels), validateByHash);
