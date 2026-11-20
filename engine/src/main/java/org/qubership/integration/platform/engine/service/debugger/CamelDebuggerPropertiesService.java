@@ -91,7 +91,7 @@ public class CamelDebuggerPropertiesService {
         long refreshCount = deploymentRefreshCount;
         try {
             Pair<Boolean, Map<String, DeploymentRuntimeProperties>> update = consulService.waitForChainRuntimeConfig();
-            if (update.getLeft() && !applyWatchUpdate(refreshCount, update.getRight())) {
+            if (Boolean.TRUE.equals(update.getLeft()) && !applyWatchUpdate(refreshCount, update.getRight())) {
                 consulService.rollbackChainsRuntimeConfigLastIndex();
             }
         } catch (KVNotFoundException e) {
