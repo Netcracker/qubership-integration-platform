@@ -725,12 +725,11 @@ public class ChainImportService {
      */
     @Deprecated(since = "2023.4")
     public List<ImportChainResult> restoreChainsFromDirBackward(File importDirectory, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
-        List<ChainCommitRequest> requests = CollectionUtils.isEmpty(commitRequests) ? null : commitRequests;
-        RestoredChains restored = restoreChainsFromDir(importDirectory, requests, importId, technicalLabels, false);
+        RestoredChains restored = restoreChainsFromDir(importDirectory, commitRequests, importId, technicalLabels, false);
         // ImportService reads the instruction action from the commit request it passed in
-        if (nonNull(requests)) {
+        if (nonNull(commitRequests)) {
             Map<String, ChainCommitRequestAction> instructionActions = restored.instructions().chainsToImport();
-            requests.stream()
+            commitRequests.stream()
                     .filter(request -> nonNull(instructionActions.get(request.getId())))
                     .forEach(request -> request.setDeployAction(instructionActions.get(request.getId())));
         }

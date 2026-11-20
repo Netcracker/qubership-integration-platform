@@ -37,6 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.E
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.mapper.ImportSessionMapper;
@@ -112,20 +113,10 @@ public class ImportControllerV3 {
         log.info("Request to import file: {}", file.getOriginalFilename());
         technicalLabels = addSamplesRepoTechnicalLabels(technicalLabels, packagePartOf, packageName, packageVersion);
 
-        ImportRequest importRequestObject;
-        try {
-            // The primary mapper reads an unknown action as null, which deploys a chain as its archive says
-            importRequestObject = StringUtils.isNotBlank(importRequest)
-                ? objectMapper.readerFor(ImportRequest.class)
-                    .without(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
-                    .readValue(importRequest)
-                : new ImportRequest();
-        } catch (IOException e) {
-            throw new BadRequestException("Unable to deserialize importRequest field value: " + e.getMessage());
-        }
-        if (CollectionUtils.emptyIfNull(importRequestObject.getChainCommitRequests()).stream().anyMatch(request -> StringUtils.isBlank(request.getId()))) {
-            throw new BadRequestException("Every chainCommitRequests entry must have an id");
-        }
+        ImportRequest importRequestObject = StringUtils.isNotBlank(importRequest)
+            ? readImportParameter(objectMapper, "importRequest", importRequest, ImportRequest.class)
+            : new ImportRequest();
+        requireChainIds(importRequestObject.getChainCommitRequests());
 
         String importId = importService.importFileAsync(file, importRequestObject, new HashSet<>(technicalLabels), validateByHash);
 
@@ -233,6 +224,24 @@ public class ImportControllerV3 {
         Chain chain = importService.extractChain(file, chainId);
         ChainDTO chainDTO = chainMapper.asDTO(chain);
         return ResponseEntity.ok(chainDTO);
+    }
+
+    // The primary mapper reads an unknown action as null, which deploys a chain as its archive says
+    public static <T> T readImportParameter(ObjectMapper objectMapper, String name, String value, Class<T> type) {
+        try {
+            return objectMapper.readerFor(type)
+                .without(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                .readValue(value);
+        } catch (IOException e) {
+            throw new BadRequestException("Unable to deserialize " + name + " field value: " + e.getMessage());
+        }
+    }
+
+    public static void requireChainIds(List<ChainCommitRequest> chainCommitRequests) {
+        if (CollectionUtils.emptyIfNull(chainCommitRequests).stream()
+                .anyMatch(request -> request == null || StringUtils.isBlank(request.getId()))) {
+            throw new BadRequestException("Every chainCommitRequests entry must have an id");
+        }
     }
 
     public static List<String> addSamplesRepoTechnicalLabels(List<String> technicalLabels, String... labels) {
