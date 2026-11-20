@@ -3,6 +3,7 @@ import type { EchoSuiteFixtures } from "./types.js";
 import { callToken } from "../support/run-token.js";
 import { callChain, elementNames, failedElements } from "../support/sessions.js";
 import { covers } from "../registry/covers.js";
+import { assertExternalAuthorized } from "../env/external-auth.js";
 
 export function registerHttpEchoTests<T extends EchoSuiteFixtures, W extends object>(test: TestType<T, W>): void {
   test.describe("HTTP echo chain", { tag: ["@engine"] }, () => {
@@ -19,6 +20,7 @@ export function registerHttpEchoTests<T extends EchoSuiteFixtures, W extends obj
         data: { ping: "runtime" },
       });
 
+      assertExternalAuthorized(answer.status(), "engine");
       expect(answer.status()).toBe(200);
       expect(JSON.parse(await answer.text()), "the trigger echoes what it was sent").toEqual({
         ping: "runtime",
@@ -30,6 +32,7 @@ export function registerHttpEchoTests<T extends EchoSuiteFixtures, W extends obj
       const { token, response } = await callChain(request, echo.url, {
         data: { ping: "trace" },
       });
+      assertExternalAuthorized(response.status(), "engine");
       expect(response.status()).toBe(200);
 
       // Three steps, and the lookup waits for all three: a session is queryable before its elements
@@ -47,7 +50,9 @@ export function registerHttpEchoTests<T extends EchoSuiteFixtures, W extends obj
       // The reason the token is per call and not per run: `external-id` answers a *single* session, so
       // a shared token would hand a spec whichever of these two the index returned.
       const first = await callChain(request, echo.url, { data: { ping: 1 } });
+      assertExternalAuthorized(first.response.status(), "engine");
       const second = await callChain(request, echo.url, { data: { ping: 2 } });
+      assertExternalAuthorized(second.response.status(), "engine");
       expect(first.token).not.toBe(second.token);
 
       const one = await sessions.byExternalId(first.token);

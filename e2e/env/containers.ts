@@ -10,6 +10,7 @@
  *
  * The Compose container behind each role is in `env/compose-containers.ts`.
  */
+import { externalService, externalSettings } from "./external-settings.ts";
 import type { Overlay, ServiceRole } from "./index.ts";
 import { target, type Target } from "./target.ts";
 
@@ -48,6 +49,8 @@ export function proxyPort(on: Target = target()): number {
 
 /** Base URL of one role, direct rather than through the proxy. */
 export function serviceUrl(role: ServiceRole): string {
+  const external = externalSettings();
+  if (external) return externalService(external, role);
   return process.env[SERVICE[role].urlEnv] ?? `http://localhost:${hostPort(role)}`;
 }
 
@@ -64,6 +67,12 @@ export function setServiceUrls(urls: Partial<Record<ServiceRole, string>>): void
  * `baseURL` without loading one.
  */
 export function proxyUrl(): string {
+  const external = externalSettings();
+  if (external) {
+    const proxy = external.proxy ?? external.ui;
+    if (!proxy) throw new Error("Set proxy in the external suite configuration.");
+    return proxy;
+  }
   return process.env.CIP_PROXY_URL ?? `http://localhost:${proxyPort()}`;
 }
 
@@ -86,12 +95,12 @@ export const BROKER_PORT: Record<Overlay, Record<Target, number>> = {
 
 /** The Kafka bootstrap address on the host, or `CIP_KAFKA_URL` when set. */
 export function kafkaHostBrokers(): string {
-  return process.env.CIP_KAFKA_URL ?? `localhost:${BROKER_PORT.kafka[target()]}`;
+  return externalSettings()?.brokers?.kafka?.host ?? process.env.CIP_KAFKA_URL ?? `localhost:${BROKER_PORT.kafka[target()]}`;
 }
 
 /** The AMQP URL of RabbitMQ on the host, or `CIP_RABBITMQ_URL` when set. */
 export function rabbitmqHostUrl(): string {
-  return process.env.CIP_RABBITMQ_URL ?? `amqp://guest:guest@localhost:${BROKER_PORT.rabbitmq[target()]}`;
+  return externalSettings()?.brokers?.rabbitmq?.host ?? process.env.CIP_RABBITMQ_URL ?? `amqp://guest:guest@localhost:${BROKER_PORT.rabbitmq[target()]}`;
 }
 
 /** The base URL of the pub/sub emulator on the host, or `CIP_PUBSUB_URL` when set. */

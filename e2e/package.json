@@ -47,8 +47,8 @@
     "dist/",
     "PACKAGE.md",
     "LICENSE",
-    "snapshot.zip",
-    "snapshot.json"
+    "suite.zip",
+    "suite.json"
   ],
   "types": "./dist/portable/index.d.ts",
   "exports": {
@@ -59,6 +59,10 @@
     "./suites": {
       "types": "./dist/suites/index.d.ts",
       "import": "./dist/suites/index.js"
+    },
+    "./external": {
+      "types": "./dist/portable/external.d.ts",
+      "import": "./dist/portable/external.js"
     },
     "./full": {
       "types": "./dist/portable/full-suite.d.ts",

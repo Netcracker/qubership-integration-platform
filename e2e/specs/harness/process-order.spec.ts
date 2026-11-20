@@ -26,9 +26,10 @@ test.describe("process check scheduling", () => {
         fs.mkdirSync(folder, { recursive: true });
         fs.writeFileSync(path.join(folder, "case.spec.ts"), `
           import fs from "node:fs";
-          import { test, expect } from "@playwright/test";
+          import { createRequire } from "node:module";
           import { BANDS, outsideBand } from ${JSON.stringify(pathToFileURL(path.join(E2E, "env/resources.ts")).href)};
           import { capturedValue, readProcessSnapshot, saveProcessSnapshot } from ${JSON.stringify(pathToFileURL(path.join(E2E, "env/process-snapshot.ts")).href)};
+          const { test, expect } = createRequire(${JSON.stringify(path.join(E2E, "package.json"))})("@playwright/test");
           test("records the project result", async () => {
             fs.appendFileSync(${JSON.stringify(events)}, JSON.stringify(${JSON.stringify(project.name)}) + "\\n");
             if (${JSON.stringify(project.name)} === "process-snapshot") {

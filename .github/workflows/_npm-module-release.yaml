@@ -167,9 +167,17 @@ jobs:
         run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build
-        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        if: ${{ needs.check-version.outputs.recover != 'true' && inputs.module != 'e2e' }}
         working-directory: ${{ inputs.module }}
         run: npm run prepublishOnly
+
+      - name: Pack and verify E2E release
+        if: ${{ needs.check-version.outputs.recover != 'true' && inputs.module == 'e2e' }}
+        working-directory: e2e
+        run: |
+          npm run check-types
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm run test:package -- --tarball="$RUNNER_TEMP/netcracker-qip-e2e-$RELEASE_VERSION.tgz"
 
       - name: Publish to npm registry (idempotent)
         if: ${{ needs.check-version.outputs.recover != 'true' }}
@@ -179,6 +187,8 @@ jobs:
           pkg="$SCOPE/qip-$MODULE"
           if npm view "$pkg@$RELEASE_VERSION" version >/dev/null 2>&1; then
             echo "$pkg@$RELEASE_VERSION already published — skipping."
+          elif [ "$MODULE" = e2e ]; then
+            npm publish "$RUNNER_TEMP/netcracker-qip-e2e-$RELEASE_VERSION.tgz" --tag "$DIST_TAG"
           else
             npm publish --tag "$DIST_TAG"
           fi

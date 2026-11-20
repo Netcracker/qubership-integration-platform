@@ -84,7 +84,7 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   runtime: "./specs/runtime; after seed, tooling; parallel",
   "process-snapshot": "./specs/process-snapshot /.*\\.setup\\.ts$/; after api, runtime, ui; teardown process-envelope; 1 worker",
   "process-envelope": "./specs/env /process-envelope\\.spec\\.ts$/; 1 worker",
-  env: "./specs/env except **/process-envelope.spec.ts,**/ai-recovery-lifecycle.spec.ts; after process-snapshot; 1 worker",
+  env: "./specs/env except **/process-envelope.spec.ts,**/external-restart.spec.ts,**/ai-recovery-lifecycle.spec.ts; after process-snapshot; 1 worker",
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
@@ -201,6 +201,7 @@ test.describe("target", () => {
           expect(collected("process-snapshot")).toEqual(["process-snapshot.setup.ts"]);
           const restartFiles = collected("env");
           expect(restartFiles).not.toContain("process-envelope.spec.ts");
+          expect(restartFiles).not.toContain("external-restart.spec.ts");
           expect(restartFiles).toContain("restart-resilience.spec.ts");
           expect(restartFiles).toContain("service-type-roundtrip.spec.ts");
           expect(restartFiles.includes("ai-recovery-lifecycle.spec.ts")).toBe(on === "compose" && enabled);

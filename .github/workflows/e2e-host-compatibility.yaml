@@ -29,6 +29,7 @@ on:
       - 'e2e/specs/harness/build-lock.spec.ts'
       - 'e2e/specs/harness/host-process.spec.ts'
       - 'e2e/specs/harness/process-group.spec.ts'
+      - 'e2e/specs/harness/process-order.spec.ts'
   workflow_dispatch:
 
 permissions: {}

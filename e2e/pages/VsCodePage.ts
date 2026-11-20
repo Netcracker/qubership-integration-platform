@@ -1,5 +1,6 @@
-import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
 import { escapeRegExp } from "../fixtures/templating.js";
+import { suiteExpect } from "../support/suite-expect.js";
 
 /**
  * The name of a file's option in Quick Open and the file picker. The `vscode` project's user agent
@@ -118,7 +119,7 @@ export class VsCodePage {
         return text;
       }
     };
-    await expect.poll(holds, { message: "the text editor shows the text the case waits for", intervals: [250] }).toBe(true);
+    await suiteExpect().poll(holds, { message: "the text editor shows the text the case waits for", intervals: [250] }).toBe(true);
     return text;
   }
 

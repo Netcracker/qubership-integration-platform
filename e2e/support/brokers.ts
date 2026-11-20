@@ -569,6 +569,10 @@ async function deleteKafkaConsumerGroups(
   micro: boolean,
   timeoutMs = micro ? MICRO_GROUP_LEAVE_TIMEOUT : 15_000,
 ): Promise<void> {
+  await deleteKafkaGroups((id) => id.includes(run) && isMicroAddress(id) === micro, timeoutMs);
+}
+
+export async function deleteKafkaGroups(owned: (id: string) => boolean, timeoutMs = 15_000): Promise<void> {
   await withKafkaAdmin(async (admin) => {
     const deadline = Date.now() + timeoutMs;
     let lastFailure = "no attempt";
@@ -576,7 +580,7 @@ async function deleteKafkaConsumerGroups(
       const { groups } = await admin.listGroups();
       const ours = groups
         .map((group) => group.groupId)
-        .filter((id) => id.includes(run) && isMicroAddress(id) === micro);
+        .filter(owned);
       if (ours.length === 0) return;
       try {
         await admin.deleteGroups(ours);
@@ -586,7 +590,7 @@ async function deleteKafkaConsumerGroups(
       }
       await sleep(500);
     }
-    throw new Error(`kafka consumer group(s) for run ${run} were not deleted within ${timeoutMs} ms: ${lastFailure}`);
+    throw new Error(`kafka consumer groups were not deleted within ${timeoutMs} ms: ${lastFailure}`);
   });
 }
 
@@ -676,7 +680,7 @@ export async function ensureRabbitmqTopology(topology: RabbitmqTopology): Promis
  * been attempted, naming every one that failed, instead of resolving regardless of how many deletes
  * actually succeeded.
  */
-async function deleteRabbitmqTopology(topology: RabbitmqTopology): Promise<void> {
+export async function deleteRabbitmqTopology(topology: RabbitmqTopology): Promise<void> {
   if (topology.queues.length === 0 && topology.senderExchanges.length === 0) return;
   const connection = await amqp.connect(RABBITMQ_HOST_URL);
   let channel = await openChannel(connection);

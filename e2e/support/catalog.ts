@@ -35,6 +35,8 @@
  */
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { noteReached } from "../registry/reached.js";
+import { assertExternalAuthorized } from "../env/external-auth.js";
+import type { ServiceRole } from "../env/index.js";
 import { serviceUrl } from "../env/containers.js";
 import { sleep } from "./poll.js";
 
@@ -160,7 +162,10 @@ export interface RequestTimeout {
 }
 
 /** Throws naming the call and the start of the answer. The engine client throws the same way. */
-export async function fail(response: APIResponse, method: string, url: string): Promise<never> {
+export async function fail(
+  response: APIResponse, method: string, url: string, service: ServiceRole = "runtime-catalog",
+): Promise<never> {
+  assertExternalAuthorized(response.status(), service);
   const body = await response.text().catch(() => "<unreadable>");
   throw new Error(`${method} ${url} answered ${response.status()}: ${body.slice(0, 800)}`);
 }

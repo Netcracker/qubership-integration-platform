@@ -61,6 +61,10 @@ import type { EngineKind, Env } from "../env/index.js";
 import { targetSetup } from "../env/target-setup.js";
 import { MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
 import { RESOURCES_FILE, stopResourceSampler } from "../env/resources.js";
+import { externalSettings } from "../env/external-settings.js";
+import { createExternalEnv, type ExternalTest } from "../env/external-env.js";
+import { inAuthPhase } from "../env/external-auth.js";
+import { ownResource } from "./owned-resources.js";
 import { recordingRequest } from "../registry/reached.js";
 
 /** `E2E_KEEP=1` leaves everything behind and prints it, for a failure worth looking at by hand. */
@@ -141,13 +145,16 @@ interface WorkerFixtures {
  * is what makes teardown one call. Diagnostics and the session lookup are per test, because a
  * failure is and because the lookup rides the test's own request context.
  */
+const external = externalSettings();
+
 const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   // Playwright's own fixture, wrapped so a call it makes on a service's own port records its
   // registry row. `registry/reached.ts` says why the recording is here rather than in each caller:
   // a spec that reaches around a transport still reaches the endpoint, and three review passes in a
   // row found a `not-reached` row a raw call had been reaching all along.
   request: async ({ request, baseURL }, use) => {
-    await use(recordingRequest(authenticatedRequest(request, baseURL)));
+    const authenticated = authenticatedRequest(request, baseURL);
+    await use(external ? authenticated : recordingRequest(authenticated));
   },
 
   diagnostics: [
@@ -158,7 +165,7 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
       // where both the outcome and the window the test ran in are known.
       await attachDiagnostics(testInfo, env, engineKind, run);
     },
-    { auto: true },
+    { auto: !external },
   ],
 
   sessions: async ({ request }, use) => {
@@ -168,7 +175,7 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   run: [
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
-      await use(runToken());
+      await use(external?.run ?? runToken());
     },
     { scope: "worker" },
   ],
@@ -179,7 +186,8 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
 
   env: [
     async ({ engineKind, microDomainState }, use) => {
-      await use(targetSetup().createEnv(engineKind, microDomainState));
+      // The external projects reuse existing specs that only need the common environment methods.
+      await use(external ? await createExternalEnv(external) as Env : targetSetup().createEnv(engineKind, microDomainState));
     },
     { scope: "worker" },
   ],
@@ -205,8 +213,12 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   testingService: [
     async ({ playwright, env }, use) => {
       const api = await newPlatformRequest(playwright.request, "testing-service", env.url("testing-service"));
-      await use(new TestingService(api, env));
-      await api.dispose();
+      const service = new TestingService(api, env, Boolean(external));
+      try {
+        await use(service);
+      } finally {
+        try { await service.cleanupOwnedMocks(); } finally { await api.dispose(); }
+      }
     },
     { scope: "worker" },
   ],
@@ -214,6 +226,11 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   folder: [
     async ({ catalog, run }, use, workerInfo) => {
       const name = workerFolderName(run, workerInfo.workerIndex);
+      if (external) {
+        const folder = await inAuthPhase("setup", () => catalog.createFolder(name));
+        await ownResource({ kind: "folder", id: folder.id }, () => use(folder), () => catalog.deleteFolder(folder.id));
+        return;
+      }
       const created = await catalog.createFolder(name);
       await use({ id: created.id, name });
       if (keepEntities()) {
@@ -224,11 +241,12 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
         console.error(`[teardown] folder ${name} was not deleted: ${String(cause)}`);
       });
     },
-    { scope: "worker", auto: true },
+    { scope: "worker", auto: !external },
   ],
 });
 
 export const test = extendSuiteTest(suiteTest);
+export const externalTest = test as unknown as ExternalTest<typeof test>;
 
 export { expect } from "@playwright/test";
 

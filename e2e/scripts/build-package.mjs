@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { cpSync, mkdirSync, rmSync, readFileSync, writeFileSync, lstatSync, readlinkSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, readFileSync, writeFileSync, lstatSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -18,27 +18,31 @@ cpSync(new URL("../../LICENSE", import.meta.url), new URL("../LICENSE", import.m
 
 const repository = path.resolve(root, "..");
 const archive = new JSZip();
-rmSync(path.join(root, "snapshot"), { recursive: true, force: true });
-const files = execFileSync("git", ["ls-files", "-z"], { cwd: repository, maxBuffer: 16 * 1024 * 1024 })
-  .toString().split("\0").filter(Boolean).sort();
+const included = [
+  "e2e/env", "e2e/fixtures", "e2e/k8s", "e2e/pages", "e2e/portable", "e2e/registry",
+  "e2e/specs", "e2e/suites", "e2e/support", "e2e/playwright.config.ts", "e2e/tsconfig.json",
+  "schemas/src/test/resources/samples",
+  "vscode-extension/src/web/test/golden", "vscode-extension/src/web/test/workspace",
+  "LICENSE",
+];
+const listed = execFileSync("git", ["ls-files", "-z", "--", ...included], {
+  cwd: repository, maxBuffer: 16 * 1024 * 1024,
+}).toString().split("\0").filter(Boolean);
+const files = [...new Set(listed)].sort();
 const digest = createHash("sha256");
-const links = {};
+archive.file("e2e/package.json", '{"type":"module"}\n', { date: new Date("1980-01-01T00:00:00Z") });
 for (const relative of files) {
   const source = path.join(repository, relative);
-  if (lstatSync(source).isSymbolicLink()) {
-    links[relative] = readlinkSync(source);
-    digest.update(relative).update("\0symlink\0").update(links[relative]).update("\0");
-    continue;
+  if (!lstatSync(source, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error(`The test bundle requires the file ${relative}.`);
   }
-  if (!lstatSync(source).isFile()) throw new Error(`The suite snapshot requires the file ${relative}.`);
   const data = readFileSync(source);
-  archive.file(relative, data, { date: lstatSync(source).mtime, unixPermissions: lstatSync(source).mode });
+  archive.file(relative, data, { date: new Date("1980-01-01T00:00:00Z") });
   digest.update(relative).update("\0").update(data).update("\0");
 }
-writeFileSync(path.join(root, "snapshot.json"), JSON.stringify({
+writeFileSync(path.join(root, "suite.json"), JSON.stringify({
   version: JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version,
   revision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repository }).toString().trim(),
-  digest: digest.digest("hex"), files, links,
+  digest: digest.digest("hex"),
 }, null, 2) + "\n");
-
-writeFileSync(path.join(root, "snapshot.zip"), await archive.generateAsync({ type: "nodebuffer", platform: "UNIX", compression: "DEFLATE" }));
+writeFileSync(path.join(root, "suite.zip"), await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));

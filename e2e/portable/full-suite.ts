@@ -1,14 +1,14 @@
-import JSZip from "jszip";
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import type { PlaywrightTestConfig } from "@playwright/test";
 import type { SuiteExtension, RequestOptions } from "../env/suite-extension.js";
 import type { ServiceRole } from "../env/index.js";
 import type { Target } from "../env/target.js";
 import { setServiceUrls } from "../env/containers.js";
+import { packageBuild } from "./package-layout.js";
 
 export type { SuiteExtension, RequestOptions };
 export type { Env, EngineKind, ServiceRole } from "../env/index.js";
@@ -16,8 +16,7 @@ export type { TargetSetup, SuiteProject, StackObserver } from "../env/target-set
 
 export interface FullSuiteOptions {
   target: Target;
-  workspaceDir?: string;
-  sourceRoot?: string;
+  sourceRoot: string;
   adapter?: string;
   services?: Partial<Record<ServiceRole, string>>;
   proxyUrl?: string;
@@ -28,135 +27,43 @@ export interface FullSuiteOptions {
   projects?: PlaywrightTestConfig["projects"];
 }
 
-interface Snapshot {
-  version: string;
-  digest: string;
-  revision: string;
-  files: string[];
-  links: Record<string, string>;
-}
-
-const require = createRequire(import.meta.url);
-const PACKAGE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-
-function packageRoot(name: string): string {
-  for (const directory of require.resolve.paths(name) ?? []) {
-    const candidate = path.join(directory, name);
-    const manifest = path.join(candidate, "package.json");
-    if (fs.existsSync(manifest) && JSON.parse(fs.readFileSync(manifest, "utf8")).name === name) {
-      return fs.realpathSync(candidate);
-    }
+export async function prepareSuite(options?: { sourceRoot: string }): Promise<string> {
+  if (!options?.sourceRoot) {
+    throw new Error('Set sourceRoot to a prepared platform checkout, for example sourceRoot: "../qubership-integration-platform".');
   }
-  throw new Error(`Cannot locate the installed package ${name}.`);
-}
-
-function linkDependencies(root: string): void {
-  const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE, "package.json"), "utf8"));
-  const names = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
-  const directory = path.join(root, "e2e/node_modules");
-  fs.mkdirSync(directory, { recursive: true });
-  for (const name of names) {
-    const destination = path.join(directory, name);
-    const existing = fs.lstatSync(destination, { throwIfNoEntry: false });
-    if (existing && !existing.isSymbolicLink()) continue;
-    const target = packageRoot(name);
-    const parent = path.dirname(destination);
-    if (existing) {
-      if (fs.existsSync(destination) && fs.realpathSync(destination) === target) continue;
-      fs.rmSync(destination, { force: true });
-    }
-    fs.mkdirSync(parent, { recursive: true });
-    const link = process.platform === "win32" ? target : path.relative(parent, target);
-    try {
-      fs.symlinkSync(link, destination, process.platform === "win32" ? "junction" : "dir");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST"
-        || fs.realpathSync(destination) !== target) throw error;
-    }
+  const root = path.resolve(options.sourceRoot);
+  if (!fs.existsSync(path.join(root, "e2e/playwright.config.ts"))) {
+    throw new Error(`Cannot find e2e/playwright.config.ts under sourceRoot ${root}.`);
   }
-}
-
-function snapshotMarker(root: string): string {
-  return path.join(root, ".qip-e2e-snapshot.json");
-}
-
-function matchesSnapshot(root: string, snapshot: Snapshot): boolean {
-  const marker = snapshotMarker(root);
-  if (!fs.existsSync(marker)) return false;
-  const previous = JSON.parse(fs.readFileSync(marker, "utf8")) as Snapshot;
-  if (previous.digest !== snapshot.digest) {
-    throw new Error(`The suite workspace ${root} belongs to another snapshot. Choose another workspaceDir.`);
-  }
-  return true;
-}
-
-async function extractSnapshot(root: string, snapshot: Snapshot): Promise<void> {
-  const archive = await JSZip.loadAsync(fs.readFileSync(path.join(PACKAGE, "snapshot.zip")));
-  for (const entry of Object.values(archive.files)) {
-    if (entry.dir) continue;
-    const destination = path.join(root, entry.name);
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.writeFileSync(destination, await entry.async("nodebuffer"));
-    if (process.platform !== "win32" && typeof entry.unixPermissions === "number") fs.chmodSync(destination, entry.unixPermissions & 0o777);
-    fs.utimesSync(destination, entry.date, entry.date);
-  }
-  for (const [relative, target] of Object.entries(snapshot.links)) {
-    const destination = path.join(root, relative);
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    if (process.platform === "win32") fs.writeFileSync(destination, target);
-    else fs.symlinkSync(target, destination);
-  }
-  const git = (args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
-  git(["init", "--quiet", "--initial-branch=qip-e2e-snapshot"]);
-  git(["config", "core.autocrlf", "false"]);
-  git(["add", "--force", "--all"]);
-  const tree = git(["write-tree"]).toString().trim();
-  const commit = git(["-c", "user.name=QIP source snapshot", "-c", "user.email=qip-snapshot@example.invalid", "commit-tree", tree, "-m", `Source snapshot ${snapshot.revision}`]).toString().trim();
-  git(["update-ref", "HEAD", commit]);
-  fs.writeFileSync(snapshotMarker(root), `${JSON.stringify(snapshot)}\n`);
-  fs.appendFileSync(path.join(root, ".git/info/exclude"), "\n.qip-e2e-snapshot.json\n");
-  linkDependencies(root);
-}
-
-export async function prepareSuite(options: Pick<FullSuiteOptions, "workspaceDir" | "sourceRoot"> = {}): Promise<string> {
-  if (options.sourceRoot) return path.resolve(options.sourceRoot);
-  const snapshot: Snapshot = JSON.parse(fs.readFileSync(path.join(PACKAGE, "snapshot.json"), "utf8"));
-  const root = path.resolve(options.workspaceDir ?? path.join(process.cwd(), ".qip-e2e", `${snapshot.version}-${snapshot.digest.slice(0, 12)}`));
-  if (matchesSnapshot(root, snapshot)) {
-    linkDependencies(root);
-    return root;
-  }
-  try {
-    fs.rmdirSync(root);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") {
-      if (matchesSnapshot(root, snapshot)) return root;
-      if (code === "ENOTEMPTY" || code === "EEXIST") {
-        throw new Error(`The suite workspace ${root} must be empty on its first use.`);
-      }
-      throw error;
-    }
-  }
-
-  fs.mkdirSync(path.dirname(root), { recursive: true });
-  // Publish the complete tree at once. Concurrent callers can reuse the winner's workspace.
-  const staging = fs.mkdtempSync(`${root}.preparing-`);
-  try {
-    await extractSnapshot(staging, snapshot);
-    try {
-      fs.renameSync(staging, root);
-    } catch (error) {
-      if (!matchesSnapshot(root, snapshot)) throw error;
-    }
-  } finally {
-    fs.rmSync(staging, { recursive: true, force: true });
+  if (!fs.existsSync(path.join(root, "e2e/node_modules/@playwright/test/package.json"))) {
+    throw new Error(`Run npm ci in ${path.join(root, "e2e")} before launching the full suite.`);
   }
   return root;
 }
 
+function checkoutRevision(root: string): string | undefined {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function checkRunner(root: string): void {
+  const entrypoint = process.argv[1] && fs.existsSync(process.argv[1]) ? fs.realpathSync(process.argv[1]) : undefined;
+  if (!entrypoint || ![/playwright[\\/]cli\.js$/, /@playwright[\\/]test[\\/]cli\.js$/].some((pattern) => pattern.test(entrypoint))) return;
+  const active = createRequire(entrypoint).resolve("playwright/package.json");
+  const checkout = createRequire(path.join(root, "e2e/package.json")).resolve("playwright/package.json");
+  if (active !== checkout) {
+    const cli = path.join(root, "e2e/node_modules/@playwright/test/cli.js");
+    throw new Error(`Run the full suite with the checkout's Playwright. Use node "${cli}" test.`);
+  }
+}
+
 export async function createSuiteConfig(options: FullSuiteOptions): Promise<PlaywrightTestConfig> {
   const root = await prepareSuite(options);
+  checkRunner(root);
+  delete process.env.QIP_E2E_EXTERNAL;
   process.env.QIP_E2E_WORKSPACE = root;
   process.env.CIP_TARGET = options.target;
   if (options.kubernetes?.namespace) process.env.QIP_E2E_NAMESPACE = options.kubernetes.namespace;
@@ -170,7 +77,7 @@ export async function createSuiteConfig(options: FullSuiteOptions): Promise<Play
   const support = await import(pathToFileURL(path.join(root, "e2e/env/suite-extension.ts")).href);
   support.configureSuite(extension);
   const { default: original } = await import(pathToFileURL(path.join(root, "e2e/playwright.config.ts")).href);
-  const { version, revision, digest } = JSON.parse(fs.readFileSync(path.join(PACKAGE, "snapshot.json"), "utf8")) as Snapshot;
+  const qipSource = { ...packageBuild(), source: "checkout", checkoutRevision: checkoutRevision(root) };
   const specs = path.join(root, "e2e/specs");
   const reporters = original.reporter.map((value: [string, Record<string, unknown>?]) => {
     if (value[0] === "json") return ["json", { ...value[1], outputFile: path.join(root, "e2e/test-results/report.json") }];
@@ -189,7 +96,7 @@ export async function createSuiteConfig(options: FullSuiteOptions): Promise<Play
     reporter: options.config?.reporter ?? reporters,
     globalSetup: path.join(root, "e2e/env/provision.ts"),
     globalTeardown: path.join(root, "e2e/support/fixtures.ts"),
-    metadata: { ...original.metadata, ...options.config?.metadata, qipSource: { version, revision, digest, source: options.sourceRoot ? "checkout" : "package" } },
+    metadata: { ...original.metadata, ...options.config?.metadata, qipSource },
     use: { ...original.use, ...options.config?.use },
     projects: [...original.projects.map(project), ...(options.projects ?? []).map((value) => ({ ...value, testDir: path.resolve(value.testDir ?? "tests") }))],
   };

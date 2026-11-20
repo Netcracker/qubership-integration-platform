@@ -22,6 +22,7 @@ import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
 import { publishKafka as publish, consumeOneKafka as consumeOne } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER } from "../../support/sessions.js";
+import { expectBrokerTrigger } from "../../support/broker-trigger.js";
 import { covers } from "../../registry/covers.js";
 import { readUntil } from "../../support/poll.js";
 
@@ -38,18 +39,7 @@ test.describe("kafka", { tag: ["@engine", "@sessions", "@kafka"] }, () => {
       covers("kafka-trigger-2", "keyDeserializer", "org.apache.kafka.common.serialization.StringDeserializer");
       covers("kafka-trigger-2", "valueDeserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
-      const corpus = readBrokersCorpusState();
-      const chain = brokerChain(corpus, "kafka-trigger-basic");
-      const topic = chain.broker.topics as string;
-      const token = callToken("kafka-consume");
-
-      await publish(topic, token, JSON.stringify({ ping: "kafka" }));
-
-      const session = await sessions.byExternalId(token, { elements: 2 });
-      expect(session.chainId).toBe(chain.id);
-      expect(session.externalSessionCipId).toBe(token);
-      expect(elementNames(session)).toEqual(["Kafka Trigger", "Header Modification"]);
-      expect(failedElements(session)).toEqual([]);
+      await expectBrokerTrigger("kafka", brokerChain(readBrokersCorpusState(), "kafka-trigger-basic"), sessions);
     });
 
     test("a failed message does not stall the next one", async ({ sessions }) => {
