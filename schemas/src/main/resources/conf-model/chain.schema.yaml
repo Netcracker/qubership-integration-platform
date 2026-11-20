@@ -18,6 +18,10 @@ properties:
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/migrations-property"
     properties:
+      defaultSwimlaneId:
+        type: string
+      reuseSwimlaneId:
+        type: string
       businessDescription:
         type: string
       assumptions:
