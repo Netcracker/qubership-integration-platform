@@ -63,6 +63,7 @@ class BrowserCreateChainA2aDisabledRegressionIT {
   void browserCreateChainWorksWhenA2aDisabled() {
     String createResponse =
         given()
+            .header("Authorization", "Bearer test-token")
             .contentType(ContentType.JSON)
             .body("{\"message\":\"Create a greetings chain\",\"scenarioHint\":\"CREATE_CHAIN_PLAN\"}")
             .when()
@@ -82,6 +83,7 @@ class BrowserCreateChainA2aDisabledRegressionIT {
     String conversationId = extractConversationId(createResponse);
     String approveResponse =
         given()
+            .header("Authorization", "Bearer test-token")
             .contentType(ContentType.JSON)
             .body(
                 "{\"conversationId\":\"%s\",\"message\":\"Agree\",\"scenarioHint\":\"CREATE_CHAIN_PLAN\"}"

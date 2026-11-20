@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportService;
@@ -19,6 +21,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cat
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecAutoImporter;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -76,6 +79,45 @@ class CatalogMutationGatewayTest {
 
     assertEquals(expected, result);
     verify(apiHubSpecificationImportService).importFromRefs("conv-1", refs, "INTERNAL");
+  }
+
+  @Test
+  void importUploadedSpecBindsTheExplicitConversationOnTheWorker() {
+    UploadedSpecAttachment attachment = new UploadedSpecAttachment("s3/key", "orders.yaml");
+    UploadedSpecImportOutcome expected =
+        new UploadedSpecImportOutcome("s3/key", "sys-1", "group-1", "spec-1", false);
+    when(uploadedSpecAutoImporter.importSpec("conv-import", attachment, "INTERNAL"))
+        .thenAnswer(
+            invocation -> {
+              assertEquals("conv-import", ToolSession.resolveConversationId());
+              return expected;
+            });
+    ToolSession.bind("caller-conv");
+    try {
+      assertEquals(
+          expected, gateway.importUploadedSpec("conv-import", attachment).await().indefinitely());
+      assertEquals("caller-conv", ToolSession.resolveConversationId());
+    } finally {
+      ToolSession.clear();
+    }
+  }
+
+  @Test
+  void importApiHubSpecificationBindsTheExplicitConversationOnTheWorker() {
+    ApiHubRequirementRefs refs =
+        new ApiHubRequirementRefs("pkg", "1", "op", "api", null, null, "Spec");
+    ApiHubSpecificationImportResult expected =
+        new ApiHubSpecificationImportResult(
+            "sys-1", "spec-1", "group-1", "imp-1", "Spec", java.util.Optional.empty());
+    when(apiHubSpecificationImportService.importFromRefs("conv-hub", refs, "INTERNAL"))
+        .thenAnswer(
+            invocation -> {
+              assertEquals("conv-hub", ToolSession.resolveConversationId());
+              return expected;
+            });
+
+    assertEquals(
+        expected, gateway.importApiHubSpecification("conv-hub", refs).await().indefinitely());
   }
 
   private static ChainPlanGraph validGraph() {

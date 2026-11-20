@@ -249,15 +249,22 @@ public class CompilerSkillRuntime {
 
   public Multi<ChatEvent> runStreaming(SkillRunContext context, SkillWorkspace workspace, String capabilityId) {
     String conversationId = context.conversationId();
-    ToolSession.bind(conversationId);
+    // Capture the binding for the later subscription, then restore this thread. The stream reinstalls
+    // it on whichever thread actually subscribes, including runSubscriptionOn.
+    try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+      return startStreaming(context, workspace, capabilityId, conversationId);
+    }
+  }
+
+  private Multi<ChatEvent> startStreaming(
+      SkillRunContext context, SkillWorkspace workspace, String capabilityId, String conversationId) {
+    // The binding reaches the agent subscription through propagateBinding; this thread only builds
+    // the stream and must be left exactly as it was found.
     Context toolSessionContext = ToolSession.attachedContext();
-    MDC.put(CompilerSkillMdc.CAPABILITY_ID, capabilityId);
     clearCaptureState(conversationId, capabilityId);
 
     CompilerSkillDocument document = documentService.loadByCapabilityId(capabilityId);
     if (!document.supported()) {
-      ToolSession.clear();
-      MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
       return Multi.createFrom()
           .item(ChatEvent.token("Compiler skill is not supported: " + capabilityId));
     }
@@ -320,25 +327,37 @@ public class CompilerSkillRuntime {
 
     return Multi.createFrom()
         .<ChatEvent>emitter(
-            emitter -> agentStream
-                .onTermination()
-                .invoke(
-                    () -> {
-                      ToolSession.clear();
-                      MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
-                      HttpTriggerCaptureSession.unbind(conversationId);
-                      if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
-                        captureSession.clear(CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId));
-                      }
-                    })
-                .subscribe()
-                .with(item -> {
-                }, emitter::fail, emitter::complete));
+            emitter -> {
+              // Tools read this from the subscription thread. The caller is already restored.
+              MDC.put(CompilerSkillMdc.CAPABILITY_ID, capabilityId);
+              agentStream
+                  .onTermination()
+                  .invoke(
+                      () -> {
+                        // Drop only this stream's binding. propagateBinding restores whatever the
+                        // subscription thread had before, and must not clear the caller's session.
+                        MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
+                        HttpTriggerCaptureSession.unbind(conversationId);
+                        if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
+                          captureSession.clear(
+                              CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId));
+                        }
+                      })
+                  .subscribe()
+                  .with(item -> {
+                  }, emitter::fail, emitter::complete);
+            });
   }
 
   public Uni<SkillExecutionResult> run(
       SkillRunContext context, SkillWorkspace workspace, String capabilityId) {
-    return Uni.createFrom().item(resolveResultAfterStream(context, workspace, capabilityId));
+    return Uni.createFrom()
+        .item(
+            () -> {
+              try (ToolSession.Handle ignored = ToolSession.open(context.conversationId())) {
+                return resolveResultAfterStream(context, workspace, capabilityId);
+              }
+            });
   }
 
   SkillExecutionResult resolveResultAfterStream(

@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurnStore;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
@@ -300,7 +301,19 @@ public class ChatExecutionService {
     request.setClarificationOfferId(matchedOffer);
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    UserTokenStore.Turn tokenTurn =
+        request.getUserToken() == null ? null : UserTokenStore.put(conversationId, request.getUserToken());
+    try {
+      return startTurn(request, conversationId, matchedOffer, tokenTurn);
+    } catch (RuntimeException setupFailure) {
+      // onTermination never runs when setup throws, so the token is dropped here.
+      UserTokenStore.remove(conversationId, tokenTurn);
+      throw setupFailure;
+    }
+  }
 
+  private Multi<String> startTurn(
+      ChatRequest request, String conversationId, String matchedOffer, UserTokenStore.Turn tokenTurn) {
     Map<String, Object> submitted = new LinkedHashMap<>();
     submitted.put("attachment", request.getAttachment() == null ? "" : request.getAttachment());
     submitted.put(
@@ -414,6 +427,7 @@ public class ChatExecutionService {
             Multi.createFrom().item(new ChatEvent.Meta(conversationId, true, sourceInput.messageIndex())), routed)
         .onItem()
         .invoke(event -> {
+          failOnCatalogRejection(finalConversationId);
           if (event instanceof ChatEvent.Token token && token.text() != null) {
             responseBuffer.append(token.text());
             if (token.turnKind() != LastAssistantTurn.Kind.OTHER) {
@@ -436,6 +450,8 @@ public class ChatExecutionService {
                 .append(decision.question());
           }
         })
+        .onCompletion()
+        .invoke(() -> failOnCatalogRejection(finalConversationId))
         .map(this::toSse)
         .onCancellation()
         .invoke(
@@ -448,6 +464,7 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
+              UserTokenStore.remove(finalConversationId, tokenTurn);
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,
@@ -484,6 +501,14 @@ public class ChatExecutionService {
               MDC.remove(ChatMdc.CONVERSATION_ID);
               return recoverFailedSse(finalConversationId, err);
             });
+  }
+
+  /** Ends the turn with fixed copy once the catalog rejected the turn bearer; the UI matches it. */
+  static void failOnCatalogRejection(String conversationId) {
+    int status = UserTokenStore.rejection(conversationId);
+    if (status == 401 || status == 403) {
+      throw new IllegalStateException(UserTokenStore.rejectionMessage(status));
+    }
   }
 
   /**

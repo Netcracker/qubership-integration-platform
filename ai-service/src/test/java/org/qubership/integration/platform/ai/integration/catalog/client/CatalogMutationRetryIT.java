@@ -28,10 +28,16 @@ class CatalogMutationRetryIT {
 
   @BeforeEach
   void reset() {
+    System.setProperty("qip.ai.auth.required", "false");
     Endpoint.chainCreates.set(0);
     Endpoint.elementCreates.set(0);
     Endpoint.snapshotCreates.set(0);
     Endpoint.deploymentCreates.set(0);
+  }
+
+  @org.junit.jupiter.api.AfterEach
+  void restoreAuthPolicy() {
+    System.clearProperty("qip.ai.auth.required");
   }
 
   @Test

@@ -8,11 +8,14 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
 class CatalogResponseExceptionMapperTest {
 
@@ -25,6 +28,24 @@ class CatalogResponseExceptionMapperTest {
     assertInstanceOf(WebApplicationException.class, map(429));
     assertTrue(!(map(429) instanceof CatalogNonRetryableResponseException));
     assertTrue(!(map(503) instanceof CatalogNonRetryableResponseException));
+    assertInstanceOf(CatalogAccessDeniedException.class, map(401));
+    assertInstanceOf(CatalogAccessDeniedException.class, map(403));
+    assertTrue(!(map(404) instanceof CatalogAccessDeniedException));
+  }
+
+  @Test
+  void recordsAuthRejectionsForTheBoundTurn() {
+    UserTokenStore.put("conv-denied", "token");
+    ToolSession.bind("conv-denied");
+    try {
+      map(404);
+      assertEquals(0, UserTokenStore.rejection("conv-denied"));
+      map(403);
+      assertEquals(403, UserTokenStore.rejection("conv-denied"));
+    } finally {
+      ToolSession.clear();
+      UserTokenStore.clear("conv-denied");
+    }
   }
 
   @Test
@@ -54,5 +75,7 @@ class CatalogResponseExceptionMapperTest {
     assertTrue(Arrays.asList(retry.retryOn()).contains(WebApplicationException.class));
     assertTrue(Arrays.asList(retry.retryOn()).contains(TimeoutException.class));
     assertEquals(CatalogNonRetryableResponseException.class, retry.abortOn()[0]);
+    CircuitBreaker breaker = clientType.getAnnotation(CircuitBreaker.class);
+    assertEquals(CatalogAccessDeniedException.class, breaker.skipOn()[0]);
   }
 }

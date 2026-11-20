@@ -33,7 +33,7 @@ public class CatalogOperationsReadCache {
     this.catalogRestClient = catalogRestClient;
   }
 
-  @CacheResult(cacheName = CACHE_NAME)
+  @CacheResult(cacheName = CACHE_NAME, keyGenerator = UserScopedCacheKeyGenerator.class)
   public List<CatalogRestClient.OperationDto> loadByModelId(String modelId) {
     return loadByModelIdInternal(modelId);
   }

@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,6 +38,8 @@ import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
@@ -129,7 +132,30 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
     String callerContextId =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context)).contextId();
     ResolvedContext resolved = resolveConversationId(callerContextId, contextId, userText);
-    TurnResult turn = runTurn(userText, resolved.conversationId());
+    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
+    UserTokenStore.Turn callerTurn = null;
+    ToolSession.Handle turnBinding = null;
+    if (callerBearer != null) {
+      callerTurn = UserTokenStore.put(resolved.conversationId(), callerBearer);
+      turnBinding = ToolSession.open(resolved.conversationId());
+    }
+    TurnResult turn;
+    try {
+      turn = runTurn(userText, resolved.conversationId(), callerTurn);
+    } catch (RuntimeException failure) {
+      UserTokenStore.remove(resolved.conversationId(), callerTurn);
+      throw failure;
+    } finally {
+      if (turnBinding != null) {
+        turnBinding.close();
+      }
+    }
+    // Catalog refused the caller's token during the turn. The chat tools may have turned that into
+    // ordinary reply text, so the recorded rejection decides the outcome, not the answer.
+    if (turn.rejectedStatus() != 0) {
+      emitRejection(emitter, taskId, resolved.conversationId(), turn.rejectedStatus());
+      return;
+    }
     String answer = turn.answer(resolved.conversationId(), taskId);
 
     LOG.infof(
@@ -238,7 +264,7 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
    * durable state, and cutting the stream would abandon work the caller can still reach through
    * the conversation.
    */
-  private TurnResult runTurn(String userText, String conversationId) {
+  private TurnResult runTurn(String userText, String conversationId, UserTokenStore.Turn callerTurn) {
     ChatRequest request = new ChatRequest();
     request.setConversationId(conversationId);
     request.setMessage(userText);
@@ -254,6 +280,7 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
     Set<String> skills = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
     AtomicReference<String> activity = new AtomicReference<>();
     AtomicReference<String> error = new AtomicReference<>();
+    AtomicInteger rejectedStatus = new AtomicInteger();
     CountDownLatch done = new CountDownLatch(1);
     Runnable finish = () -> {
       try {
@@ -264,6 +291,9 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
         error.set("Cannot save the conversation: " + failure.getMessage());
       } finally {
         done.countDown();
+        // Read before release: the store keeps the rejection only while the turn is registered.
+        rejectedStatus.set(UserTokenStore.rejection(conversationId));
+        UserTokenStore.remove(conversationId, callerTurn);
       }
     };
 
@@ -328,17 +358,35 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
         error.get(),
         completed,
         activity.get(),
-        List.copyOf(skills));
+        List.copyOf(skills),
+        rejectedStatus.get());
+  }
+
+  /** Ends the task as failed with the fixed copy, so the caller learns its token was refused. */
+  private static void emitRejection(
+      AgentEmitter emitter, String taskId, String contextId, int rejectedStatus) {
+    Message statusMessage = agentText(UserTokenStore.rejectionMessage(rejectedStatus));
+    emitter.addTask(
+        Task.builder()
+            .id(taskId)
+            .contextId(contextId)
+            .status(new TaskStatus(A2aTaskState.FAILED.toSdk(), statusMessage, null))
+            .build());
+    emitter.fail(statusMessage);
+    emitter.emitEvent(new QueueClosedEvent(taskId));
+  }
+
+  private static Message agentText(String text) {
+    return Message.builder()
+        .role(Message.Role.ROLE_AGENT)
+        .messageId(UUID.randomUUID().toString())
+        .parts(List.of(new TextPart(text)))
+        .build();
   }
 
   private void emitAnswer(
       AgentEmitter emitter, String taskId, String contextId, String answer, TurnResult turn) {
-    Message statusMessage =
-        Message.builder()
-            .role(Message.Role.ROLE_AGENT)
-            .messageId(UUID.randomUUID().toString())
-            .parts(List.of(new TextPart(answer)))
-            .build();
+    Message statusMessage = agentText(answer);
     Map<String, Object> metadata = new LinkedHashMap<>();
     metadata.put("skillId", A2aProtocolConstants.ASSIST_SKILL_ID);
     // What the turn actually did, in order. Metadata rather than answer text: a caller that shows
@@ -388,7 +436,12 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
   }
 
   private record TurnResult(
-      String text, String error, boolean completed, String activity, List<String> skills) {
+      String text,
+      String error,
+      boolean completed,
+      String activity,
+      List<String> skills,
+      int rejectedStatus) {
 
     String answer(String conversationId, String taskId) {
       if (error != null && text.isEmpty()) {

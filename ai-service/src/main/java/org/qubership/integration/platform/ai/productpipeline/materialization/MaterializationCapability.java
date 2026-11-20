@@ -173,7 +173,9 @@ public class MaterializationCapability implements StageCapability {
           RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
     }
     if (!readBack) {
-      try {
+      // Preflight re-reads Catalog schemas for COPY mappings, so it needs the turn's bearer too.
+      try (var preflight =
+          org.qubership.integration.platform.ai.chat.ToolSession.open(context.conversationId())) {
         var approvedPlan = artifactStore.get(context.runId(), resolved.implementationPlanRef()).orElseThrow();
         var briefRef = SupersededBriefLineageGuard
             .originatingBriefRevision(artifactStore, context.runId(), approvedPlan)

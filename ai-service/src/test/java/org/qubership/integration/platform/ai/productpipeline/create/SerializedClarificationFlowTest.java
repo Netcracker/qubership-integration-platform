@@ -739,7 +739,8 @@ class SerializedClarificationFlowTest {
     if (offer != null) {
       body.put("clarificationOfferId", offer);
     }
-    return given().contentType(ContentType.JSON).body(json.writeValueAsString(body))
+    return org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth.givenAuthorized()
+        .contentType(ContentType.JSON).body(json.writeValueAsString(body))
         .post("/api/v1/chat").then().statusCode(200).extract().asString();
   }
 
