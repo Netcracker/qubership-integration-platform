@@ -220,12 +220,13 @@ public class ChainImportService {
             Set<String> technicalLabels,
             boolean validateByHash
     ) {
-        ImportChainsAndInstructionsResult importResult = restoreChainsFromDir(
-                importDirectory, new ArrayList<>(commitRequests), importId, technicalLabels, validateByHash
-        );
-        makeDeployActions(importResult.chainResults(), commitRequests, importId, technicalLabels);
+        RestoredChains restored = restoreChainsFromDir(importDirectory, commitRequests, importId, technicalLabels, validateByHash);
+        makeDeployActions(restored.chainResults(), commitRequests, restored.instructions().chainsToImport(), importId, technicalLabels);
 
-        return importResult;
+        return new ImportChainsAndInstructionsResult(restored.chainResults(), restored.instructions().chainImportInstructionResults());
+    }
+
+    private record RestoredChains(List<ImportChainResult> chainResults, ChainsIgnoreOverrideResult instructions) {
     }
 
     private ImportChainPreviewDTO restoreChainsFromDirForPreview(File chainDir, ChainImportInstructionsConfig importInstructionsConfig) {
@@ -286,9 +287,9 @@ public class ChainImportService {
         }
     }
 
-    private ImportChainsAndInstructionsResult restoreChainsFromDir(
+    private RestoredChains restoreChainsFromDir(
             File importDirectory,
-            ArrayList<ChainCommitRequest> commitRequests,
+            List<ChainCommitRequest> commitRequests,
             String importId,
             Set<String> technicalLabels,
             boolean validateByHash
@@ -298,7 +299,7 @@ public class ChainImportService {
         importDirectory = new File(importDirectory, CHAINS_ARCH_PARENT_DIR);
         File[] chainFilesDirectories = importDirectory.listFiles(File::isDirectory);
         if (chainFilesDirectories == null) {
-            return new ImportChainsAndInstructionsResult();
+            return new RestoredChains(importChainResults, new ChainsIgnoreOverrideResult(null, null, null));
         }
 
         ChainsIgnoreOverrideResult chainsIgnoreOverrideResult = importInstructionsService
@@ -333,23 +334,10 @@ public class ChainImportService {
 
             if (chainResult != null) {
                 importChainResults.add(chainResult);
-
-                ChainCommitRequestAction deployAction = chainsToImport.get(chainId);
-                if (deployAction != null) {
-                    commitRequests.stream()
-                            .filter(commitRequest -> chainId.equals(commitRequest.getId()))
-                            .findFirst()
-                            .ifPresentOrElse(
-                                    commitRequest -> commitRequest.setDeployAction(deployAction),
-                                    () -> commitRequests.add(ChainCommitRequest.builder()
-                                            .id(chainId)
-                                            .deployAction(deployAction)
-                                            .build()));
-                }
             }
         }
 
-        return new ImportChainsAndInstructionsResult(importChainResults, chainsIgnoreOverrideResult.chainImportInstructionResults());
+        return new RestoredChains(importChainResults, chainsIgnoreOverrideResult);
     }
 
     private ImportChainResult restoreOneChainFromDir(
@@ -414,8 +402,9 @@ public class ChainImportService {
         return importChainResult;
     }
 
+    // A null list imports every chain; an empty one imports none
     private boolean shouldCommitChain(List<ChainCommitRequest> commitRequests, String chainId) {
-        return CollectionUtils.isEmpty(commitRequests) || commitRequests.stream().anyMatch(request -> Objects.equals(request.getId(), chainId));
+        return isNull(commitRequests) || commitRequests.stream().anyMatch(request -> Objects.equals(request.getId(), chainId));
     }
 
     private boolean isSameHash(String chainId, String externalHash) {
@@ -530,7 +519,13 @@ public class ChainImportService {
         return chainFiles[0];
     }
 
-    void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
+    void makeDeployActions(
+            List<ImportChainResult> chainsResult,
+            List<ChainCommitRequest> commitRequests,
+            Map<String, ChainCommitRequestAction> instructionActions,
+            String importId,
+            Set<String> technicalLabels
+    ) {
         int totalChains = chainsResult.size();
         Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, totalChains)
             // Updating action progress
@@ -544,7 +539,7 @@ public class ChainImportService {
                 || chainResult.getStatus() == ImportEntityStatus.IGNORED))
             // Attaching a commit request
             .map(chainResult -> {
-                ChainCommitRequest request = getChainCommitRequest(commitRequests, chainResult.getId());
+                ChainCommitRequest request = getChainCommitRequest(commitRequests, instructionActions, chainResult.getId());
                 applyRequestedDeployAction(chainResult, request);
                 return Pair.of(request, chainResult);
             })
@@ -644,16 +639,24 @@ public class ChainImportService {
         }
     }
 
-    private ChainCommitRequest getChainCommitRequest(List<ChainCommitRequest> chainCommitRequests, String id) {
+    private ChainCommitRequest getChainCommitRequest(
+            List<ChainCommitRequest> chainCommitRequests,
+            Map<String, ChainCommitRequestAction> instructionActions,
+            String id
+    ) {
         // Without commit requests, every chain takes the archive's deployments, as a request with no action does
-        return chainCommitRequests.isEmpty()
+        ChainCommitRequest request = isNull(chainCommitRequests)
                 ? ChainCommitRequest.builder().build()
                 : chainCommitRequests.stream()
-                        .filter(request -> StringUtils.equals(id, request.getId()))
+                        .filter(each -> StringUtils.equals(id, each.getId()))
                         .findAny()
                         .orElse(ChainCommitRequest.builder()
                             .deployAction(ChainCommitRequestAction.NONE)
                             .build());
+        ChainCommitRequestAction instructionAction = instructionActions.get(id);
+        return isNull(instructionAction)
+                ? request
+                : ChainCommitRequest.builder().id(id).deployAction(instructionAction).domains(request.getDomains()).build();
     }
 
     private void persistImportedChainReplacingElements(Chain currentChainState, Chain newChainState) {
@@ -722,7 +725,16 @@ public class ChainImportService {
      */
     @Deprecated(since = "2023.4")
     public List<ImportChainResult> restoreChainsFromDirBackward(File importDirectory, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
-        return restoreChainsFromDir(importDirectory, new ArrayList<>(commitRequests), importId, technicalLabels, false).chainResults();
+        List<ChainCommitRequest> requests = CollectionUtils.isEmpty(commitRequests) ? null : commitRequests;
+        RestoredChains restored = restoreChainsFromDir(importDirectory, requests, importId, technicalLabels, false);
+        // ImportService reads the instruction action from the commit request it passed in
+        if (nonNull(requests)) {
+            Map<String, ChainCommitRequestAction> instructionActions = restored.instructions().chainsToImport();
+            requests.stream()
+                    .filter(request -> nonNull(instructionActions.get(request.getId())))
+                    .forEach(request -> request.setDeployAction(instructionActions.get(request.getId())));
+        }
+        return restored.chainResults();
     }
 
     /**

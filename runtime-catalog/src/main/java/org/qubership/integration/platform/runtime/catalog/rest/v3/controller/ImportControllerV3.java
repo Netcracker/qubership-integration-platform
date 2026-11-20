@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
@@ -122,7 +123,7 @@ public class ImportControllerV3 {
         } catch (IOException e) {
             throw new BadRequestException("Unable to deserialize importRequest field value: " + e.getMessage());
         }
-        if (importRequestObject.getChainCommitRequests().stream().anyMatch(request -> StringUtils.isBlank(request.getId()))) {
+        if (CollectionUtils.emptyIfNull(importRequestObject.getChainCommitRequests()).stream().anyMatch(request -> StringUtils.isBlank(request.getId()))) {
             throw new BadRequestException("Every chainCommitRequests entry must have an id");
         }
 

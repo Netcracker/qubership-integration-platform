@@ -26,7 +26,9 @@ import org.qubership.integration.platform.runtime.catalog.model.domains.DomainTy
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
@@ -44,8 +46,12 @@ import org.qubership.integration.platform.runtime.catalog.service.ElementService
 import org.qubership.integration.platform.runtime.catalog.service.FolderService;
 import org.qubership.integration.platform.runtime.catalog.service.MaskedFieldsService;
 import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,8 +79,10 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -339,7 +347,7 @@ class ChainImportServiceTest {
     }
 
     private void makeDeployActions(List<ImportChainResult> chains, List<ChainCommitRequest> commitRequests) {
-        service.makeDeployActions(chains, commitRequests, "import-1", Set.of());
+        service.makeDeployActions(chains, commitRequests, Map.of(), "import-1", Set.of());
     }
 
     @Test
@@ -383,9 +391,22 @@ class ChainImportServiceTest {
         snapshotIsBuilt("c1", "s1");
         deploysSucceed();
 
-        makeDeployActions(List.of(importedChain("c1", "archive-domain")), List.of());
+        makeDeployActions(List.of(importedChain("c1", "archive-domain")), null);
 
         assertEquals(Map.of("archive-domain", List.of("s1")), deployedSnapshotIds);
+    }
+
+    @Test
+    void instructionActionReplacesTheRequestedAction() {
+        snapshotIsBuilt("c1", "s1");
+
+        service.makeDeployActions(
+                List.of(importedChain("c1", "archive-domain")),
+                List.of(commitRequest("c1", ChainCommitRequestAction.DEPLOY, "picked-domain")),
+                Map.of("c1", ChainCommitRequestAction.SNAPSHOT), "import-1", Set.of());
+
+        verify(snapshotService).build(eq("c1"), any());
+        verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -461,7 +482,7 @@ class ChainImportServiceTest {
         chains.get(1).setStatus(ImportEntityStatus.SKIPPED);
         chains.get(2).setStatus(ImportEntityStatus.IGNORED);
 
-        makeDeployActions(chains, List.of());
+        makeDeployActions(chains, null);
 
         verifyNoInteractions(snapshotService);
     }
@@ -472,7 +493,7 @@ class ChainImportServiceTest {
         ImportChainResult chain = importedChain("c1");
         chain.setDeployments(null);
 
-        makeDeployActions(List.of(chain), List.of());
+        makeDeployActions(List.of(chain), null);
 
         assertEquals(ImportEntityStatus.CREATED, chain.getStatus());
         verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
@@ -483,7 +504,7 @@ class ChainImportServiceTest {
         when(snapshotService.build(eq("c1"), any())).thenThrow(new IllegalStateException("broken chain"));
         ImportChainResult chain = importedChain("c1", "archive-domain");
 
-        makeDeployActions(List.of(chain), List.of());
+        makeDeployActions(List.of(chain), null);
 
         assertEquals(ImportEntityStatus.ERROR, chain.getStatus());
         assertEquals("Chain is saved but without snapshot: broken chain", chain.getErrorMessage());
@@ -496,7 +517,7 @@ class ChainImportServiceTest {
         snapshotIsBuilt("c2", "s2");
         deploysSucceed();
 
-        makeDeployActions(List.of(importedChain("c1", "orders"), importedChain("c2", "orders")), List.of());
+        makeDeployActions(List.of(importedChain("c1", "orders"), importedChain("c2", "orders")), null);
 
         assertEquals(Map.of("orders", List.of("s1", "s2")), deployedSnapshotIds);
         verify(bulkDeploymentService).deploySnapshots(any(), eq(List.of("orders")), eq(DeployMode.APPEND), any(), any());
@@ -512,7 +533,7 @@ class ChainImportServiceTest {
         }).when(bulkDeploymentService).deploySnapshots(any(), any(), any(), any(), any());
         ImportChainResult chain = importedChain("c1", "orders");
 
-        makeDeployActions(List.of(chain), List.of());
+        makeDeployActions(List.of(chain), null);
 
         assertEquals(ImportEntityStatus.ERROR, chain.getStatus());
         assertEquals("Chain is saved but not deployed: domain orders: trigger conflict", chain.getErrorMessage());
@@ -533,7 +554,7 @@ class ChainImportServiceTest {
         ImportChainResult microChain = importedChain("c1", "micro-domain");
         ImportChainResult classicChain = importedChain("c2", "classic-domain");
 
-        makeDeployActions(List.of(microChain, classicChain), List.of());
+        makeDeployActions(List.of(microChain, classicChain), null);
 
         assertEquals(ImportEntityStatus.ERROR, microChain.getStatus());
         assertEquals("Chain is saved but not deployed: domain micro-domain: Domain type MICRO is disabled",
@@ -551,7 +572,7 @@ class ChainImportServiceTest {
                 .errorMessage("Exception while chain import: bad YAML")
                 .build();
 
-        makeDeployActions(List.of(unreadable, importedChain("c1", "orders")), List.of());
+        makeDeployActions(List.of(unreadable, importedChain("c1", "orders")), null);
 
         assertEquals(Map.of("orders", List.of("s1")), deployedSnapshotIds);
     }
@@ -564,7 +585,7 @@ class ChainImportServiceTest {
         List<Deployment> replaced = List.of(new Deployment());
         when(bulkDeploymentService.findReplacedDeployments(any())).thenReturn(replaced);
 
-        makeDeployActions(List.of(importedChain("c1", "domain-a"), importedChain("c2", "domain-b")), List.of());
+        makeDeployActions(List.of(importedChain("c1", "domain-a"), importedChain("c2", "domain-b")), null);
 
         verify(bulkDeploymentService, times(1)).findReplacedDeployments(any());
         verify(bulkDeploymentService).deploySnapshots(any(), eq(List.of("domain-a")), any(), same(replaced), any());
@@ -577,7 +598,7 @@ class ChainImportServiceTest {
         snapshotIsBuilt("c2", "s2");
         deploysSucceed();
 
-        makeDeployActions(List.of(importedChain("c1", "orders"), importedChain("c2", "orders")), List.of());
+        makeDeployActions(List.of(importedChain("c1", "orders"), importedChain("c2", "orders")), null);
 
         InOrder order = inOrder(importSessionService);
         order.verify(importSessionService).calculateImportStatus("import-1", 2, 0,
@@ -612,6 +633,113 @@ class ChainImportServiceTest {
         assertEquals(3, previews.size());
         assertNotNull(previews.stream().filter(preview -> preview.getId() == null).findFirst()
                 .orElseThrow().getErrorMessage());
+    }
+
+    // importChains saves the chains the commit requests select and passes them to makeDeployActions.
+    // saveImportedChain is stubbed; the archive is a directory of chain files that each list archive-domain.
+
+    private ChainImportService archiveImportService(Map<String, ChainCommitRequestAction> chainsToImport) throws Exception {
+        FileMigrationService fileMigrationService = mock(FileMigrationService.class);
+        when(fileMigrationService.migrate(anyString(), anyCollection()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
+        lenient().when(transactionTemplate.execute(any()))
+                .thenAnswer(invocation -> invocation.<TransactionCallback<?>>getArgument(0).doInTransaction(null));
+        ImportInstructionsService importInstructionsService = mock(ImportInstructionsService.class);
+        when(importInstructionsService.performChainIgnoreOverrideInstructions(any()))
+                .thenReturn(new ChainsIgnoreOverrideResult(chainsToImport, null, null));
+        ChainImportService archiveService = new ChainImportService(
+                new MapperAutoConfiguration().yamlExportImportMapper(true), transactionTemplate, chainService,
+                chainFinderService, folderService, snapshotService, chainExternalEntityMapper, importSessionService,
+                actionsLogService, dependencyService, elementService, maskedFieldsService, null,
+                importInstructionsService, fileMigrationService, List.of(), chainModelMapper, chainReader,
+                bulkDeploymentService);
+        ReflectionTestUtils.setField(archiveService, "artifactDescriptorVersion", "test");
+        ChainImportService spied = spy(archiveService);
+        lenient().doAnswer(invocation -> {
+            ChainExternalEntity chain = invocation.getArgument(0);
+            return ImportChainResult.builder()
+                    .id(chain.getId())
+                    .status(ImportEntityStatus.CREATED)
+                    .deployAction(chain.getContent().getDeployAction())
+                    .deployments(chain.getContent().getDeployments())
+                    .build();
+        }).when(spied).saveImportedChain(any(), any(), any());
+        return spied;
+    }
+
+    private static Map<String, ChainCommitRequestAction> noInstructions(String... chainIds) {
+        Map<String, ChainCommitRequestAction> chainsToImport = new HashMap<>();
+        Arrays.stream(chainIds).forEach(chainId -> chainsToImport.put(chainId, null));
+        return chainsToImport;
+    }
+
+    private static List<String> importedIds(ImportChainsAndInstructionsResult result) {
+        return result.chainResults().stream().map(ImportChainResult::getId).sorted().toList();
+    }
+
+    @Test
+    void nullCommitRequestsImportAndDeployEveryChain(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        writeDeployedChainFile(importDirectory, "c2");
+        snapshotIsBuilt("c1", "s1");
+        snapshotIsBuilt("c2", "s2");
+        deploysSucceed();
+
+        ImportChainsAndInstructionsResult result = archiveImportService(noInstructions("c1", "c2"))
+                .importChains(importDirectory.toFile(), null, "import-1", Set.of(), false);
+
+        assertEquals(List.of("c1", "c2"), importedIds(result));
+        assertEquals(List.of("s1", "s2"), deployedSnapshotIds.get("archive-domain").stream().sorted().toList());
+    }
+
+    @Test
+    void emptyCommitRequestsImportNoChain(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        writeDeployedChainFile(importDirectory, "c2");
+        ChainImportService archiveService = archiveImportService(noInstructions("c1", "c2"));
+
+        ImportChainsAndInstructionsResult result = archiveService
+                .importChains(importDirectory.toFile(), List.of(), "import-1", Set.of(), false);
+
+        assertEquals(List.of(), importedIds(result));
+        verify(archiveService, never()).saveImportedChain(any(), any(), any());
+        verifyNoInteractions(snapshotService);
+        verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
+    }
+
+    // Each overridden chain used to add itself to the commit requests, so a chain read after the first one
+    // failed the selection and was neither saved nor reported. Two of them make that hold in any directory order.
+    @Test
+    void overriddenChainsWithNullCommitRequestsAreAllImportedAsSnapshots(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        writeDeployedChainFile(importDirectory, "c2");
+        snapshotIsBuilt("c1", "s1");
+        snapshotIsBuilt("c2", "s2");
+        Map<String, ChainCommitRequestAction> chainsToImport = new HashMap<>(Map.of(
+                "c1", ChainCommitRequestAction.SNAPSHOT,
+                "c2", ChainCommitRequestAction.SNAPSHOT));
+
+        ImportChainsAndInstructionsResult result = archiveImportService(chainsToImport)
+                .importChains(importDirectory.toFile(), null, "import-1", Set.of(), false);
+
+        assertEquals(List.of("c1", "c2"), importedIds(result));
+        result.chainResults().forEach(chain -> assertEquals(ChainCommitRequestAction.SNAPSHOT, chain.getDeployAction()));
+        verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
+    }
+
+    private static void writeDeployedChainFile(Path importDirectory, String chainId) throws Exception {
+        Path chainDirectory = importDirectory.resolve("chains").resolve(chainId);
+        Files.createDirectories(chainDirectory);
+        Files.writeString(chainDirectory.resolve(chainId + ".chain.cip.yaml"), """
+                id: %s
+                name: %s
+                content:
+                  deployAction: DEPLOY
+                  deployments:
+                    - domain: archive-domain
+                  elements: []
+                """.formatted(chainId, chainId));
     }
 
     private static void writeChainFile(Path importDirectory, String chainId, String fileName) throws Exception {
