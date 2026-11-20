@@ -691,6 +691,25 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
       expect((await catalog.importResultV2(ABSENT_UUID)).status()).toBe(404);
     });
 
+    // Shown failing: on a catalog that reads [] as "every chain", the result holds the chain.
+    test("deprecated v2 imports no chain for an empty list", { tag: ["@v2"] }, async ({ catalog, folder, run }) => {
+      const chain = await catalog.createChain(tokenized(run, "v2empty"), folder.id);
+      const archive = await catalog.exportChains([chain.id]);
+      await catalog.deleteChain(chain.id);
+
+      const started = await catalog.importChainsV2(archive, "chains.zip", { chainCommitRequests: [] });
+      expect(started.status()).toBe(202);
+      const { importId } = (await started.json()) as ImportAcknowledgeV2;
+      await expect
+        .poll(async () => (await catalog.importStatusV2(importId)).status(), { timeout: IMPORT_TIMEOUT, message: "the v2 import never finished" })
+        .toBe(303);
+
+      const result = await catalog.importResultV2(importId);
+      expect(result.status()).toBe(200);
+      expect(await result.json()).toEqual([]);
+      expect((await catalog.raw("get", `/v1/chains/${chain.id}`)).status(), "the chain was never written").toBe(404);
+    });
+
     test("v3 diff puts the catalog left and the archive right", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
       const chain = await catalog.createChain(tokenized(run, "v3diff"), folder.id);
       const element = await catalog.createElement(chain.id, "script");

@@ -35,6 +35,7 @@ import { tokenized } from "../../support/run.js";
 import { tokenizedChain } from "../../support/deployable.js";
 import { entryNames, entryText, zipOf } from "../../support/zip.js";
 import { chainEntry, chainExists, importChains } from "../../support/chain-import.js";
+import type { ImportResult } from "../../support/catalog.js";
 import { readSpecificationFixture } from "../../fixtures/templating.js";
 
 /** The `metaInfo.group` line of an exported chain, which is the folder path and the only copy of it. */
@@ -171,6 +172,19 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
     // spec asserting the status would call this a pass.
     expect(imported.status).toBe(200);
     expect(imported.body.chains).toEqual([]);
+    expect(await chainExists(catalog, chain.id)).toBe(false);
+  });
+
+  // An empty list used to mean the same as no list, and imported every chain (#1282).
+  // Shown failing: on a catalog that reads [] as "every chain", the result holds the chain.
+  test("an empty chainCommitRequests imports no chain", { tag: ["@v1"] }, async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, { prefix: "export", what: "empty-list", parentId: folder.id });
+    const archive = await catalog.exportChains([chain.id]);
+    await catalog.deleteChain(chain.id);
+
+    const response = await catalog.importChains(archive, "chains.zip", { chainCommitRequests: [] });
+    expect(response.status()).toBe(200);
+    expect(((await response.json()) as ImportResult).chains).toEqual([]);
     expect(await chainExists(catalog, chain.id)).toBe(false);
   });
 
