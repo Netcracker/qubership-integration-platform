@@ -25,6 +25,8 @@ import org.qubership.integration.platform.engine.errorhandling.RouteRegistration
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodePrefix;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentsUpdate;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -46,11 +48,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class IntegrationRuntimeServiceTest {
@@ -58,6 +63,8 @@ class IntegrationRuntimeServiceTest {
     private DeploymentProcessingService deploymentProcessingService;
     private QuartzSchedulerService quartzSchedulerService;
     private ExternalLibraryGroovyShellFactory groovyShellFactory;
+    private CamelDebuggerPropertiesService debuggerPropertiesService;
+    private Executor deploymentExecutor;
     private IntegrationRuntimeService service;
 
     @SuppressWarnings("unchecked")
@@ -66,6 +73,8 @@ class IntegrationRuntimeServiceTest {
         deploymentProcessingService = mock(DeploymentProcessingService.class);
         quartzSchedulerService = mock(QuartzSchedulerService.class);
         groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
+        debuggerPropertiesService = mock(CamelDebuggerPropertiesService.class);
+        deploymentExecutor = mock(Executor.class);
         service = new IntegrationRuntimeService(
                 mock(ServerConfiguration.class),
                 quartzSchedulerService,
@@ -77,8 +86,8 @@ class IntegrationRuntimeServiceTest {
                 Optional.empty(),
                 mock(VariablesService.class),
                 mock(EngineStateReporter.class),
-                mock(Executor.class),
-                mock(CamelDebuggerPropertiesService.class),
+                deploymentExecutor,
+                debuggerPropertiesService,
                 0,
                 (Predicate<FilteringEntity>) mock(Predicate.class),
                 mock(DeploymentReadinessService.class),
@@ -87,6 +96,30 @@ class IntegrationRuntimeServiceTest {
                 mock(SecurityAccessPolicyConverter.class),
                 (ObjectFactory<CamelDebugger>) mock(ObjectFactory.class),
                 (ObjectFactory<MicrometerObservationTracer>) mock(ObjectFactory.class));
+    }
+
+    @Test
+    void refreshesRuntimeSettingsBeforeDispatchingDeploymentRetries() throws Exception {
+        DeploymentUpdate deployment = DeploymentUpdate.builder()
+                .deploymentInfo(DeploymentInfo.builder().deploymentId("d1").chainId("c1").createdWhen(1L).build())
+                .build();
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(deploymentExecutor).execute(any());
+
+        service.processAndUpdateState(DeploymentsUpdate.builder().update(List.of(deployment)).build(), true);
+
+        var calls = inOrder(debuggerPropertiesService, deploymentExecutor);
+        calls.verify(debuggerPropertiesService).refreshRuntimePropertiesForDeployment();
+        calls.verify(deploymentExecutor).execute(any());
+    }
+
+    @Test
+    void skipsRuntimeSettingsRefreshWhenNoDeploymentsAreUpdated() throws Exception {
+        service.processAndUpdateState(DeploymentsUpdate.builder().build(), false);
+
+        verifyNoInteractions(debuggerPropertiesService);
     }
 
     @Test
