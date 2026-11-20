@@ -67,9 +67,11 @@ Please review the diagram below for detailed and sequential steps to understand 
 
 ---
 
-When the environment enables sending Kubernetes tokens (see [Configuration](#configuration)), **HTTP Sender**, **GraphQL Sender** and **Service Call** with the HTTP or GraphQL protocol send a Kubernetes service account token instead of the IDP token. Only requests with the M2M option selected are affected. Steps 11–18 of the diagram above show how the engine sends such a request and falls back to the IDP token.
+When the environment enables sending Kubernetes tokens (see [Configuration](#configuration)), **HTTP Sender**, **GraphQL Sender** and **Service Call** (with the HTTP or GraphQL protocol) send a Kubernetes service account token instead of the IDP token. Only requests with the M2M option selected are affected. Steps 11–18 of the diagram above show how the engine sends such a request and falls back to the IDP token.
 
-The target service has to accept Kubernetes service account tokens for the first attempt to succeed. A target that does not accept them still receives the IDP token, at the cost of one extra request until the engine remembers it.
+The engine repeats the request with the IDP token only when the service account token is unavailable or the target responds with **401 Unauthorized**. A target that rejects the Kubernetes token with another response, such as **403 Forbidden**, does not receive the IDP token, and the engine returns that response as it is.
+
+Before you enable sending Kubernetes tokens, make sure that every target of a call with the M2M option accepts them or responds with **401 Unauthorized** to them. A call to a target that accepts only the IDP token takes one extra request until the engine remembers that target (step 18).
 
 ## Process Initialization
 
@@ -94,4 +96,13 @@ Please refer to [CIP Architecture](../../00__Overview/3__Architecture/readme.md)
 
 ---
 
-Global configuration steps are fully covered via environment parameters (before installation). Sending the Kubernetes service account token is controlled by the `HTTP_CLIENT_KUBERNETES_TOKEN_ENABLED` environment parameter. The default value is `false`, which keeps sending the IDP token only. For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the guide [Set Up Chain Availability Access Control](../../05__How_To/2__Set_Up_Chain_Availability_Via_Access_Control/readme.md).
+Global configuration steps are fully covered via environment parameters (before installation). Sending the Kubernetes service account token is controlled by an environment parameter of the engine that runs the chain:
+
+| Engine         | Parameter                              | Default value |
+|:---------------|:---------------------------------------|:--------------|
+| Classic Engine | `M2M_FALLBACK_INTERCEPTOR_ENABLED`     | `false`       |
+| Micro-Engine   | `HTTP_CLIENT_KUBERNETES_TOKEN_ENABLED` | `false`       |
+
+With the default value, the engine sends the IDP token only. A domain keeps sending the IDP token if only the parameter of the other engine is set.
+
+For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the guide [Set Up Chain Availability Access Control](../../05__How_To/2__Set_Up_Chain_Availability_Via_Access_Control/readme.md).
