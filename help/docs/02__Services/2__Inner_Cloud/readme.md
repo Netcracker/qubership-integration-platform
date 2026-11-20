@@ -82,7 +82,7 @@ When service is clicked, the system shows the table with all specification group
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the specification group, unique within particular specification group.
-- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
+- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective chain graph.
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modification.
@@ -121,7 +121,7 @@ When particular specification group name is clicked, the system opens new page w
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the specification.
-- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
+- **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective chain graph.
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
@@ -169,7 +169,7 @@ At the top of the table the following options are available:
   - **To Specifications** - returns to the list of specifications in the current group.
   - **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
 
-    > ℹ️  In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+    > ℹ️ In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
 
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
   - ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
@@ -186,7 +186,7 @@ To find all available Inner Services, there is a specific button ![cloud-sync](i
 
 For inner services, that are discovered in K8S namespace, system uses their names as unique IDs.
 
-> ℹ️  Depending on the capacity, network and environment state, Discovery process might take some time to complete.
+> ℹ️ Depending on the capacity, network and environment state, Discovery process might take some time to complete.
 
 ### Add Inner Cloud Service
 <ins>Web UI</ins>
@@ -285,11 +285,11 @@ Default properties are unique for different protocols and described below:
 | saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                     | GSSAPI                                                                                              |
 | saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                               | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
 | securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                   | PLAINTEXT                                                                                           |
-| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️  This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
+| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
 | sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise (assuming both support at least TLSv1.2). This default should be fine for most cases.                        | TLSv1,TLSv1.1,TLSv1.2                                                                               |
 | sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                                                                            | HTTPS                                                                                               |
 
-> ℹ️  When message processing is slow, it could lead to interruption due to reached timeout.
+> ℹ️ When message processing is slow, it could lead to interruption due to reached timeout.
 > In such cases, it is recommended to specify parameter **maxPollIntervalMs**
 > (The maximum delay between invocations of polls when using consumer group management.)
 > with value **higher**, than default **300000** and parameter **maxPollRecords**
@@ -330,7 +330,7 @@ During the import, system follows next logic:
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
-> ℹ️  If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
+> ℹ️ If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
 
 - **"Discovered"** status of API specification for Inner Cloud Service will be switched to **"Manually uploaded"** as the result of manual import of the specification with the same ID.
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
@@ -338,7 +338,7 @@ During the import, system follows next logic:
   - For **Swagger** and **AsyncAPI** system will build specification version from "version" parameter in specification file.
   - For **WSDL**, **GraphQL** and **Protobuf** API specification's, their versions will be generated by autoincrement (1.0.0, 2.0.0, etc.), but it is also possible to manually rename specifications before import.
 
-> ⚠️  When importing **grpc** services, it is absolutely required to have protobuf files properly
+> ⚠️ When importing **grpc** services, it is absolutely required to have protobuf files properly
 > structured within the archive, according to the native logic, described in public
 > **Protocol Buffers Documentation Language Guide (proto 3)**. Following this logic, protobuf files must be placed
 > to the folders, fully corresponding to the path, described in **"import"** statements of the files.

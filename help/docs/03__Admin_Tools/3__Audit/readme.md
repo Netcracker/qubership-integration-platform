@@ -109,14 +109,14 @@ At the top of the table the following options are available:
 - ![redo](img/redo.svg) - Refresh.
 - ![cloud-download](img/cloud-download.svg) - Export Action Logs.
 
-> ℹ️  The table loads 20 records per page. Scroll down to load the next page.
+> ℹ️ The table loads 20 records per page. Scroll down to load the next page.
 
 Similar information is presented on "**Action details**" right panel, available by clicking respective table's record.
 
 ### Export to Excel
 To export audit table to Excel file, find and click export ![cloud-download](img/cloud-download.svg) button, select the required date range and confirm operation.
 
-> ℹ️  Resulted file will always have "Action date" values converted to **GMT** time zone.
+> ℹ️ Resulted file will always have "Action date" values converted to **GMT** time zone.
 
 ### Refresh Logs
 To refresh Audit table, simply click button ![redo](img/redo.svg), presented in the menu or refresh the page itself.
