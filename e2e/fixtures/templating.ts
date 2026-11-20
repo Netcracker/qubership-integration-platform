@@ -143,6 +143,8 @@ export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "kafka-trigger-wrong-password.yaml",
   "kafka-sender-tlsv1-2-refused.yaml",
   "kafka-trigger-tlsv1-2-refused.yaml",
+  "kafka-legacy-header-source.yaml",
+  "kafka-legacy-header-callee.yaml",
 ]);
 
 /**
