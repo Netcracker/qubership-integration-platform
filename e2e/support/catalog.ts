@@ -2259,8 +2259,8 @@ export class Catalog {
    * Starts an import and answers **202** with the id to poll.
    *
    * `importRequest` selects what is committed: a `chainCommitRequests` list naming one chain of an
-   * archive holding two imports that one and leaves the other out of the result entirely. Omitting
-   * it commits everything.
+   * archive holding two imports that one and leaves the other out of the result entirely. An empty
+   * list commits no chain. Omitting the list, or the whole `importRequest`, commits every chain.
    */
   importV3(archive: Buffer, options: { importRequest?: unknown } = {}): Promise<APIResponse> {
     const multipart: Record<string, string | { name: string; mimeType: string; buffer: Buffer }> = {

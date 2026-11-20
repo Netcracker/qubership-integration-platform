@@ -559,6 +559,44 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
       expect((await catalog.importSessionV3(ABSENT_UUID)).status(), "a session id nothing held").toBe(404);
     });
 
+    // An empty list used to mean the same as no list, and imported every chain in the archive (#1282).
+    // Shown failing: on a catalog that reads [] as "every chain", the result holds both rows.
+    test("v3 imports no chain for an empty chainCommitRequests", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
+      const first = await catalog.createChain(tokenized(run, "v3empty-a"), folder.id);
+      const second = await catalog.createChain(tokenized(run, "v3empty-b"), folder.id);
+      const archive = await catalog.exportChains([first.id, second.id]);
+      await catalog.deleteChain(first.id);
+      await catalog.deleteChain(second.id);
+
+      const started = await catalog.importV3(archive, { importRequest: { chainCommitRequests: [] } });
+      expect(started.status()).toBe(202);
+      const { importId } = (await started.json()) as ImportCommitResponseV3;
+
+      const session = await awaitImportV3(catalog, importId);
+      expect(session.result?.chains ?? []).toEqual([]);
+      for (const chain of [first, second]) {
+        expect((await catalog.raw("get", `/v1/chains/${chain.id}`)).status(), `chain ${chain.id} was never written`).toBe(404);
+      }
+    });
+
+    // Startup and rollout imports send no chain list, and must keep importing every chain.
+    // Shown failing: with ImportRequest defaulting the list to [], the result holds no row.
+    test("v3 imports every chain when the request names no list", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
+      const first = await catalog.createChain(tokenized(run, "v3all-a"), folder.id);
+      const second = await catalog.createChain(tokenized(run, "v3all-b"), folder.id);
+      const archive = await catalog.exportChains([first.id, second.id]);
+      await catalog.deleteChain(first.id);
+      await catalog.deleteChain(second.id);
+
+      const started = await catalog.importV3(archive, { importRequest: {} });
+      expect(started.status()).toBe(202);
+      const { importId } = (await started.json()) as ImportCommitResponseV3;
+
+      const session = await awaitImportV3(catalog, importId);
+      expect(session.result?.chains?.map((each) => ({ id: each.id, status: each.status })).sort((a, b) => a.id.localeCompare(b.id)))
+        .toEqual([first.id, second.id].sort().map((id) => ({ id, status: "CREATED" })));
+    });
+
     // Both chains are exported with no deployment, so the archive marks both SNAPSHOT. The status
     // used to report that archive value whatever the request asked for (#1282).
     test("v3 reports the deploy action the request chose", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
