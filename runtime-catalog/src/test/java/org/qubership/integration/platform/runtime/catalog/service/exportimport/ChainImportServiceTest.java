@@ -117,6 +117,8 @@ class ChainImportServiceTest {
     private ImportSessionService importSessionService;
     @Mock
     private BulkDeploymentService bulkDeploymentService;
+    @Mock
+    private ImportInstructionsService importInstructionsService;
 
     @InjectMocks
     private ChainImportService service;
@@ -645,7 +647,6 @@ class ChainImportServiceTest {
         TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
         lenient().when(transactionTemplate.execute(any()))
                 .thenAnswer(invocation -> invocation.<TransactionCallback<?>>getArgument(0).doInTransaction(null));
-        ImportInstructionsService importInstructionsService = mock(ImportInstructionsService.class);
         when(importInstructionsService.performChainIgnoreOverrideInstructions(any()))
                 .thenReturn(new ChainsIgnoreOverrideResult(chainsToImport, null, null));
         ChainImportService archiveService = new ChainImportService(
@@ -746,8 +747,26 @@ class ChainImportServiceTest {
         assertEquals(ChainCommitRequestAction.DEPLOY, plain.getDeployAction());
     }
 
+    @Test
+    void instructionsRunOnlyForTheChainsTheRequestSelects(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1", "any-name");
+        writeDeployedChainFile(importDirectory, "c2");
+        ChainImportService archiveService = archiveImportService(noInstructions());
+
+        archiveService.importChains(importDirectory.toFile(), List.of(commitRequest("c1", ChainCommitRequestAction.NONE)),
+                "import-1", Set.of(), false);
+        archiveService.importChains(importDirectory.toFile(), List.of(), "import-2", Set.of(), false);
+
+        verify(importInstructionsService).performChainIgnoreOverrideInstructions(Set.of("c1"));
+        verify(importInstructionsService).performChainIgnoreOverrideInstructions(Set.of());
+    }
+
     private static void writeDeployedChainFile(Path importDirectory, String chainId) throws Exception {
-        Path chainDirectory = importDirectory.resolve("chains").resolve(chainId);
+        writeDeployedChainFile(importDirectory, chainId, chainId);
+    }
+
+    private static void writeDeployedChainFile(Path importDirectory, String chainId, String directoryName) throws Exception {
+        Path chainDirectory = importDirectory.resolve("chains").resolve(directoryName);
         Files.createDirectories(chainDirectory);
         Files.writeString(chainDirectory.resolve(chainId + ".chain.cip.yaml"), """
                 id: %s

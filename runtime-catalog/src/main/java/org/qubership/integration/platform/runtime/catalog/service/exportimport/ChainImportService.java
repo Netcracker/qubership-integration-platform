@@ -302,15 +302,29 @@ public class ChainImportService {
             return new RestoredChains(importChainResults, new ChainsIgnoreOverrideResult(null, null, null));
         }
 
+        // The directory name is arbitrary, so the chain's id comes from its YAML file
+        Map<File, ChainExternalEntity> chains = new LinkedHashMap<>();
+        for (File chainFilesDir : chainFilesDirectories) {
+            try {
+                chains.put(chainFilesDir, readChain(chainFilesDir));
+            } catch (Exception e) {
+                importChainResults.add(chainErrorResult(e, null));
+            }
+        }
+
+        Set<String> chainIdsToCommit = chains.values().stream()
+                .map(ChainExternalEntity::getId)
+                .filter(chainId -> shouldCommitChain(commitRequests, chainId))
+                .collect(Collectors.toSet());
         ChainsIgnoreOverrideResult chainsIgnoreOverrideResult = importInstructionsService
-                .performChainIgnoreOverrideInstructions(Stream.of(chainFilesDirectories).map(File::getName).collect(Collectors.toSet()));
+                .performChainIgnoreOverrideInstructions(chainIdsToCommit);
         Map<String, ChainCommitRequestAction> chainsToImport = chainsIgnoreOverrideResult.chainsToImport();
         Map<String, String> overridesMapping = chainsIgnoreOverrideResult.overridesMapping();
         int total = chainFilesDirectories.length;
         int counter = 0;
-        for (File chainFilesDir : chainFilesDirectories) {
-            String chainId = chainFilesDir.getName();
-            if (!chainsToImport.containsKey(chainId)) {
+        for (Map.Entry<File, ChainExternalEntity> chain : chains.entrySet()) {
+            String chainId = chain.getValue().getId();
+            if (chainIdsToCommit.contains(chainId) && !chainsToImport.containsKey(chainId)) {
                 importChainResults.add(ImportChainResult.builder()
                         .id(chainId)
                         .status(ImportEntityStatus.IGNORED)
@@ -330,7 +344,8 @@ public class ChainImportService {
                     importId, total, counter, ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD);
             counter++;
 
-            ImportChainResult chainResult = restoreOneChainFromDir(chainFilesDir, commitRequests, technicalLabels, overridesPair, validateByHash);
+            ImportChainResult chainResult = restoreOneChainFromDir(
+                    chain.getKey(), chain.getValue(), commitRequests, technicalLabels, overridesPair, validateByHash);
 
             if (chainResult != null) {
                 importChainResults.add(chainResult);
@@ -340,20 +355,21 @@ public class ChainImportService {
         return new RestoredChains(importChainResults, chainsIgnoreOverrideResult);
     }
 
+    private ChainExternalEntity readChain(File chainFilesDir) throws Exception {
+        String chainYAML = Files.readString(getChainYAMLFile(chainFilesDir).toPath());
+        return yamlMapper.readValue(migrateToActualFileVersion(chainYAML), ChainExternalEntity.class);
+    }
+
     private ImportChainResult restoreOneChainFromDir(
             File chainFilesDir,
+            ChainExternalEntity chainExternalEntity,
             List<ChainCommitRequest> commitRequests,
             Set<String> technicalLabels,
             Pair<String, String> overridesPair,
             boolean validateByHash
     ) {
         ImportChainResult importChainResult = null;
-        ChainExternalEntity chainExternalEntity = null;
         try {
-            String chainYAML = Files.readString(getChainYAMLFile(chainFilesDir).toPath());
-            chainYAML = migrateToActualFileVersion(chainYAML);
-            chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
-
             String chainId = chainExternalEntity.getId();
             String externalHash = ChainUtils.getChainFilesHash(chainFilesDir, artifactDescriptorVersion);
 
@@ -382,21 +398,27 @@ public class ChainImportService {
                 chainExternalEntity.getContent().setLastImportHash(externalHash);
                 importChainResult = saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
             }
-        } catch (ChainImportException e) {
-            log.warn("Exception while importing {} ({}) chain: ", e.getChainName(), e.getChainId(), e);
-            importChainResult = new ImportChainResult();
-            importChainResult.setStatus(ImportEntityStatus.ERROR);
-            importChainResult.setId(e.getChainId());
-            importChainResult.setName(e.getChainName());
-            importChainResult.setErrorMessage(e.getMessage());
         } catch (Exception e) {
+            importChainResult = chainErrorResult(e, chainExternalEntity);
+        }
+        return importChainResult;
+    }
+
+    private static ImportChainResult chainErrorResult(Exception e, ChainExternalEntity chainExternalEntity) {
+        ImportChainResult importChainResult = new ImportChainResult();
+        importChainResult.setStatus(ImportEntityStatus.ERROR);
+        if (e instanceof ChainImportException chainImportException) {
+            log.warn("Exception while importing {} ({}) chain: ",
+                    chainImportException.getChainName(), chainImportException.getChainId(), e);
+            importChainResult.setId(chainImportException.getChainId());
+            importChainResult.setName(chainImportException.getChainName());
+            importChainResult.setErrorMessage(e.getMessage());
+        } else {
             log.warn("Exception while chain import: ", e);
-            importChainResult = new ImportChainResult();
             if (chainExternalEntity != null) {
                 importChainResult.setId(chainExternalEntity.getId());
                 importChainResult.setName(chainExternalEntity.getName());
             }
-            importChainResult.setStatus(ImportEntityStatus.ERROR);
             importChainResult.setErrorMessage("Exception while chain import: " + e.getMessage());
         }
         return importChainResult;
