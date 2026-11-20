@@ -221,9 +221,9 @@ class JsonChainLoggerTest {
     }
 
     private LogstashMarker buildExpectedExchangeArgs(String body, String header, String properties) {
-        return Markers.append("exchange_body", body)
+        return Markers.append("exchange_properties", properties)
                 .and(append("exchange_headers", header))
-                .and(append("exchange_properties", properties));
+                .and(append("exchange_body", body));
     }
 
     private LogstashMarker buildExpectedErrorArgs(String body, String header, String properties, ErrorCode errorCode) {

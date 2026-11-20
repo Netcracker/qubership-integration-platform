@@ -1,13 +1,20 @@
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
+import io.quarkiverse.loggingjson.JsonGenerator;
+import io.quarkiverse.loggingjson.StringBuilderWriter;
+import io.quarkiverse.loggingjson.jackson.JacksonJsonFactory;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.component.TestConfigProperty;
 import jakarta.enterprise.inject.Instance;
 import org.apache.camel.http.base.HttpOperationFailedException;
+import org.jboss.logmanager.ExtLogRecord;
+import org.jboss.logmanager.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -27,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -94,6 +102,35 @@ class JsonChainLoggerTest {
         Map<String, String> actualArguments = getActualArguments(capturedArgs);
 
         assertEquals(actualArguments, buildExpectedExchangeArgs(loggedPayloadValues));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void shouldSerializeExchangeFieldsInOrderWhenLoggingWithOrWithoutMarkers(boolean useMarkers) throws Exception {
+        JsonChainLogger logger = useMarkers ? jsonChainLogger
+                : new JsonChainLogger(tracingService, originatingBusinessIdProvider, payloadExtractor,
+                        chainRuntimePropertiesService, variablesService);
+        LoggedPayloadValues values = LoggedPayloadValues.builder()
+                .properties("properties")
+                .headers("headers")
+                .body("body")
+                .build();
+
+        logger.logExchange("Test exchange message", values);
+
+        ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
+        verify(chainLogger).info(eq("Test exchange message"), arguments.capture());
+        ExtLogRecord record = new ExtLogRecord(Level.INFO, "Test exchange message", JsonChainLogger.class.getName());
+        record.setParameters(arguments.getValue());
+        StringBuilderWriter writer = new StringBuilderWriter();
+        try (JsonGenerator generator = new JacksonJsonFactory().createGenerator(writer)) {
+            generator.writeStartObject();
+            new JsonLogProvider().writeTo(generator, record);
+            generator.writeEndObject();
+        }
+
+        assertTrue(writer.toString().contains("\"exchange_properties\":\"properties\","
+                + "\"exchange_headers\":\"headers\",\"exchange_body\":\"body\""), writer::toString);
     }
 
     @Test
