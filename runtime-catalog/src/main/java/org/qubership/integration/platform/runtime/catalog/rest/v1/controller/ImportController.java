@@ -36,7 +36,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -74,16 +73,11 @@ public class ImportController {
                                                 @RequestHeader(required = false, value = ImportControllerV3.SR_PACKAGE_PART_OF_HEADER) @Parameter(description = "Package part of samples repository header") String packagePartOf) {
         log.info("Request to import file: {}", file.getOriginalFilename());
         technicalLabels = ImportControllerV3.addSamplesRepoTechnicalLabels(technicalLabels, packagePartOf, packageName, packageVersion);
-        List<ChainCommitRequest> chainCommitRequestsList = Collections.emptyList();
-
-        try {
-            if (chainCommitRequests != null) {
-                chainCommitRequestsList = Arrays.asList(objectMapper.readValue(chainCommitRequests,
-                        ChainCommitRequest[].class));
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Cannot parse chainCommitRequests parameter", e);
-        }
+        List<ChainCommitRequest> chainCommitRequestsList = chainCommitRequests == null
+                ? null
+                : Arrays.asList(ImportControllerV3.readImportParameter(
+                        objectMapper, "chainCommitRequests", chainCommitRequests, ChainCommitRequest[].class));
+        ImportControllerV3.requireChainIds(chainCommitRequestsList);
 
         ImportDTO importDTO = importService.importFile(file, chainCommitRequestsList, new HashSet<>(technicalLabels));
 

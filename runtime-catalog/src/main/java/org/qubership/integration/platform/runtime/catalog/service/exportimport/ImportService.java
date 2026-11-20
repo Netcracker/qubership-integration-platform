@@ -380,7 +380,7 @@ public class ImportService {
             }
 
             ChainCommitRequest request = null;
-            if (!CollectionUtils.isEmpty(commitRequests)) {
+            if (commitRequests != null) {
                 request = commitRequests.stream()
                         .filter(creq -> creq.getId().equals(chainDTO.getId())).findAny().orElse(null);
                 if (request == null || request.getDeployAction() == ChainCommitRequestAction.NONE) {
@@ -455,7 +455,7 @@ public class ImportService {
             String migratedYaml = migrateToActualFileVersion(yaml);
             basicChainInfo = getYamlBasicChainInfo(migratedYaml);
             ChainCompareDTO finalBasicChainInfo = basicChainInfo;
-            if (CollectionUtils.isEmpty(commitRequests)
+            if (commitRequests == null
                     || commitRequests.stream()
                             .anyMatch(request -> request.getId().equals(finalBasicChainInfo.getId()))) {
 

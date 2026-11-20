@@ -1108,9 +1108,14 @@ export class Catalog {
   }
 
   /** `path` is the import endpoint, because services and chains do not share one. */
-  async importArchive(path: string, archive: Buffer, name = "fixture.zip", options: RequestTimeout = {}): Promise<APIResponse> {
+  async importArchive(
+    path: string,
+    archive: Buffer,
+    name = "fixture.zip",
+    options: RequestTimeout & { fields?: Record<string, string> } = {},
+  ): Promise<APIResponse> {
     return await this.send("post", path, {
-      multipart: { file: { name, mimeType: "application/zip", buffer: archive } },
+      multipart: { file: { name, mimeType: "application/zip", buffer: archive }, ...options.fields },
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
     });
   }
@@ -1121,9 +1126,18 @@ export class Catalog {
    * 200 while every row succeeded, **207** as soon as one carries `ERROR` — and 200 with an empty
    * `chains` array for an archive whose entries sit at the zip root, which is the quiet way an
    * import that imported nothing reports success.
+   *
+   * `chainCommitRequests` selects the chains to import: an empty list imports none, and leaving it
+   * out imports every chain.
    */
-  importChains(archive: Buffer, name = "chains.zip", options: RequestTimeout = {}): Promise<APIResponse> {
-    return this.importArchive("/v1/catalog/import", archive, name, options);
+  importChains(
+    archive: Buffer,
+    name = "chains.zip",
+    options: RequestTimeout & { chainCommitRequests?: unknown } = {},
+  ): Promise<APIResponse> {
+    const { chainCommitRequests, ...timeout } = options;
+    const fields = chainCommitRequests === undefined ? undefined : { chainCommitRequests: JSON.stringify(chainCommitRequests) };
+    return this.importArchive("/v1/catalog/import", archive, name, { ...timeout, fields });
   }
 
   /** What an import would write. Reads the archive and touches nothing. */
@@ -2219,10 +2233,15 @@ export class Catalog {
   // Import, `/v2` — deprecated since 2023.4
   // -------------------------------------------------------------------------
 
-  /** 202 with `{importId, href}`, a `Location` header and `Retry-After: 60`. */
-  importChainsV2(archive: Buffer, name = "chains.zip"): Promise<APIResponse> {
+  /**
+   * 202 with `{importId, href}`, a `Location` header and `Retry-After: 60`. `chainCommitRequests`
+   * selects as it does for `importChains`.
+   */
+  importChainsV2(archive: Buffer, name = "chains.zip", options: { chainCommitRequests?: unknown } = {}): Promise<APIResponse> {
+    const fields: Record<string, string> =
+      options.chainCommitRequests === undefined ? {} : { chainCommitRequests: JSON.stringify(options.chainCommitRequests) };
     return this.upload("post", "/v2/import", {
-      multipart: { file: { name, mimeType: "application/zip", buffer: archive } },
+      multipart: { file: { name, mimeType: "application/zip", buffer: archive }, ...fields },
     });
   }
 
@@ -2264,8 +2283,8 @@ export class Catalog {
    * Starts an import and answers **202** with the id to poll.
    *
    * `importRequest` selects what is committed: a `chainCommitRequests` list naming one chain of an
-   * archive holding two imports that one and leaves the other out of the result entirely. Omitting
-   * it commits everything.
+   * archive holding two imports that one and leaves the other out of the result entirely. An empty
+   * list commits no chain. Omitting the list, or the whole `importRequest`, commits every chain.
    */
   importV3(archive: Buffer, options: { importRequest?: unknown } = {}): Promise<APIResponse> {
     const multipart: Record<string, string | { name: string; mimeType: string; buffer: Buffer }> = {

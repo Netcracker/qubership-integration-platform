@@ -220,12 +220,13 @@ public class ChainImportService {
             Set<String> technicalLabels,
             boolean validateByHash
     ) {
-        ImportChainsAndInstructionsResult importResult = restoreChainsFromDir(
-                importDirectory, new ArrayList<>(commitRequests), importId, technicalLabels, validateByHash
-        );
-        makeDeployActions(importResult.chainResults(), commitRequests, importId, technicalLabels);
+        RestoredChains restored = restoreChainsFromDir(importDirectory, commitRequests, importId, technicalLabels, validateByHash);
+        makeDeployActions(restored.chainResults(), commitRequests, restored.instructions().chainsToImport(), importId, technicalLabels);
 
-        return importResult;
+        return new ImportChainsAndInstructionsResult(restored.chainResults(), restored.instructions().chainImportInstructionResults());
+    }
+
+    private record RestoredChains(List<ImportChainResult> chainResults, ChainsIgnoreOverrideResult instructions) {
     }
 
     private ImportChainPreviewDTO restoreChainsFromDirForPreview(File chainDir, ChainImportInstructionsConfig importInstructionsConfig) {
@@ -286,9 +287,9 @@ public class ChainImportService {
         }
     }
 
-    private ImportChainsAndInstructionsResult restoreChainsFromDir(
+    private RestoredChains restoreChainsFromDir(
             File importDirectory,
-            ArrayList<ChainCommitRequest> commitRequests,
+            List<ChainCommitRequest> commitRequests,
             String importId,
             Set<String> technicalLabels,
             boolean validateByHash
@@ -298,18 +299,32 @@ public class ChainImportService {
         importDirectory = new File(importDirectory, CHAINS_ARCH_PARENT_DIR);
         File[] chainFilesDirectories = importDirectory.listFiles(File::isDirectory);
         if (chainFilesDirectories == null) {
-            return new ImportChainsAndInstructionsResult();
+            return new RestoredChains(importChainResults, new ChainsIgnoreOverrideResult(null, null, null));
         }
 
+        // The directory name is arbitrary, so the chain's id comes from its YAML file
+        Map<File, ChainExternalEntity> chains = new LinkedHashMap<>();
+        for (File chainFilesDir : chainFilesDirectories) {
+            try {
+                chains.put(chainFilesDir, readChain(chainFilesDir));
+            } catch (Exception e) {
+                importChainResults.add(chainErrorResult(e, null));
+            }
+        }
+
+        Set<String> chainIdsToCommit = chains.values().stream()
+                .map(ChainExternalEntity::getId)
+                .filter(chainId -> shouldCommitChain(commitRequests, chainId))
+                .collect(Collectors.toSet());
         ChainsIgnoreOverrideResult chainsIgnoreOverrideResult = importInstructionsService
-                .performChainIgnoreOverrideInstructions(Stream.of(chainFilesDirectories).map(File::getName).collect(Collectors.toSet()));
+                .performChainIgnoreOverrideInstructions(chainIdsToCommit);
         Map<String, ChainCommitRequestAction> chainsToImport = chainsIgnoreOverrideResult.chainsToImport();
         Map<String, String> overridesMapping = chainsIgnoreOverrideResult.overridesMapping();
         int total = chainFilesDirectories.length;
         int counter = 0;
-        for (File chainFilesDir : chainFilesDirectories) {
-            String chainId = chainFilesDir.getName();
-            if (!chainsToImport.containsKey(chainId)) {
+        for (Map.Entry<File, ChainExternalEntity> chain : chains.entrySet()) {
+            String chainId = chain.getValue().getId();
+            if (chainIdsToCommit.contains(chainId) && !chainsToImport.containsKey(chainId)) {
                 importChainResults.add(ImportChainResult.builder()
                         .id(chainId)
                         .status(ImportEntityStatus.IGNORED)
@@ -329,43 +344,32 @@ public class ChainImportService {
                     importId, total, counter, ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD);
             counter++;
 
-            ImportChainResult chainResult = restoreOneChainFromDir(chainFilesDir, commitRequests, technicalLabels, overridesPair, validateByHash);
+            ImportChainResult chainResult = restoreOneChainFromDir(
+                    chain.getKey(), chain.getValue(), commitRequests, technicalLabels, overridesPair, validateByHash);
 
             if (chainResult != null) {
                 importChainResults.add(chainResult);
-
-                ChainCommitRequestAction deployAction = chainsToImport.get(chainId);
-                if (deployAction != null) {
-                    commitRequests.stream()
-                            .filter(commitRequest -> chainId.equals(commitRequest.getId()))
-                            .findFirst()
-                            .ifPresentOrElse(
-                                    commitRequest -> commitRequest.setDeployAction(deployAction),
-                                    () -> commitRequests.add(ChainCommitRequest.builder()
-                                            .id(chainId)
-                                            .deployAction(deployAction)
-                                            .build()));
-                }
             }
         }
 
-        return new ImportChainsAndInstructionsResult(importChainResults, chainsIgnoreOverrideResult.chainImportInstructionResults());
+        return new RestoredChains(importChainResults, chainsIgnoreOverrideResult);
+    }
+
+    private ChainExternalEntity readChain(File chainFilesDir) throws Exception {
+        String chainYAML = Files.readString(getChainYAMLFile(chainFilesDir).toPath());
+        return yamlMapper.readValue(migrateToActualFileVersion(chainYAML), ChainExternalEntity.class);
     }
 
     private ImportChainResult restoreOneChainFromDir(
             File chainFilesDir,
+            ChainExternalEntity chainExternalEntity,
             List<ChainCommitRequest> commitRequests,
             Set<String> technicalLabels,
             Pair<String, String> overridesPair,
             boolean validateByHash
     ) {
         ImportChainResult importChainResult = null;
-        ChainExternalEntity chainExternalEntity = null;
         try {
-            String chainYAML = Files.readString(getChainYAMLFile(chainFilesDir).toPath());
-            chainYAML = migrateToActualFileVersion(chainYAML);
-            chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
-
             String chainId = chainExternalEntity.getId();
             String externalHash = ChainUtils.getChainFilesHash(chainFilesDir, artifactDescriptorVersion);
 
@@ -394,28 +398,35 @@ public class ChainImportService {
                 chainExternalEntity.getContent().setLastImportHash(externalHash);
                 importChainResult = saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
             }
-        } catch (ChainImportException e) {
-            log.warn("Exception while importing {} ({}) chain: ", e.getChainName(), e.getChainId(), e);
-            importChainResult = new ImportChainResult();
-            importChainResult.setStatus(ImportEntityStatus.ERROR);
-            importChainResult.setId(e.getChainId());
-            importChainResult.setName(e.getChainName());
-            importChainResult.setErrorMessage(e.getMessage());
         } catch (Exception e) {
+            importChainResult = chainErrorResult(e, chainExternalEntity);
+        }
+        return importChainResult;
+    }
+
+    private static ImportChainResult chainErrorResult(Exception e, ChainExternalEntity chainExternalEntity) {
+        ImportChainResult importChainResult = new ImportChainResult();
+        importChainResult.setStatus(ImportEntityStatus.ERROR);
+        if (e instanceof ChainImportException chainImportException) {
+            log.warn("Exception while importing {} ({}) chain: ",
+                    chainImportException.getChainName(), chainImportException.getChainId(), e);
+            importChainResult.setId(chainImportException.getChainId());
+            importChainResult.setName(chainImportException.getChainName());
+            importChainResult.setErrorMessage(e.getMessage());
+        } else {
             log.warn("Exception while chain import: ", e);
-            importChainResult = new ImportChainResult();
             if (chainExternalEntity != null) {
                 importChainResult.setId(chainExternalEntity.getId());
                 importChainResult.setName(chainExternalEntity.getName());
             }
-            importChainResult.setStatus(ImportEntityStatus.ERROR);
             importChainResult.setErrorMessage("Exception while chain import: " + e.getMessage());
         }
         return importChainResult;
     }
 
+    // A null list imports every chain; an empty one imports none
     private boolean shouldCommitChain(List<ChainCommitRequest> commitRequests, String chainId) {
-        return CollectionUtils.isEmpty(commitRequests) || commitRequests.stream().anyMatch(request -> Objects.equals(request.getId(), chainId));
+        return isNull(commitRequests) || commitRequests.stream().anyMatch(request -> Objects.equals(request.getId(), chainId));
     }
 
     private boolean isSameHash(String chainId, String externalHash) {
@@ -530,7 +541,13 @@ public class ChainImportService {
         return chainFiles[0];
     }
 
-    void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
+    void makeDeployActions(
+            List<ImportChainResult> chainsResult,
+            List<ChainCommitRequest> commitRequests,
+            Map<String, ChainCommitRequestAction> instructionActions,
+            String importId,
+            Set<String> technicalLabels
+    ) {
         int totalChains = chainsResult.size();
         Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, totalChains)
             // Updating action progress
@@ -544,7 +561,7 @@ public class ChainImportService {
                 || chainResult.getStatus() == ImportEntityStatus.IGNORED))
             // Attaching a commit request
             .map(chainResult -> {
-                ChainCommitRequest request = getChainCommitRequest(commitRequests, chainResult.getId());
+                ChainCommitRequest request = getChainCommitRequest(commitRequests, instructionActions, chainResult.getId());
                 applyRequestedDeployAction(chainResult, request);
                 return Pair.of(request, chainResult);
             })
@@ -644,16 +661,23 @@ public class ChainImportService {
         }
     }
 
-    private ChainCommitRequest getChainCommitRequest(List<ChainCommitRequest> chainCommitRequests, String id) {
-        // Without commit requests, every chain takes the archive's deployments, as a request with no action does
-        return chainCommitRequests.isEmpty()
+    private ChainCommitRequest getChainCommitRequest(
+            List<ChainCommitRequest> chainCommitRequests,
+            Map<String, ChainCommitRequestAction> instructionActions,
+            String id
+    ) {
+        ChainCommitRequest request = isNull(chainCommitRequests)
                 ? ChainCommitRequest.builder().build()
                 : chainCommitRequests.stream()
-                        .filter(request -> StringUtils.equals(id, request.getId()))
+                        .filter(each -> StringUtils.equals(id, each.getId()))
                         .findAny()
                         .orElse(ChainCommitRequest.builder()
                             .deployAction(ChainCommitRequestAction.NONE)
                             .build());
+        ChainCommitRequestAction instructionAction = instructionActions.get(id);
+        return isNull(instructionAction)
+                ? request
+                : ChainCommitRequest.builder().id(id).deployAction(instructionAction).domains(request.getDomains()).build();
     }
 
     private void persistImportedChainReplacingElements(Chain currentChainState, Chain newChainState) {
@@ -722,7 +746,15 @@ public class ChainImportService {
      */
     @Deprecated(since = "2023.4")
     public List<ImportChainResult> restoreChainsFromDirBackward(File importDirectory, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
-        return restoreChainsFromDir(importDirectory, new ArrayList<>(commitRequests), importId, technicalLabels, false).chainResults();
+        RestoredChains restored = restoreChainsFromDir(importDirectory, commitRequests, importId, technicalLabels, false);
+        // ImportService reads the instruction action from the commit request it passed in
+        if (nonNull(commitRequests)) {
+            Map<String, ChainCommitRequestAction> instructionActions = restored.instructions().chainsToImport();
+            commitRequests.stream()
+                    .filter(request -> nonNull(instructionActions.get(request.getId())))
+                    .forEach(request -> request.setDeployAction(instructionActions.get(request.getId())));
+        }
+        return restored.chainResults();
     }
 
     /**
