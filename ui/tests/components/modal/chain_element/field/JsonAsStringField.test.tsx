@@ -44,7 +44,7 @@ describe("JsonAsStringField", () => {
         mode: "json",
         onChange: expect.any(Function),
       }),
-      expect.anything(),
+      undefined,
     );
   });
 

@@ -68,7 +68,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const ExpandButton = treeExpandIcon<void>();
   const propertiesEditorRef = useRef<KeyValuePairsEditorRef>(null);
   // A ref, so the validator sees an error set in the same change.
-  const propertiesTextErrorRef = useRef<string>();
+  const propertiesTextErrorRef = useRef<string>(undefined);
   const setPropertiesTextError = useCallback((error: string | undefined) => {
     propertiesTextErrorRef.current = error;
     // Text that does not parse changes no form value, so mark it here.

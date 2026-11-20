@@ -19,7 +19,7 @@ export function useChainContext(): ChainContext | null {
   const [chain, setChain] = useState<Chain | null>(null);
   const chainRef = useRef(chain);
   const readGeneration = useRef(0);
-  const refreshErrorRef = useRef<Error>();
+  const refreshErrorRef = useRef<Error>(undefined);
   const notificationService = useNotificationService();
   const [pathname, setPathname] = useState<string>(
     typeof window !== "undefined" ? window.location.pathname : "",

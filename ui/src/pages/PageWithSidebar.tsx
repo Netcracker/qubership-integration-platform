@@ -48,7 +48,8 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
       >
         <div className={styles.sidebarInner}>
           <div className={styles.sidebarMenu}>
-            {React.isValidElement(sidebar)
+            {React.isValidElement<{ collapsed?: boolean }>(sidebar) &&
+            sidebar.type !== React.Fragment
               ? React.cloneElement(sidebar, { collapsed })
               : sidebar}
           </div>

@@ -224,7 +224,7 @@ describe("PageWithRightPanel", () => {
     jest.restoreAllMocks();
   });
 
-  const renderWithContext = (ui: React.ReactElement) => {
+  const renderWithContext = (ui: React.ReactElement<any>) => {
     const { ChainContext } = require("../../src/pages/ChainPage");
     const chainContextValue = {
       chain: undefined,

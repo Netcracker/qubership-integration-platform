@@ -489,8 +489,13 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
   const [value, setValue] = useState<string>("");
   const [actions, setActions] = useState<MappingAction[]>([]);
   const monacoRef = useRef<Monaco | null>(null);
+  const emittedRef = useRef(new WeakSet<MappingDescription>());
 
   useEffect(() => {
+    // A mapping parsed from this editor can come back after newer typing, so writing it would replace that text.
+    if (mapping && emittedRef.current.has(mapping)) {
+      return;
+    }
     if (actionsAreTheSame(actions, mapping?.actions ?? [])) {
       return;
     }
@@ -505,6 +510,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
         monaco,
         mapping ?? MappingUtil.emptyMapping(),
         (mappingDescription) => {
+          emittedRef.current.add(mappingDescription);
           setActions(mappingDescription.actions);
           onChange?.(mappingDescription);
         },

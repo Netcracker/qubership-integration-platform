@@ -162,7 +162,7 @@ describe("ContextServiceParametersTab", () => {
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
@@ -185,7 +185,7 @@ describe("ContextServiceParametersTab", () => {
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const showModalCallsAfterFirstPrompt = mockShowModal.mock.calls.length;
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
@@ -209,7 +209,7 @@ describe("ContextServiceParametersTab", () => {
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-no"));
@@ -228,7 +228,7 @@ describe("ContextServiceParametersTab", () => {
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-close"));

@@ -834,7 +834,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     }, 300);
   }, []);
 
-  const lastSentPathRef = React.useRef<string>();
+  const lastSentPathRef = React.useRef<string>(undefined);
 
   const handlePathMappedValueChange = useCallback(
     (key: string, value: string) => {

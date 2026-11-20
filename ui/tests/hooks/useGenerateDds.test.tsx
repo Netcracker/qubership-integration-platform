@@ -47,7 +47,7 @@ describe("useGenerateDds", () => {
     expect(mockShowModal).toHaveBeenCalledTimes(1);
 
     const formCall = mockShowModal.mock.calls[0][0] as {
-      component: React.ReactElement;
+      component: React.ReactElement<any>;
     };
     expect(formCall.component.props.onSubmit).toBeDefined();
 
@@ -60,7 +60,7 @@ describe("useGenerateDds", () => {
     expect(mockShowModal).toHaveBeenCalledTimes(2);
 
     const previewCall = mockShowModal.mock.calls[1][0] as {
-      component: React.ReactElement;
+      component: React.ReactElement<any>;
     };
     expect(previewCall.component.type).toBeTruthy();
     expect(previewCall.component.props.chainId).toBe("chain-1");

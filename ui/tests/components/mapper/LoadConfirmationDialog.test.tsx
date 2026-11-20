@@ -78,7 +78,7 @@ describe("LoadConfirmationDialog", () => {
       expect.objectContaining({
         differences,
       }),
-      {},
+      undefined,
     );
   });
 
@@ -90,7 +90,7 @@ describe("LoadConfirmationDialog", () => {
       expect.objectContaining({
         differences: [],
       }),
-      {},
+      undefined,
     );
   });
 });

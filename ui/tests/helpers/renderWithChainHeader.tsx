@@ -12,7 +12,7 @@ export function ChainHeaderActionsTestSlot({
   children,
 }: {
   children: React.ReactNode;
-}): React.ReactElement {
+}): React.ReactElement<any> {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <ChainHeaderSlotProvider value={slot}>
@@ -27,7 +27,7 @@ export function ChainHeaderTestRoot({
   children,
 }: {
   children: React.ReactNode;
-}): React.ReactElement {
+}): React.ReactElement<any> {
   return (
     <TestQueryClientProvider>
       <Modals>
@@ -38,7 +38,7 @@ export function ChainHeaderTestRoot({
 }
 
 export function renderPageWithChainHeader(
-  page: React.ReactElement,
+  page: React.ReactElement<any>,
 ): RenderResult {
   return render(<ChainHeaderTestRoot>{page}</ChainHeaderTestRoot>);
 }

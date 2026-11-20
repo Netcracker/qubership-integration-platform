@@ -100,7 +100,7 @@ jest.mock("../../../../src/hooks/useDocumentation", () => ({
 }));
 
 const mockShowModal =
-  jest.fn<(args: { component: React.ReactElement }) => void>();
+  jest.fn<(args: { component: React.ReactElement<any> }) => void>();
 jest.mock("../../../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));

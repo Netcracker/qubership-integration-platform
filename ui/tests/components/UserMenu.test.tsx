@@ -25,7 +25,7 @@ jest.mock("../../src/misc/confirm-utils.ts", () => ({
 
 const mockOnThemeChange = jest.fn();
 
-function renderWithTheme(ui: React.ReactElement = <UserMenu />) {
+function renderWithTheme(ui: React.ReactElement<any> = <UserMenu />) {
   return render(
     <ThemeContext.Provider
       value={{ theme: "light", onThemeChange: mockOnThemeChange }}

@@ -144,7 +144,7 @@ function promptProps(): {
   onCancelQuestion: () => void;
 } {
   const { component } = mockShowModal.mock.calls[0][0] as {
-    component: React.ReactElement;
+    component: React.ReactElement<any>;
   };
   return (
     component as React.ReactElement<{

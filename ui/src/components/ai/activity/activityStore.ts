@@ -64,7 +64,7 @@ export function useActivityStore(): ActivityStore & {
   orientationLabel: string | undefined;
   version: number;
 } {
-  const storeRef = useRef<ActivityStore>();
+  const storeRef = useRef<ActivityStore>(undefined);
   if (!storeRef.current) {
     storeRef.current = createActivityStore();
   }
