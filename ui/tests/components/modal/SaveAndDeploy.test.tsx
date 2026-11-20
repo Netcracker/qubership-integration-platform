@@ -13,6 +13,11 @@ jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
 
+jest.mock("antd/es/input/index", () => ({
+  __esModule: true,
+  default: jest.requireActual<typeof import("antd")>("antd").Input,
+}));
+
 jest.mock("../../../src/ModalContextProvider.tsx", () => ({
   useModalContext: () => ({
     closeContainingModal: mockCloseContainingModal,
@@ -45,7 +50,10 @@ const DEFAULT_DOMAINS: Domain[] = [
 ];
 
 function renderWithDefault(
-  mockOnSubmit: (domains: Domain[]) => void | Promise<void>,
+  mockOnSubmit: (
+    domains: Domain[],
+    snapshotName: string | undefined,
+  ) => void | Promise<void>,
   chainId: string | undefined = "chain-1",
 ) {
   render(
@@ -70,6 +78,10 @@ describe("SaveAndDeploy", () => {
 
     expect(screen.getByText("Save and deploy")).toBeInTheDocument();
     expect(screen.getByText("Domains")).toBeInTheDocument();
+    expect(screen.getByLabelText("Snapshot name")).toHaveAttribute(
+      "placeholder",
+      "Auto-generated if left blank",
+    );
     expect(screen.getByText("Cancel")).toBeInTheDocument();
     expect(screen.getByText("Deploy")).toBeInTheDocument();
   });
@@ -101,9 +113,10 @@ describe("SaveAndDeploy", () => {
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
-      expect(mockOnSubmit).toHaveBeenCalledWith([
-        { name: "micro-1", type: DomainType.MICRO },
-      ]);
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        [{ name: "micro-1", type: DomainType.MICRO }],
+        undefined,
+      );
     });
   });
 
@@ -118,11 +131,33 @@ describe("SaveAndDeploy", () => {
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
-      expect(mockOnSubmit).toHaveBeenCalledWith([
-        { name: "default", type: DomainType.CLASSIC },
-      ]);
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        [{ name: "default", type: DomainType.CLASSIC }],
+        undefined,
+      );
     });
     expect(mockCloseContainingModal).toHaveBeenCalled();
+  });
+
+  it("should pass the snapshot name to onSubmit when one is entered", async () => {
+    const mockOnSubmit = jest.fn(() => {});
+    renderWithDefault(mockOnSubmit);
+
+    await waitFor(() =>
+      expect(screen.getByText("Deploy").closest("button")).toBeEnabled(),
+    );
+
+    fireEvent.change(screen.getByLabelText("Snapshot name"), {
+      target: { value: "release-1" },
+    });
+    fireEvent.click(screen.getByText("Deploy"));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        [{ name: "default", type: DomainType.CLASSIC }],
+        "release-1",
+      );
+    });
   });
 
   it("Deploy waits for async onSubmit before closing", async () => {

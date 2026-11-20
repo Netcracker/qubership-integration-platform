@@ -498,15 +498,17 @@ describe("ChainGraph", () => {
       component: React.ReactElement<{
         onSubmit: (
           domains: { name: string; type: DomainType }[],
+          snapshotName: string | undefined,
         ) => void | Promise<void>;
       }>;
     };
     expect(modalArg?.component?.props?.onSubmit).toEqual(expect.any(Function));
-    await modalArg.component.props.onSubmit([
-      { name: "domain-1", type: DomainType.CLASSIC },
-    ]);
+    await modalArg.component.props.onSubmit(
+      [{ name: "domain-1", type: DomainType.CLASSIC }],
+      "release-1",
+    );
 
-    expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+    expect(createSnapshot).toHaveBeenCalledWith("chain-1", "release-1");
     // Building the snapshot clears the backend unsaved-changes flag; the chain must
     // refresh so the header banner hides (regression guard: #476 dropped this call).
     expect(refresh).toHaveBeenCalled();
@@ -549,14 +551,16 @@ describe("ChainGraph", () => {
       component: React.ReactElement<{
         onSubmit: (
           domains: { name: string; type: DomainType }[],
+          snapshotName: string | undefined,
         ) => void | Promise<void>;
       }>;
     };
-    await modalArg.component.props.onSubmit([
-      { name: "domain-1", type: DomainType.CLASSIC },
-    ]);
+    await modalArg.component.props.onSubmit(
+      [{ name: "domain-1", type: DomainType.CLASSIC }],
+      undefined,
+    );
 
-    expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+    expect(createSnapshot).toHaveBeenCalledWith("chain-1", undefined);
     expect(createDeployment).toHaveBeenCalled();
     expect(mockRequestFailed).toHaveBeenCalledWith(
       expect.stringContaining("Failed to create snapshot and deploy it"),

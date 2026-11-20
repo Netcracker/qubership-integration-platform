@@ -23,13 +23,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.io.factories.SnapshotWriterFactory;
+import org.qubership.integration.platform.io.model.DataFormat;
+import org.qubership.integration.platform.io.model.DataWriter;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.SnapshotLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotLabelDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
 
@@ -37,17 +42,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Covers the finders and the delete and multi-build helpers of {@link SnapshotService}. The service
- * builds missing snapshots through its own lazy self-reference, so the test injects a mock in that
- * slot to drive {@code buildAll} without running the full build.
+ * Covers the finders, the build, and the delete and multi-build helpers of {@link SnapshotService}.
+ * The service builds missing snapshots through its own lazy self-reference, so the test injects a mock
+ * in that slot to drive {@code buildAll} without running the full build.
  */
 @ExtendWith(MockitoExtension.class)
 class SnapshotServiceTest {
@@ -78,6 +89,8 @@ class SnapshotServiceTest {
     private TransactionHandler transactionHandler;
     @Mock
     private SnapshotWriterFactory snapshotWriterFactory;
+    @Mock
+    private DataWriter<org.qubership.integration.platform.chain.model.Snapshot> snapshotWriter;
 
     private SnapshotService service;
 
@@ -179,5 +192,87 @@ class SnapshotServiceTest {
         verify(chainRepository).updateUnsavedChanges("chain-1", true);
         verify(snapshotRepository).deleteAllByChainId("chain-1");
         verify(actionLogger).logAction(any());
+    }
+
+    @Test
+    void buildForRequestUsesTheRequestedNameAndLabels() {
+        stubBuildOf(chain());
+        SnapshotRequest request = new SnapshotRequest();
+        request.setName("release-1");
+        request.setLabels(List.of(
+                SnapshotLabelDTO.builder().name("prod").technical(false).build(),
+                SnapshotLabelDTO.builder().name("imported").technical(true).build()));
+
+        Snapshot snapshot = service.buildForRequest("chain-1", request);
+
+        assertThat(snapshot.getName()).isEqualTo("release-1");
+        assertThat(snapshot.getLabels())
+                .extracting(SnapshotLabel::getName, SnapshotLabel::isTechnical, SnapshotLabel::getSnapshot)
+                .containsExactlyInAnyOrder(
+                        tuple("prod", false, snapshot),
+                        tuple("imported", true, snapshot));
+        verify(snapshotRepository, never()).getNextAvailableName(anyString());
+        verify(chainRepository).updateCurrentSnapshot("chain-1", snapshot);
+    }
+
+    @Test
+    void buildForRequestGeneratesTheNameWhenThereIsNoRequest() {
+        stubBuildOf(chain());
+        when(snapshotRepository.getNextAvailableName("chain-1")).thenReturn("V3");
+
+        Snapshot snapshot = service.buildForRequest("chain-1", null);
+
+        assertThat(snapshot.getName()).isEqualTo("V3");
+        assertThat(snapshot.getLabels()).isEmpty();
+    }
+
+    @Test
+    void buildForRequestGeneratesTheNameWhenTheRequestHasNone() {
+        stubBuildOf(chain());
+        when(snapshotRepository.getNextAvailableName("chain-1")).thenReturn("V3");
+        SnapshotRequest request = new SnapshotRequest();
+        request.setLabels(List.of(SnapshotLabelDTO.builder().name("prod").technical(false).build()));
+
+        Snapshot snapshot = service.buildForRequest("chain-1", request);
+
+        assertThat(snapshot.getName()).isEqualTo("V3");
+        assertThat(snapshot.getLabels()).extracting(SnapshotLabel::getName).containsExactly("prod");
+    }
+
+    @Test
+    void buildWithTechnicalLabelsMarksEveryLabelTechnical() {
+        stubBuildOf(chain());
+        when(snapshotRepository.getNextAvailableName("chain-1")).thenReturn("V1");
+
+        Snapshot snapshot = service.build("chain-1", Set.of("imported", "migrated"));
+
+        assertThat(snapshot.getName()).isEqualTo("V1");
+        assertThat(snapshot.getLabels())
+                .extracting(SnapshotLabel::getName, SnapshotLabel::isTechnical)
+                .containsExactlyInAnyOrder(tuple("imported", true), tuple("migrated", true));
+    }
+
+    @Test
+    void buildWithoutTechnicalLabelsAddsNoLabels() {
+        stubBuildOf(chain());
+        when(snapshotRepository.getNextAvailableName("chain-1")).thenReturn("V1");
+
+        Snapshot snapshot = service.build("chain-1", (Set<String>) null);
+
+        assertThat(snapshot.getName()).isEqualTo("V1");
+        assertThat(snapshot.getLabels()).isEmpty();
+    }
+
+    private static Chain chain() {
+        Chain chain = Chain.builder().build();
+        chain.setId("chain-1");
+        chain.setName("Orders");
+        return chain;
+    }
+
+    private void stubBuildOf(Chain chain) {
+        when(chainFinderService.findById(chain.getId())).thenReturn(chain);
+        when(snapshotRepository.saveAndFlush(any())).then(returnsFirstArg());
+        doReturn(Optional.of(snapshotWriter)).when(snapshotWriterFactory).getWriter(DataFormat.CAMEL_XML);
     }
 }

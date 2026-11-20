@@ -264,3 +264,34 @@ describe("RestApi - checkpoint sessions for micro-domain", () => {
     );
   });
 });
+
+describe("RestApi - createSnapshot", () => {
+  let restApi: RestApi;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    restApi = new RestApi();
+    mockPost.mockResolvedValue({ data: { id: "snap-1" } });
+  });
+
+  it("should send the name in the body when one is given", async () => {
+    await restApi.createSnapshot("chain-1", "release-1");
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/catalog/chains/chain-1/snapshots"),
+      { name: "release-1" },
+    );
+  });
+
+  it.each([undefined, "", "   "])(
+    "should send no body when the name is %p",
+    async (name) => {
+      await restApi.createSnapshot("chain-1", name);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        expect.stringContaining("/catalog/chains/chain-1/snapshots"),
+        undefined,
+      );
+    },
+  );
+});

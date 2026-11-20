@@ -156,10 +156,10 @@ const ChainGraphInner: React.FC = () => {
   );
 
   const saveAndDeploy = useCallback(
-    async (domains: Domain[]) => {
+    async (domains: Domain[], snapshotName: string | undefined) => {
       if (!chainId || domains.length === 0) return;
       try {
-        const snapshot = await api.createSnapshot(chainId);
+        const snapshot = await api.createSnapshot(chainId, snapshotName);
         notificationService.info(
           "Created snapshot",
           `Created snapshot ${snapshot.name}`,
@@ -310,7 +310,6 @@ const ChainGraphInner: React.FC = () => {
               tooltipProps={{}}
               buttonProps={{
                 type: "primary",
-                iconName: "send",
                 onClick: openSaveAndDeployDialog,
                 children: "Save and Deploy",
               }}
