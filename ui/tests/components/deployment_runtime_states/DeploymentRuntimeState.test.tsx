@@ -50,6 +50,16 @@ function makeState(overrides: Partial<RuntimeState> = {}): RuntimeState {
   };
 }
 
+// The icon's labelled element is aria-hidden, so it is found by its class.
+function queryWarningIcon(): HTMLElement | null {
+  return document.querySelector(".anticon-exclamation-circle");
+}
+
+async function openDetailsFromTooltip() {
+  fireEvent.mouseEnter(queryWarningIcon()!);
+  fireEvent.click(await screen.findByText("Show details"));
+}
+
 describe("DeploymentRuntimeState", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,7 +77,7 @@ describe("DeploymentRuntimeState", () => {
     expect(screen.getByText("Deployed")).toBeInTheDocument();
   });
 
-  it("does not show info icon or clickable role when there are no details", () => {
+  it("does not show the warning icon when there are no details", () => {
     render(
       <DeploymentRuntimeState
         name="DEPLOYED"
@@ -76,11 +86,10 @@ describe("DeploymentRuntimeState", () => {
         runtimeState={makeState()}
       />,
     );
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Status: Deployed")).toBeInTheDocument();
+    expect(queryWarningIcon()).not.toBeInTheDocument();
   });
 
-  it("marks pill as a keyboard-focusable button when error is present", () => {
+  it("shows the error in the warning icon tooltip", async () => {
     render(
       <DeploymentRuntimeState
         name="FAILED"
@@ -92,13 +101,11 @@ describe("DeploymentRuntimeState", () => {
         })}
       />,
     );
-    const pill = screen.getByRole("button", {
-      name: /Failed — click to view error details/i,
-    });
-    expect(pill).toHaveAttribute("tabindex", "0");
+    fireEvent.mouseEnter(queryWarningIcon()!);
+    expect(await screen.findByText("boom")).toBeInTheDocument();
   });
 
-  it("opens ErrorDetails modal when pill is clicked", () => {
+  it("opens ErrorDetails modal from the Show details link", async () => {
     render(
       <DeploymentRuntimeState
         name="FAILED"
@@ -112,7 +119,7 @@ describe("DeploymentRuntimeState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Failed/i }));
+    await openDetailsFromTooltip();
 
     expect(mockShowModal).toHaveBeenCalledTimes(1);
     const [call] = mockShowModal.mock.calls[0];
@@ -125,28 +132,7 @@ describe("DeploymentRuntimeState", () => {
     });
   });
 
-  it("opens ErrorDetails on Enter and Space key press", () => {
-    render(
-      <DeploymentRuntimeState
-        name="FAILED"
-        service="svc"
-        timestamp={0}
-        runtimeState={makeState({
-          status: DeploymentStatus.FAILED,
-          error: "e",
-        })}
-      />,
-    );
-
-    const pill = screen.getByRole("button", { name: /Failed/i });
-    fireEvent.keyDown(pill, { key: "Enter" });
-    fireEvent.keyDown(pill, { key: " " });
-    fireEvent.keyDown(pill, { key: "Tab" });
-
-    expect(mockShowModal).toHaveBeenCalledTimes(2);
-  });
-
-  it("opens modal even when only stacktrace is provided (no error message)", () => {
+  it("opens modal even when only stacktrace is provided (no error message)", async () => {
     render(
       <DeploymentRuntimeState
         name="FAILED"
@@ -160,7 +146,7 @@ describe("DeploymentRuntimeState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Failed/i }));
+    await openDetailsFromTooltip();
 
     expect(mockShowModal).toHaveBeenCalledTimes(1);
     const [call] = mockShowModal.mock.calls[0];
@@ -171,7 +157,7 @@ describe("DeploymentRuntimeState", () => {
     });
   });
 
-  it("does not open modal when clicking a pill without details", () => {
+  it("does not open modal when clicking a label without details", () => {
     render(
       <DeploymentRuntimeState
         name="DEPLOYED"
@@ -186,7 +172,7 @@ describe("DeploymentRuntimeState", () => {
     expect(mockShowModal).not.toHaveBeenCalled();
   });
 
-  it("passes the runtime status enum value straight through to ErrorDetails", () => {
+  it("passes the runtime status enum value straight through to ErrorDetails", async () => {
     render(
       <DeploymentRuntimeState
         name="Processing"
@@ -199,7 +185,7 @@ describe("DeploymentRuntimeState", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Processing/i }));
+    await openDetailsFromTooltip();
 
     const [call] = mockShowModal.mock.calls[0];
     expect(call.component.props.status).toBe(DeploymentStatus.PROCESSING);

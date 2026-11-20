@@ -13,16 +13,14 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import {
-  EXPAND_COLUMN_WIDTH,
-  useTableConfiguration,
-} from "../../table/useTableConfiguration.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
+import { createActionsColumnBase } from "../../table/actionsColumn.ts";
 
 interface Props {
   onRefresh?: () => Promise<void>;
@@ -54,6 +52,8 @@ const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
   );
 };
 
+const DomainExpandIcon = treeExpandIcon<EngineDomain>();
+
 function domainMatchesSearch(domain: EngineDomain, term: string): boolean {
   return matchesByFields(term, [
     domain.name,
@@ -71,7 +71,16 @@ const DomainsTable: React.FC<Props> = ({
   const [tableData, setTableData] = useState<EngineDomain[]>([]);
   const [filteredData, setFilteredData] = useState<EngineDomain[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const notificationsService = useNotificationService();
+
+  const toggleRow = useCallback((domain: EngineDomain) => {
+    setExpandedRowKeys((keys) =>
+      keys.includes(domain.id)
+        ? keys.filter((key) => key !== domain.id)
+        : [...keys, domain.id],
+    );
+  }, []);
 
   useEffect(() => {
     setTableData(domains);
@@ -119,45 +128,57 @@ const DomainsTable: React.FC<Props> = ({
           visibilityLocked: true,
           orderLocked: true,
         },
-        render: (_: unknown, domain: EngineDomain) => {
-          return domain.type === DomainType.MICRO ? (
+        render: (_: unknown, domain: EngineDomain) => (
+          <>
+            <DomainExpandIcon
+              prefixCls="ant-table"
+              expanded={expandedRowKeys.includes(domain.id)}
+              expandable
+              record={domain}
+              onExpand={toggleRow}
+            />
             <Space size={"small"}>
-              {domain.name}
-              <Tag>micro</Tag>
-              <Tooltip title="Delete domain">
-                <Button
-                  size={"small"}
-                  type={"text"}
-                  icon={<OverridableIcon name="delete" />}
-                  onClick={() => confirmDeleteMicroDomain(domain.name)}
-                />
-              </Tooltip>
+              <OverridableIcon name="domains" />
+              <span>{domain.name}</span>
+              {domain.type === DomainType.MICRO && <Tag>micro</Tag>}
             </Space>
-          ) : (
-            domain.name
-          );
-        },
+          </>
+        ),
       },
       {
         title: "Version",
         dataIndex: "version",
         key: "version",
-        align: "right",
       },
       {
         title: "Desired engines",
         dataIndex: "replicas",
         key: "replicas",
-        align: "right",
       },
       {
         title: "Namespace",
         dataIndex: "namespace",
         key: "namespace",
-        align: "right",
+      },
+      {
+        ...createActionsColumnBase<EngineDomain>(),
+        render: (_: unknown, domain: EngineDomain) =>
+          domain.type === DomainType.MICRO ? (
+            <Tooltip title="Delete domain">
+              <Button
+                className={layoutStyles.deleteButton}
+                size={"small"}
+                type={"text"}
+                icon={<OverridableIcon name="delete" />}
+                onClick={() => confirmDeleteMicroDomain(domain.name)}
+              />
+            </Tooltip>
+          ) : (
+            <></>
+          ),
       },
     ],
-    [confirmDeleteMicroDomain],
+    [confirmDeleteMicroDomain, expandedRowKeys, toggleRow],
   );
 
   const { orderedColumns, columnSettingsButton } =
@@ -179,13 +200,9 @@ const DomainsTable: React.FC<Props> = ({
       replicas: 140,
       namespace: 220,
     },
-    {
-      expandColumnWidth: EXPAND_COLUMN_WIDTH,
-    },
+    {},
     "domainsAdminTable",
   );
-
-  const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
   return (
     <Flex vertical className={layoutStyles.tableSection}>
@@ -198,7 +215,7 @@ const DomainsTable: React.FC<Props> = ({
             search={{
               value: searchTerm,
               onChange: setSearchTerm,
-              placeholder: "Search domains...",
+              placeholder: "Search domains",
             }}
             columnSettingsButton={columnSettingsButton}
           />
@@ -217,16 +234,9 @@ const DomainsTable: React.FC<Props> = ({
           components={components}
           onChange={handleConfiguredTableChange}
           expandable={{
-            expandIcon: treeExpandIcon(),
-            expandedRowRender: (record) => (
-              <div className={layoutStyles.nestedExpandWrap}>
-                <EnginesForDomain domain={record} />
-              </div>
-            ),
-            expandedRowKeys: expandedRowKeys,
-            onExpandedRowsChange: (expandedKeys) =>
-              setExpandedRowKeys(expandedKeys as React.Key[]),
-            rowExpandable: () => true,
+            showExpandColumn: false,
+            expandedRowRender: (record) => <EnginesForDomain domain={record} />,
+            expandedRowKeys,
           }}
           rowKey="id"
         />

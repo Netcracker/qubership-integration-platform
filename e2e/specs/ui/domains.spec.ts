@@ -24,7 +24,8 @@ import { leftBehind } from "../../support/teardown.js";
 async function expandDefaultDomain(page: Page, host: string): Promise<Locator> {
   const engines = page.waitForResponse((response) => response.url().endsWith(`/domains/${DEFAULT_DOMAIN}/engines`));
   await page.goto("/admintools/domains");
-  await rowOf(page, DEFAULT_DOMAIN).getByRole("button", { name: "Expand row" }).click();
+  // The domain cell also holds the expand button and an icon, so the row is found by the name's text.
+  await page.getByRole("row").filter({ has: page.getByText(DEFAULT_DOMAIN, { exact: true }) }).getByRole("button", { name: "Expand row" }).click();
   expect((await engines).ok()).toBe(true);
   return rowOf(page, host);
 }
@@ -65,7 +66,7 @@ test.describe("domains", () => {
       await catalog.deploy(chain.id, snapshot.id);
       await expect(listed).toBeVisible({ timeout: DEPLOY_TIMEOUT });
       // The row's name is its cells; the rows of the levels above hold the cell too.
-      await expect(page.getByRole("row", { name: `${chain.name} ${snapshot.name} Status: Deployed`, exact: true })).toBeVisible({ timeout: DEPLOY_TIMEOUT });
+      await expect(page.getByRole("row", { name: `${chain.name} ${snapshot.name} Deployed`, exact: true })).toBeVisible({ timeout: DEPLOY_TIMEOUT });
     } finally {
       await catalog.undeployAll(chain.id).catch(leftBehind(`chain ${chain.name}`, "undeployed"));
     }

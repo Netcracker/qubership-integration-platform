@@ -29,7 +29,6 @@ const deploymentColumns: ColumnsType<ChainDeployment> = [
     render: (text) => (
       <Typography.Text type="secondary">{text}</Typography.Text>
     ),
-    align: "right",
   },
   {
     title: "State",
@@ -42,7 +41,6 @@ const deploymentColumns: ColumnsType<ChainDeployment> = [
         runtimeState={record.state}
       />
     ),
-    align: "right",
   },
 ];
 
@@ -62,19 +60,17 @@ export const DeploymentsTable: React.FC<Props> = ({
   );
 
   return (
-    <div className={layoutStyles.nestedTableHost}>
-      <Spin spinning={isLoading}>
-        <Table
-          rowKey="id"
-          className={layoutStyles.nestedTable}
-          columns={columnsWithResize}
-          dataSource={deployments}
-          pagination={false}
-          size="small"
-          tableLayout="fixed"
-          components={components}
-        />
-      </Spin>
-    </div>
+    <Spin spinning={isLoading}>
+      <Table
+        rowKey="id"
+        className={layoutStyles.nestedTable}
+        columns={columnsWithResize}
+        dataSource={deployments}
+        pagination={false}
+        size="small"
+        tableLayout="fixed"
+        components={components}
+      />
+    </Spin>
   );
 };
