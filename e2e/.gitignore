@@ -12,7 +12,6 @@ fixtures/axes/
 dist/
 *.tgz
 /LICENSE
-snapshot/
-snapshot.json
+suite.json
 .qip-e2e/
-snapshot.zip
+suite.zip

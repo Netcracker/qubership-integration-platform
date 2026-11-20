@@ -24,11 +24,11 @@
  * - `PATCH /v1/chains/{id}/migrate` keeps a migrated container's id and rebuilds its branches under
  *   new ids and the successor types.
  */
+import { randomUUID } from "node:crypto";
 import { expect, type TestType } from "@playwright/test";
 import type { CatalogSuiteFixtures } from "./types.js";
 import type { Catalog } from "../support/catalog.js";
 import { tokenized } from "../support/run-token.js";
-import { ABSENT_UUID } from "../support/absent.js";
 
 /** A folder of this case's own, under the worker's, so the nested listings see only its chains. */
 async function caseFolder(
@@ -96,11 +96,13 @@ export function registerChainTests<T extends object, W extends CatalogSuiteFixtu
         await catalog.createChain(tokenized(run, "bulk-2"), parent),
       ];
       const survivor = await catalog.createChain(tokenized(run, "bulk-survivor"), parent);
+      const removed = await catalog.createChain(tokenized(run, "bulk-predeleted"), parent);
+      expect((await catalog.raw("delete", `/v1/chains/${removed.id}`)).status()).toBe(200);
 
       const response = await catalog.raw("post", "/v1/chains/bulk-delete", [
         ...doomed.map((chain) => chain.id),
         // The controller catches per id and returns anyway, so an unknown id is not a failed request.
-        ABSENT_UUID,
+        removed.id,
       ]);
       expect(response.status(), "bulk-delete answers 204 whatever it was given").toBe(204);
 
@@ -188,12 +190,13 @@ export function registerChainTests<T extends object, W extends CatalogSuiteFixtu
         name: holder.name,
         parentId: parent,
       });
-      const unknown = await catalog.raw("get", `/v1/chains/find-by-element/${ABSENT_UUID}`);
+      const missingId = randomUUID();
+      const unknown = await catalog.raw("get", `/v1/chains/find-by-element/${missingId}`);
       expect(unknown.status()).toBe(404);
       expect(await unknown.text(), "the 404 carries no error body").toBe("");
 
       // An id the catalog does not hold is left out of the map rather than refused.
-      expect(await catalog.chainNames([holder.id, neighbor.id, ABSENT_UUID])).toEqual({
+      expect(await catalog.chainNames([holder.id, neighbor.id, missingId])).toEqual({
         [holder.id]: holder.name,
         [neighbor.id]: neighbor.name,
       });
@@ -254,13 +257,14 @@ export function registerChainTests<T extends object, W extends CatalogSuiteFixtu
       expect(((await halfRequest.json()) as { errorMessage: string }).errorMessage).toContain(
         "The rightChainId must not be null",
       );
+      const missingId = randomUUID();
       const unknown = await catalog.raw("post", "/v1/chains/diff", {
         leftChainId: chain.id,
-        rightChainId: ABSENT_UUID,
+        rightChainId: missingId,
       });
       expect(unknown.status()).toBe(404);
       expect(((await unknown.json()) as { errorMessage: string }).errorMessage).toBe(
-        `Chain with id ${ABSENT_UUID} not found`,
+        `Chain with id ${missingId} not found`,
       );
     });
 
@@ -293,10 +297,12 @@ export function registerChainTests<T extends object, W extends CatalogSuiteFixtu
         "if",
       ]);
 
-      const unknown = await catalog.raw("patch", `/v1/chains/${ABSENT_UUID}/migrate`);
+      const removed = await catalog.createChain(tokenized(run, "migrate-deleted"), parent);
+      await catalog.deleteChain(removed.id);
+      const unknown = await catalog.raw("patch", `/v1/chains/${removed.id}/migrate`);
       expect(unknown.status()).toBe(404);
       expect(((await unknown.json()) as { errorMessage: string }).errorMessage).toBe(
-        `Can't find chain with id: ${ABSENT_UUID}`,
+        `Can't find chain with id: ${removed.id}`,
       );
     });
   });

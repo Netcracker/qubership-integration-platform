@@ -1,4 +1,5 @@
-import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
+import { suiteExpect } from "./suite-expect.js";
 
 /**
  * Picks the option titled `title` in an antd select list that has just opened.
@@ -25,6 +26,7 @@ export async function pickOption(scope: Page | FrameLocator, title: string, pick
   const selected = listbox.getByRole("option", { name: title, exact: true, selected: true });
   const open = scope.getByRole("combobox", { expanded: true });
   let clicked = false;
+  const expect = suiteExpect();
   await expect(async () => {
     if (picked ? (await selected.count()) === 0 : !clicked || (await open.count()) > 0) {
       await option.click();
@@ -41,6 +43,6 @@ export async function pickOption(scope: Page | FrameLocator, title: string, pick
  */
 export async function addTag(scope: Page | FrameLocator, select: Locator, label: string): Promise<void> {
   await select.pressSequentially(label);
-  await expect(scope.getByRole("option", { name: label, exact: true, includeHidden: true })).toBeAttached();
+  await suiteExpect()(scope.getByRole("option", { name: label, exact: true, includeHidden: true })).toBeAttached();
   await select.press("Enter");
 }

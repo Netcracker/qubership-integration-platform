@@ -1,3 +1,4 @@
+import { externalSettings } from "../env/external-settings.js";
 import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The testing service: the suite's **tool** for endpoint mocks, and a subject of its own.
@@ -24,6 +25,8 @@ import { noteReached } from "../registry/reached.js";
 import { readUntil } from "./poll.js";
 import { carriesRunToken, tokenized } from "./run.js";
 import { REQUEST_ID_HEADER } from "./sessions.js";
+import { assertExternalAuthorized, inAuthPhase } from "../env/external-auth.js";
+import { forgetResource, recordResource } from "./owned-resources.js";
 import { leftBehind } from "./teardown.js";
 // The correlation header has one definition, in `sessions.ts`, and it is re-exported here because
 // this module's contract is about it: the header is also the switch that turns mocking on.
@@ -300,9 +303,12 @@ export class TestingService {
   private readonly api: APIRequestContext;
   private readonly base: string;
 
-  constructor(api: APIRequestContext, env: Env) {
+  private readonly ownedMocks: Map<string, string | undefined> | undefined;
+
+  constructor(api: APIRequestContext, env: Env, trackMocks = false) {
     this.api = api;
     this.base = env.url("testing-service");
+    this.ownedMocks = trackMocks ? new Map() : undefined;
   }
 
   // -------------------------------------------------------------------------
@@ -312,14 +318,44 @@ export class TestingService {
   private async send(method: string, path: string, options: FetchOptions = {}): Promise<APIResponse> {
     const url = `${this.base}${path}`;
     noteReached("testing-service", method, url);
-    return await this.api.fetch(url, { method: method.toUpperCase(), ...options });
+    const response = await this.api.fetch(url, { method: method.toUpperCase(), ...options });
+    if (!this.ownedMocks) return response;
+    const endpoint = "/api/v1/endpoint-mocks";
+    if (method === "post" && path === `${endpoint}/create` && response.status() === 201) {
+      const { id } = await response.json() as StoredEndpointMock;
+      this.ownedMocks.set(id, undefined);
+      this.ownedMocks.set(id, recordResource({ kind: "endpoint-mock", id }));
+    }
+    if (method === "delete" && path.startsWith(endpoint) && [204, 404].includes(response.status())) {
+      const ids = path === endpoint && Array.isArray(options.data) ? options.data as string[] : [path.slice(endpoint.length + 1)];
+      for (const id of ids) {
+        forgetResource(this.ownedMocks.get(id));
+        this.ownedMocks.delete(id);
+      }
+    }
+    return response;
+  }
+
+  async cleanupOwnedMocks(): Promise<void> {
+    const failures: string[] = [];
+    for (const id of this.ownedMocks?.keys() ?? []) {
+      try {
+        const response = await inAuthPhase("cleanup", () => this.raw("delete", `/api/v1/endpoint-mocks/${id}`));
+        if (![204, 404].includes(response.status())) failures.push(`${id} (HTTP ${response.status()})`);
+      } catch {
+        failures.push(id);
+      }
+    }
+    if (failures.length) throw new Error(`Endpoint mock cleanup failed for ${failures.join(", ")}. See the owned resource records.`);
   }
 
   /** Sends the call and throws, naming the answer, unless it answered `expected`. */
   private async call(method: string, path: string, expected: Expected, options: FetchOptions = {}): Promise<APIResponse> {
     const response = await this.send(method, path, options);
     if (expected === "ok" ? !response.ok() : response.status() !== expected) {
-      throw new Error(`${method.toUpperCase()} ${this.base}${path} answered ${response.status()}: ${await response.text()}`);
+      assertExternalAuthorized(response.status(), "testing-service");
+      const status = `${method.toUpperCase()} ${this.base}${path} answered ${response.status()}`;
+      throw new Error(externalSettings()?.auth ? status : `${status}: ${await response.text()}`);
     }
     return response;
   }

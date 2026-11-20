@@ -17,9 +17,9 @@
  * `archiveOf` is the third export and is not a shape: it is the read that turns a response into the
  * buffer the other two take, and it refuses a body that is not a zip before JSZip can.
  */
-import { expect } from "@playwright/test";
 import JSZip from "jszip";
 import type { APIResponse } from "@playwright/test";
+import { suiteExpect } from "./suite-expect.js";
 
 /**
  * A response body as an archive, refused on the magic number rather than inside JSZip.
@@ -29,7 +29,7 @@ import type { APIResponse } from "@playwright/test";
  */
 export async function archiveOf(response: APIResponse): Promise<Buffer> {
   const body = Buffer.from(await response.body());
-  expect(body.subarray(0, 2).toString("latin1"), "the body is a zip").toBe("PK");
+  suiteExpect()(body.subarray(0, 2).toString("latin1"), "the body is a zip").toBe("PK");
   return body;
 }
 

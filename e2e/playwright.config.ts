@@ -153,7 +153,7 @@ const suite: SuiteProject[] = [
     // can name.
     name: "env",
     testDir: "./specs/env",
-    testIgnore: ["**/process-envelope.spec.ts"],
+    testIgnore: ["**/process-envelope.spec.ts", "**/external-restart.spec.ts"],
     workers: 1,
     // No broker project is named here, though this project recreates the engine and the catalog
     // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`,

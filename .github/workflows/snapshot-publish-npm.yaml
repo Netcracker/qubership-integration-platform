@@ -125,8 +125,19 @@ jobs:
         run: npm pkg set version="$DEV_VERSION"
 
       - name: Build
+        if: ${{ inputs.module != 'e2e' }}
         working-directory: ${{ inputs.module }}
         run: npm run prepublishOnly
+
+      - name: Pack and verify E2E dev build
+        if: ${{ inputs.module == 'e2e' }}
+        working-directory: e2e
+        env:
+          DEV_VERSION: ${{ steps.devver.outputs.dev-version }}
+        run: |
+          npm run check-types
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm run test:package -- --tarball="$RUNNER_TEMP/netcracker-qip-e2e-$DEV_VERSION.tgz"
 
       - name: Publish dev build to GitHub Packages (idempotent)
         working-directory: ${{ inputs.module }}
@@ -137,6 +148,8 @@ jobs:
           pkg="$SCOPE/qip-$MODULE"
           if npm view "$pkg@$DEV_VERSION" version >/dev/null 2>&1; then
             echo "$pkg@$DEV_VERSION already published — skipping."
+          elif [ "$MODULE" = e2e ]; then
+            npm publish "$RUNNER_TEMP/netcracker-qip-e2e-$DEV_VERSION.tgz" --tag "$DIST_TAG"
           else
             npm publish --tag "$DIST_TAG"
           fi

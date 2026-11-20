@@ -7,6 +7,7 @@ import type { Catalog } from "./catalog.js";
 export interface PageProblem {
   route: string;
   message: string;
+  status?: number;
   /** The resource an answer or a console error is about, when it names one. */
   url?: string;
   /** The micro domain a failed checkpoint lookup addressed. */
