@@ -644,7 +644,6 @@ public class ChainImportService {
             Map<String, ChainCommitRequestAction> instructionActions,
             String id
     ) {
-        // Without commit requests, every chain takes the archive's deployments, as a request with no action does
         ChainCommitRequest request = isNull(chainCommitRequests)
                 ? ChainCommitRequest.builder().build()
                 : chainCommitRequests.stream()

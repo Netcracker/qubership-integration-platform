@@ -708,8 +708,9 @@ class ChainImportServiceTest {
         verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
     }
 
-    // Each overridden chain used to add itself to the commit requests, so a chain read after the first one
-    // failed the selection and was neither saved nor reported. Two of them make that hold in any directory order.
+    // A request with no list used to arrive as [], and each overridden chain added itself to it, so a chain read
+    // after the first one was neither saved nor reported. No list now arrives as null, which the old code rejected,
+    // so this case guards the fixed path only. Two overridden chains cover any directory order.
     @Test
     void overriddenChainsWithNullCommitRequestsAreAllImportedAsSnapshots(@TempDir Path importDirectory) throws Exception {
         writeDeployedChainFile(importDirectory, "c1");
@@ -726,6 +727,23 @@ class ChainImportServiceTest {
         assertEquals(List.of("c1", "c2"), importedIds(result));
         result.chainResults().forEach(chain -> assertEquals(ChainCommitRequestAction.SNAPSHOT, chain.getDeployAction()));
         verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void v1RequestTakesTheInstructionAction(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        writeDeployedChainFile(importDirectory, "c2");
+        Map<String, ChainCommitRequestAction> chainsToImport = noInstructions("c2");
+        chainsToImport.put("c1", ChainCommitRequestAction.SNAPSHOT);
+        ChainCommitRequest overridden = commitRequest("c1", ChainCommitRequestAction.DEPLOY);
+        ChainCommitRequest plain = commitRequest("c2", ChainCommitRequestAction.DEPLOY);
+
+        List<ImportChainResult> results = archiveImportService(chainsToImport)
+                .restoreChainsFromDirBackward(importDirectory.toFile(), List.of(overridden, plain), null, Set.of());
+
+        assertEquals(List.of("c1", "c2"), results.stream().map(ImportChainResult::getId).sorted().toList());
+        assertEquals(ChainCommitRequestAction.SNAPSHOT, overridden.getDeployAction());
+        assertEquals(ChainCommitRequestAction.DEPLOY, plain.getDeployAction());
     }
 
     private static void writeDeployedChainFile(Path importDirectory, String chainId) throws Exception {

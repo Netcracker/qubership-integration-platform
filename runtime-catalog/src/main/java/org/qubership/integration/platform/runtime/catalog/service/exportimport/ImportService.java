@@ -380,7 +380,6 @@ public class ImportService {
             }
 
             ChainCommitRequest request = null;
-            // A null list takes every chain with the archive's action; an empty one takes none
             if (commitRequests != null) {
                 request = commitRequests.stream()
                         .filter(creq -> creq.getId().equals(chainDTO.getId())).findAny().orElse(null);

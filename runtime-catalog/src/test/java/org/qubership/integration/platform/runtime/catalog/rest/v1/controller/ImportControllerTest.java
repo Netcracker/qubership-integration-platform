@@ -56,6 +56,15 @@ class ImportControllerTest {
     }
 
     @Test
+    void chainCommitRequestWithoutIdIsRejected() throws Exception {
+        mockMvc.perform(importRequest().param("chainCommitRequests", "[{\"deployAction\":\"NONE\"}]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("must have an id")));
+
+        verify(importService, never()).importFile(any(), any(), any());
+    }
+
+    @Test
     void absentListReachesTheServiceAsNull() throws Exception {
         mockMvc.perform(importRequest()).andExpect(status().isOk());
 
