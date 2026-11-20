@@ -208,11 +208,17 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
     <div className={styles.container}>
       <Input
         placeholder="Search documentation..."
-        prefix={<OverridableIcon name="search" />}
+        suffix={
+          <OverridableIcon
+            name="search"
+            className={styles.searchIcon}
+            aria-hidden
+          />
+        }
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         allowClear
-        size="small"
+        size="middle"
       />
       {isLoading && (
         <div className={styles.loading}>

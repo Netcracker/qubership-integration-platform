@@ -14,6 +14,7 @@ interface PageWithSidebarProps {
   sidebarCollapsedWidth?: number;
   contentClassName?: string;
   showCollapseToggle?: boolean;
+  sidebarVariant?: "default" | "inset";
 }
 
 export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
@@ -24,11 +25,19 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
   sidebarCollapsedWidth = 80,
   contentClassName,
   showCollapseToggle = true,
+  sidebarVariant = "default",
 }) => {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const insetSidebar = sidebarVariant === "inset";
 
   return (
-    <Layout className={styles.container}>
+    <Layout
+      className={
+        insetSidebar
+          ? `${styles.container} ${styles.insetSidebar}`
+          : styles.container
+      }
+    >
       <Sider
         width={sidebarWidth}
         collapsedWidth={sidebarCollapsedWidth}
@@ -59,13 +68,13 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
           )}
         </div>
       </Sider>
-      {
+      {!insetSidebar && (
         <Divider
           orientation="vertical"
           size="small"
           style={{ height: "100%", margin: 0 }}
         />
-      }
+      )}
       <Content
         className={[styles.contentArea, contentClassName]
           .filter(Boolean)
