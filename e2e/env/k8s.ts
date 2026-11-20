@@ -1,3 +1,5 @@
+import { suiteExtension } from "./suite-extension.js";
+import { platformFetch as fetch } from "./platform-http.js";
 /**
  * The Kubernetes adapter: the suite's install of `infrastructure/helm/cip-dev` in namespace `cip-e2e`.
  *
@@ -37,25 +39,25 @@ import { readStateFile } from "../support/state-file.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-export const NAMESPACE = "cip-e2e";
-export const RELEASE = "cip";
+export const NAMESPACE = process.env.QIP_E2E_NAMESPACE ?? "cip-e2e";
+export const RELEASE = process.env.QIP_E2E_RELEASE ?? "cip";
 
 /** The chart's `blueGreenVersion`, the suffix of every platform Deployment and Service. */
 const VERSION = "v1";
 
 /** The Deployment behind a role. */
 export function deploymentOf(role: ServiceRole): string {
-  return `${RELEASE}-${role}-${VERSION}`;
+  return suiteExtension().kubernetes?.deployment?.(role) ?? `${RELEASE}-${role}-${VERSION}`;
 }
 
 /** The service container of a role's pod, as against the Istio sidecar beside it. */
 export function containerOf(role: ServiceRole): string {
-  return `${RELEASE}-${role}`;
+  return suiteExtension().kubernetes?.container?.(role) ?? `${RELEASE}-${role}`;
 }
 
 /** The Service of a micro domain: the catalog's `cip.cr.naming.prefix`, with an empty Service suffix. */
 export function microServiceOf(domain: string): string {
-  return `cip-engine-${domain}-${VERSION}`;
+  return suiteExtension().kubernetes?.microService?.(domain) ?? `cip-engine-${domain}-${VERSION}`;
 }
 
 /** Port 8080 of Service `service`, through the proxy's `/e2e/svc/` location. */
@@ -138,12 +140,12 @@ export type Kubectl = (args: string[]) => Promise<string>;
 
 /** Runs `kubectl` and returns its standard output; a non-zero exit throws with its stderr. */
 export function kubectl(args: string[]): Promise<string> {
-  return capture("kubectl", args);
+  return suiteExtension().kubernetes?.kubectl?.(args) ?? capture("kubectl", args);
 }
 
 /** Runs `helm` and returns its standard output; a non-zero exit throws with its stderr. */
 export function helm(args: string[]): Promise<string> {
-  return capture("helm", args);
+  return suiteExtension().kubernetes?.helm?.(args) ?? capture("helm", args);
 }
 
 /** The part of a Deployment a restart reads. */

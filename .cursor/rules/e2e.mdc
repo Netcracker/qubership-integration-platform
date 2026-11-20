@@ -68,9 +68,9 @@ in the suite that writes it.
 ### CI
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch. `.github/workflows/e2e-pr.yaml` runs `schema`, `harness`, and `ai-tests` on Linux,
-Windows, and macOS with both target selections. These host checks start no product stack; they
-do not establish that a full Compose or Kubernetes run passed on each OS. Run `npm run check-types`
+manual dispatch. `.github/workflows/e2e-pr.yaml` runs `schema`, `harness`, and `ai-tests` on Linux
+for both target selections without a product stack. For local Windows and macOS runs, follow
+`e2e/README.md`. Run `npm run check-types`
 and `npm test -- --project=schema --project=harness` locally before pushing a change to `e2e/`
 or to a tree the two projects read:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,

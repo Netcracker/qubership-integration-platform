@@ -336,6 +336,37 @@ function dockerStatsSample(): SampleCommand {
   };
 }
 
+function resetResourceSamples(): void {
+  stopResourceSampler();
+  fs.mkdirSync(path.dirname(SAMPLES_FILE), { recursive: true });
+  fs.writeFileSync(SAMPLES_FILE, "");
+}
+
+export function startCallbackSampler(
+  run: string,
+  baseline: readonly ProcessEnvelope[],
+  read: () => Promise<string>,
+): () => void {
+  resetResourceSamples();
+  writeRunResources({ startedAt: new Date().toISOString(), run, baseline: [...baseline] });
+  const deadline = Date.now() + MAX_SAMPLE_MS;
+  let active = true;
+  let timer: NodeJS.Timeout | undefined;
+
+  async function sample(): Promise<void> {
+    const rows = await Promise.resolve().then(read).catch(() => "");
+    if (!active || Date.now() >= deadline) return;
+    if (rows.trim()) fs.appendFileSync(SAMPLES_FILE, `${rows.trimEnd()}\n`);
+    timer = setTimeout(() => void sample(), Math.min(SAMPLE_INTERVAL_MS, deadline - Date.now())).unref();
+  }
+
+  void sample();
+  return () => {
+    active = false;
+    clearTimeout(timer);
+  };
+}
+
 // globalSetup exits before a timer can sample, so a separate Node process records the readings.
 export function startResourceSampler(
   run: string,
@@ -344,9 +375,7 @@ export function startResourceSampler(
 ): number | null {
   // No owner: whatever sampler is on this host belongs to a run that is over, and a run that is
   // not over holds the stack anyway.
-  stopResourceSampler();
-  fs.mkdirSync(path.dirname(SAMPLES_FILE), { recursive: true });
-  fs.writeFileSync(SAMPLES_FILE, "");
+  resetResourceSamples();
 
   const child = spawn(
     process.execPath,

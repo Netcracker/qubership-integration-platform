@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "../../env/platform-http.js";
 /**
  * A `#{variable}` placeholder in an element property, asserted once for the whole platform.
  *

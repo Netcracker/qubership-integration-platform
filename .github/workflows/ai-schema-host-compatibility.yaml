@@ -1,0 +1,52 @@
+---
+name: AI Schema Host Compatibility
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ai-schema-host-compatibility.yaml'
+      - '.gitattributes'
+      - 'ai-service/pom.xml'
+      - 'ai-service/scripts/fetch-qip-schemas.*'
+      - 'ai-service/e2e/test_system/tests/test_schema_build.py'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  schema-build:
+    name: Native schema build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    permissions:
+      contents: read
+    steps:
+      - name: Enable long paths on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.longpaths true
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Test schema preparation without Bash
+        run: python -m unittest discover -s ai-service/e2e/test_system/tests -p test_schema_build.py -v

@@ -11,7 +11,7 @@ import fs from "node:fs";
  * @typedef {{ type: string, description?: string }} Annotation
  * @typedef {{ projectName: string, status: string, expectedStatus?: string, annotations?: Annotation[], results: TestResult[] }} ReportTest
  * @typedef {{ title: string, file: string, line: number, tests: ReportTest[] }} ReportSpec
- * @typedef {{ title: string, specs?: ReportSpec[], suites?: ReportSuite[] }} ReportSuite
+ * @typedef {{ title: string, file?: string, specs?: ReportSpec[], suites?: ReportSuite[] }} ReportSuite
  * @typedef {"product" | "setup" | "suite"} Group
  * @typedef {{ name: string, metadata?: { dependencies?: string[], stack?: boolean, group?: Group } }} ReportProject
  * @typedef {{ target?: string, gitCommit?: { hash?: string, subject?: string } }} ReportMetadata
@@ -51,18 +51,19 @@ export const readIfPresent = (file) => (fs.existsSync(file) ? JSON.parse(fs.read
  * titles join the spec's.
  *
  * @param {Report} report
- * @param {(spec: ReportSpec, test: ReportTest, title: string) => void} visit
+ * @param {(spec: ReportSpec, test: ReportTest, title: string, entryFile?: string) => void} visit
  */
 export function eachTest(report, visit) {
   /**
    * @param {ReportSuite} suite
    * @param {string[]} titles
+   * @param {string | undefined} entryFile
    */
-  const walk = (suite, titles) => {
-    for (const spec of suite.specs ?? []) for (const test of spec.tests) visit(spec, test, [...titles, spec.title].join(" › "));
-    for (const child of suite.suites ?? []) walk(child, [...titles, child.title]);
+  const walk = (suite, titles, entryFile) => {
+    for (const spec of suite.specs ?? []) for (const test of spec.tests) visit(spec, test, [...titles, spec.title].join(" › "), entryFile);
+    for (const child of suite.suites ?? []) walk(child, [...titles, child.title], entryFile);
   };
-  for (const suite of report.suites) walk(suite, []);
+  for (const suite of report.suites) walk(suite, [], suite.file);
 }
 
 /**

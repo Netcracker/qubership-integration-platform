@@ -112,6 +112,8 @@ npm -w @netcracker/qip-vscode-extension run run-in-browser
 
 ## Running tests
 
+See the [contribution guide](CONTRIBUTING.md#development-checks) for the CI policy and local checks by module.
+
 ```bash
 mvn test -Dgpg.skip=true                         # Java tests (all modules)
 mvn -pl engine test -Dgpg.skip=true              # Java tests (single module)

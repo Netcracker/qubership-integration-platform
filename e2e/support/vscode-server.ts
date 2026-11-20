@@ -1,3 +1,4 @@
+import { suiteExtension } from "../env/suite-extension.js";
 /**
  * VS Code for the web on port 3917, serving the extension of this checkout and the fixture
  * workspace `fixtures/vscode/workspace/`.
@@ -187,6 +188,8 @@ async function waitForWorkbench(pid: number, budgetMs: number): Promise<boolean>
  * it. A server whose run is still going fails the setup, and so does any other server on the port.
  */
 export async function ensureVsCodeServer(): Promise<{ pid: number; built: string[] }> {
+  const override = suiteExtension().lifecycle?.startVsCode;
+  if (override) return await override();
   const owner = server.otherLiveOwner();
   if (owner !== null) {
     throw new Error(
@@ -219,5 +222,7 @@ export async function ensureVsCodeServer(): Promise<{ pid: number; built: string
 
 /** Stops the recorded server, as `RecordedServer.stop` does. */
 export async function stopVsCodeServer(): Promise<void> {
+  const override = suiteExtension().lifecycle?.stopVsCode;
+  if (override) return await override();
   await server.stop();
 }

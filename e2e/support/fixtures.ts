@@ -1,3 +1,6 @@
+import { authenticatedRequest, newPlatformRequest } from "../env/platform-http.js";
+import { platformFetch as fetch } from "../env/platform-http.js";
+import { extendSuiteTest } from "../env/suite-extension.js";
 /**
  * The entities a run creates, and the two mechanisms that remove them again.
  *
@@ -138,13 +141,13 @@ interface WorkerFixtures {
  * is what makes teardown one call. Diagnostics and the session lookup are per test, because a
  * failure is and because the lookup rides the test's own request context.
  */
-export const test = base.extend<TestFixtures, WorkerFixtures>({
+const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   // Playwright's own fixture, wrapped so a call it makes on a service's own port records its
   // registry row. `registry/reached.ts` says why the recording is here rather than in each caller:
   // a spec that reaches around a transport still reaches the endpoint, and three review passes in a
   // row found a `not-reached` row a raw call had been reaching all along.
-  request: async ({ request }, use) => {
-    await use(recordingRequest(request));
+  request: async ({ request, baseURL }, use) => {
+    await use(recordingRequest(authenticatedRequest(request, baseURL)));
   },
 
   diagnostics: [
@@ -183,7 +186,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   catalog: [
     async ({ playwright }, use) => {
-      const api = await playwright.request.newContext();
+      const api = await newPlatformRequest(playwright.request, "runtime-catalog");
       await use(new Catalog(api));
       await api.dispose();
     },
@@ -192,7 +195,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   engine: [
     async ({ playwright, env }, use) => {
-      const api = await playwright.request.newContext();
+      const api = await newPlatformRequest(playwright.request, "engine", env.engineUrl());
       await use(new Engine(api, env.engineUrl()));
       await api.dispose();
     },
@@ -201,7 +204,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   testingService: [
     async ({ playwright, env }, use) => {
-      const api = await playwright.request.newContext();
+      const api = await newPlatformRequest(playwright.request, "testing-service", env.url("testing-service"));
       await use(new TestingService(api, env));
       await api.dispose();
     },
@@ -224,6 +227,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { scope: "worker", auto: true },
   ],
 });
+
+export const test = extendSuiteTest(suiteTest);
 
 export { expect } from "@playwright/test";
 
@@ -835,7 +840,7 @@ export default async function globalTeardown(): Promise<void> {
   // all.
   stopResourceSampler(RESOURCES_FILE, run);
 
-  const api = await playwrightRequest.newContext();
+  const api = await newPlatformRequest(playwrightRequest, "runtime-catalog");
   const catalog = new Catalog(api);
   try {
     // Outside the sweep because nothing can delete it: a secret named after this run is a leak that

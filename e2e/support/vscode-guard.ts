@@ -1,3 +1,4 @@
+import { extendSuiteTest } from "../env/suite-extension.js";
 /**
  * The `test` every `vscode` spec imports: VS Code for the web in the case's own browser context, a
  * guard on the page, and the recorder of the webview-extension bridge.
@@ -97,7 +98,7 @@ interface VsCodeFixtures {
   offsiteAnswers: void;
 }
 
-export const test = base.extend<VsCodeFixtures>({
+const vscodeTest = base.extend<VsCodeFixtures>({
   // The workbench asks services on the internet for its experiment assignments and for the chat and
   // Marketplace manifests. A request that fails logs a console.error (on 2026-10-28
   // main.vscode-cdn.net closed the connection), so every request to another host gets an empty
@@ -157,4 +158,5 @@ export const test = base.extend<VsCodeFixtures>({
   ],
 });
 
+export const test = extendSuiteTest(vscodeTest, "vscode");
 export { expect };

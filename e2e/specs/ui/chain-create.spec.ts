@@ -53,8 +53,8 @@ test.describe("chain create, move, and delete", () => {
       await dialog.getByRole("button", { name: "Create" }).click();
       await expect(dialog).toBeHidden();
 
-      await chains.rowAction(chain.name, "Cut");
-      await chains.rowAction(madeByDialog, "Paste");
+      await expect(await chains.rowAction(chain.name, "Cut")).toBeHidden();
+      await expect(await chains.rowAction(madeByDialog, "Paste")).toBeHidden();
 
       // The list re-parents the chain in its own state, so it leaves the top level of the open folder
       // and shows only while the new folder is expanded.
@@ -68,8 +68,8 @@ test.describe("chain create, move, and delete", () => {
     await test.step("into an API-made folder", async () => {
       // The chain's row shows only while the folder that holds it is expanded.
       await chains.row(madeByDialog).getByRole("button", { name: "Expand row", expanded: false }).click();
-      await chains.rowAction(chain.name, "Cut");
-      await chains.rowAction(madeByApi.name, "Paste");
+      await expect(await chains.rowAction(chain.name, "Cut")).toBeHidden();
+      await expect(await chains.rowAction(madeByApi.name, "Paste")).toBeHidden();
 
       await expect.poll(async () => (await catalog.getChain(chain.id)).parentId).toBe(madeByApi.id);
       // The list drops the row it moved without a reload.
@@ -83,7 +83,7 @@ test.describe("chain create, move, and delete", () => {
     const chains = new ChainsPage(page);
 
     await chains.gotoFolder(folder.id);
-    await chains.rowAction(chain.name, "Delete");
+    await expect(await chains.rowAction(chain.name, "Delete")).toBeHidden();
     const confirm = page.getByRole("dialog").filter({ hasText: "Delete Chain" });
     await confirm.getByRole("button", { name: "OK" }).click();
 
