@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -758,6 +759,20 @@ class ChainImportServiceTest {
         assertEquals(List.of("c1", "c2"), results.stream().map(ImportChainResult::getId).sorted().toList());
         assertEquals(ChainCommitRequestAction.SNAPSHOT, overridden.getDeployAction());
         assertEquals(ChainCommitRequestAction.DEPLOY, plain.getDeployAction());
+    }
+
+    @Test
+    void v1ImportWithoutAListReportsTheInstructionAction(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        writeDeployedChainFile(importDirectory, "c2");
+        Map<String, ChainCommitRequestAction> chainsToImport = noInstructions("c2");
+        chainsToImport.put("c1", ChainCommitRequestAction.SNAPSHOT);
+
+        Map<String, ChainCommitRequestAction> actions = archiveImportService(chainsToImport)
+                .restoreChainsFromDirBackward(importDirectory.toFile(), null, null, Set.of()).stream()
+                .collect(Collectors.toMap(ImportChainResult::getId, ImportChainResult::getDeployAction));
+
+        assertEquals(Map.of("c1", ChainCommitRequestAction.SNAPSHOT, "c2", ChainCommitRequestAction.DEPLOY), actions);
     }
 
     @Test
