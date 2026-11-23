@@ -55,15 +55,9 @@ func claimSchedule(ctx context.Context, prepared, basis, actor string) error {
 	if err := read(filepath.Join(prepared, "plan.json"), &plan); err != nil {
 		return err
 	}
-	workflow := fmt.Sprintf("%s/.github/workflows/agent-docs-schedule.yaml@refs/heads/%s", plan.Repository, plan.DefaultBranch)
-	if os.Getenv("GITHUB_ACTIONS") != "true" || os.Getenv("GITHUB_REPOSITORY") != plan.Repository ||
-		os.Getenv("GITHUB_WORKFLOW_REF") != workflow {
-		return fmt.Errorf("claim requires the default-branch documentation scheduler")
-	}
-	run, runErr := strconv.ParseInt(os.Getenv("GITHUB_RUN_ID"), 10, 64)
-	attempt, attemptErr := strconv.Atoi(os.Getenv("GITHUB_RUN_ATTEMPT"))
-	if runErr != nil || attemptErr != nil || run <= 0 || attempt <= 0 {
-		return fmt.Errorf("scheduled documentation run identity is invalid")
+	attempt, err := schedulerAttempt(plan)
+	if err != nil {
+		return err
 	}
 	client, err := github(plan.Repository)
 	if err != nil {
@@ -90,9 +84,23 @@ func claimSchedule(ctx context.Context, prepared, basis, actor string) error {
 			return fmt.Errorf("documentation command changed before claim")
 		}
 	}
-	claimed, reason, err := docgithub.ClaimSchedule(ctx, client, actions, plan, basis, actor, docgithub.ScheduledAttempt{RunID: run, Attempt: attempt}, background)
+	claimed, reason, err := docgithub.ClaimSchedule(ctx, client, actions, plan, basis, actor, attempt, background)
 	if err != nil {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"claimed": claimed, "reason": reason})
+}
+
+func schedulerAttempt(plan docgithub.Plan) (docgithub.ScheduledAttempt, error) {
+	workflow := fmt.Sprintf("%s/.github/workflows/agent-docs-schedule.yaml@refs/heads/%s", plan.Repository, plan.DefaultBranch)
+	if os.Getenv("GITHUB_ACTIONS") != "true" || os.Getenv("GITHUB_REPOSITORY") != plan.Repository ||
+		os.Getenv("GITHUB_WORKFLOW_REF") != workflow {
+		return docgithub.ScheduledAttempt{}, fmt.Errorf("the default-branch documentation scheduler is required")
+	}
+	run, runErr := strconv.ParseInt(os.Getenv("GITHUB_RUN_ID"), 10, 64)
+	attempt, attemptErr := strconv.Atoi(os.Getenv("GITHUB_RUN_ATTEMPT"))
+	if runErr != nil || attemptErr != nil || run <= 0 || attempt <= 0 {
+		return docgithub.ScheduledAttempt{}, fmt.Errorf("scheduled documentation run identity is invalid")
+	}
+	return docgithub.ScheduledAttempt{RunID: run, Attempt: attempt}, nil
 }

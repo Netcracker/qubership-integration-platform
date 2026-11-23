@@ -50,7 +50,7 @@ variable unset.
 
 The queue uses the same repository and project permissions as manual documentation work. The GitHub Actions actor and triggering actor must both be in `AGENT_ALLOWED_ACTORS`. For a cron run, GitHub chooses the actor associated with the schedule. Check that login in a scheduled preview before enabling application.
 
-The queue skips issues outside **In doc review**, issues without a merged implementing PR, and issues with active documentation runs. An open help-only PR that explicitly closes the issue also takes precedence. A past mention in a merged help PR leaves the issue eligible. The queue processes selected issues one at a time. A scheduled attempt claims the issue and its implementing changes after preparation. Manual and scheduled jobs share the same concurrency group for an issue.
+The queue skips issues outside **In doc review**, issues without a merged implementing PR, and issues with active documentation runs. An open help-only PR that explicitly closes the issue also takes precedence. A past mention in a merged help PR leaves the issue eligible. The queue processes selected issues one at a time. A scheduled attempt claims the issue and its implementing changes after preparation. Manual and scheduled jobs share the same concurrency group for an issue. The progress comment links to the run. The publisher edits that comment when it has a decision. If processing stops, the comment links to the run and gives recovery instructions.
 
 If the claimed run stops before the documentation work step starts, a later queue run can try again. Once that step starts, the queue skips the same issue and implementing changes on later runs. Use the manual `run` operation to retry after inspecting the scheduled run. To return the queue to preview, unset `AGENT_DOCS_SCHEDULE_APPLY`.
 
@@ -64,9 +64,11 @@ The command uses the same eligibility, concurrency, and duplicate checks as the 
 
 Keep Codex subscription authentication on your local machine. Hosted work uses the separately billed OpenRouter key. The work job uses a read-only workflow token for checkout and artifact download. The GitHub App key and personal access tokens stay in the preparation, publication, and reconciliation jobs.
 
+A queue run builds `docs-agent` once from the trusted workflow commit. Later jobs in that run download the binary by artifact ID. A standalone run builds its own binary during preparation.
+
 - `docs-prepared-*` contains the frozen plan and context packet. `docs-prepare-log-*` contains the preparation log.
 - `docs-result-*` contains the completed result, the candidate files, the evidence bound to the completion receipt, and the feedback record. Runtime homes, authentication files, and transcripts stay on the work runner.
-- `docs-work-diagnostics-*` records the status, route, observed stages, and reported usage when available. Use it to inspect a failed or unresolved work job.
+- `docs-work-diagnostics-*` records the status, route, observed stages, and reported usage when available. The work job summary explains the route, lists the models used, and shows the outcome and reported costs. Use the artifact to inspect a failed or unresolved work job.
 - `docs-publish-*` and `docs-reconcile-*` contain publication and reconciliation logs. Applied publication also records its GitHub operations in a journal.
 
 If GitHub rejects the issue close or the project update, restore access and retry reconciliation. The publisher checks the issue and project before repeating a write. If the original write may have succeeded, inspect both before changing either.

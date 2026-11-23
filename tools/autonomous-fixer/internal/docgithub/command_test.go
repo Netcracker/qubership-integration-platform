@@ -26,6 +26,10 @@ func TestDocumentationCommandAuthorizesOnlyAnExactCurrentIssueComment(t *testing
 			return
 		}
 		reads++
+		if reads == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(current)
 	}))
 	t.Cleanup(server.Close)
@@ -35,7 +39,7 @@ func TestDocumentationCommandAuthorizesOnlyAnExactCurrentIssueComment(t *testing
 	}
 	client := &Client{API: api, Repository: "org/repo"}
 	cmd, err := ReadDocumentationCommand(t.Context(), client, payload, "alice", "alice", "alice")
-	if err != nil || cmd != (DocumentationCommand{Issue: 11, CommentID: 7}) || reads != 1 {
+	if err != nil || cmd != (DocumentationCommand{Issue: 11, CommentID: 7}) || reads != 2 {
 		t.Fatal(cmd, err, reads)
 	}
 	for _, test := range []struct {
@@ -59,14 +63,14 @@ func TestDocumentationCommandAuthorizesOnlyAnExactCurrentIssueComment(t *testing
 			changed := payload
 			test.change(&changed)
 			cmd, err := ReadDocumentationCommand(t.Context(), client, changed, test.actor, test.trigger, "alice")
-			if err != nil || cmd.Issue != 0 || reads != 1 {
+			if err != nil || cmd.Issue != 0 || reads != 2 {
 				t.Fatalf("invalid command advanced: %+v, %v, reads=%d", cmd, err, reads)
 			}
 		})
 	}
 	current.UpdatedAt = "2026-11-19T12:01:00Z"
 	cmd, err = ReadDocumentationCommand(t.Context(), client, payload, "alice", "alice", "alice")
-	if err != nil || cmd.Issue != 0 || reads != 2 {
+	if err != nil || cmd.Issue != 0 || reads != 3 {
 		t.Fatal(cmd, err, reads)
 	}
 }

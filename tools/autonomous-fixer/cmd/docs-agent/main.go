@@ -75,7 +75,7 @@ func github(repo string) (*docgithub.Client, error) {
 }
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: docs-agent prepare|work|publish|reconcile|discover|claim")
+		return fmt.Errorf("usage: docs-agent prepare|work|work-summary|publish|reconcile|discover|claim|record-stop")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	repo := f.String("repository", "", "GitHub owner/repository")
@@ -97,10 +97,13 @@ func run(ctx context.Context, args []string) error {
 	handoff := f.String("handoff", "", "new directory for a validated publication artifact")
 	keyFile := f.String("key-file", "", "private OpenRouter key file")
 	runDir := f.String("run", "", "completed work output directory")
+	workOutcome := f.String("work-outcome", "", "Actions work step outcome")
+	checkIDs := f.String("check-ids", "", "required documentation check IDs as JSON")
 	actor := f.String("actor", "", "trusted workflow initiating actor")
 	basis := f.String("basis", "", "documentation basis selected by discovery")
 	planID := f.String("plan-id", "", "documentation plan admitted for merge reconciliation")
-	reason := f.String("reason", "", "documentation queue skip reason")
+	reason := f.String("reason", "", "documentation skip or stop reason")
+	signature := f.String("signature", "{}", "observed documentation run usage as JSON")
 	apply := f.Bool("apply", false, "apply reviewed GitHub publication effects")
 	if e := f.Parse(args[1:]); e != nil {
 		return e
@@ -120,6 +123,11 @@ func run(ctx context.Context, args []string) error {
 			return fmt.Errorf("claim requires --apply")
 		}
 		return claimSchedule(ctx, *prepared, *basis, *actor)
+	case "record-stop":
+		if !*apply {
+			return fmt.Errorf("record-stop requires --apply")
+		}
+		return recordScheduleStop(ctx, *prepared, *number, *basis, *actor, *reason, *signature)
 	case "verify-pr":
 		c, e := github(*repo)
 		if e != nil {
@@ -322,6 +330,8 @@ func run(ctx context.Context, args []string) error {
 			}
 		}
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": result.Status, "route": routing.Route, "plan_id": plan.ID, "work_directory": cfg.OutputDirectory})
+	case "work-summary":
+		return writeWorkSummary(*prepared, *runDir, *output, *workOutcome, *checkIDs)
 	case "restore":
 		return restore(ctx, *prepared, *runDir, *source, *workspace)
 	case "rejected-diff":

@@ -43,12 +43,13 @@ type Publication struct {
 	Applied                 bool   `json:"applied"`
 }
 type publisher struct {
-	client  *Client
-	plan    Plan
-	state   Publication
-	author  int64
-	runDir  string
-	claimID int64
+	client       *Client
+	plan         Plan
+	state        Publication
+	author       int64
+	runDir       string
+	claim        issueComment
+	stateComment issueComment
 }
 type issueComment struct {
 	ID   int64            `json:"id"`
@@ -153,7 +154,8 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 		return false, e
 	}
 	found := false
-	p.claimID = 0
+	p.claim = issueComment{}
+	p.stateComment = issueComment{}
 	claim := ""
 	if attempt, ok := p.plan.workflowAttempt(); ok {
 		claim = scheduleReceipt(scheduleBasis(p.plan), attempt) + "\n"
@@ -164,10 +166,10 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 			return false, e
 		}
 		if claim != "" && comment.User.ID == p.author && strings.HasPrefix(comment.Body, claim) {
-			if p.claimID != 0 {
+			if p.claim.ID != 0 {
 				return false, fmt.Errorf("duplicate scheduled documentation claim")
 			}
-			p.claimID = comment.ID
+			p.claim = comment
 			continue
 		}
 		if !strings.HasPrefix(comment.Body, marker(p.plan)+"\n") {
@@ -188,6 +190,7 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 		}
 		state.CommentID = comment.ID
 		p.state = state
+		p.stateComment = comment
 		found = true
 	}
 	return found, nil
@@ -251,7 +254,7 @@ func (p *publisher) saveState(ctx context.Context, state Publication) error {
 	action := "create-state-comment"
 	commentID := p.state.CommentID
 	if commentID == 0 {
-		commentID = p.claimID
+		commentID = p.claim.ID
 	}
 	if commentID > 0 {
 		method = "PATCH"
