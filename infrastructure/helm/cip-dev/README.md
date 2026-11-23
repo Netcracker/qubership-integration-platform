@@ -238,6 +238,26 @@ A name the cluster cannot resolve costs you the UI routes and nothing else — t
 every API route keeps working. Set `global.qip.ui.resolver` as well if your distribution puts
 CoreDNS somewhere other than `10.96.0.10` (k3s and k3d use `10.43.0.10`).
 
+## Upgrade Consul
+
+The Consul pod keeps its data inside the container, so an upgrade that replaces the pod, such as a
+new Consul image, starts Consul empty. Save a snapshot before `helm upgrade` and restore it into the
+new pod. With the default release and namespace, from this directory:
+
+```bash
+TOKEN=<global.consul.adminToken>
+kubectl exec -n cip deploy/cip-consul -- sh -c "consul snapshot save -token=$TOKEN /tmp/consul.snap >/dev/null && cat /tmp/consul.snap" > consul.snap
+helm upgrade cip . -n cip --reset-then-reuse-values
+kubectl rollout status deployment/cip-consul -n cip
+kubectl exec -i -n cip deploy/cip-consul -- sh -c "cat > /tmp/consul.snap && consul snapshot restore -token=$TOKEN /tmp/consul.snap" < consul.snap
+kubectl exec -n cip deploy/cip-consul -- curl -s -X PUT -H "X-Consul-Token: $TOKEN" -d '{"Node":"consul"}' http://127.0.0.1:8500/v1/catalog/deregister
+```
+
+The snapshot also restores the old pod's catalog entry, which holds the node name `consul` under the
+old node ID. The new pod cannot register under that name, and Consul logs `failed to reconcile
+member` every minute. The last command removes the old entry, and the new pod registers itself
+within a minute.
+
 ## Remove namespace data
 
 ```bash

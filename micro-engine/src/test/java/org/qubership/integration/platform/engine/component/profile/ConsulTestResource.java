@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public class ConsulTestResource implements QuarkusTestResourceLifecycleManager {
 
-    private static final DockerImageName CONSUL_IMAGE = DockerImageName.parse("hashicorp/consul:1.15.4");
+    private static final DockerImageName CONSUL_IMAGE = DockerImageName.parse("hashicorp/consul:2.1.0");
     private static final int CONSUL_HTTP_PORT = 8500;
 
     private GenericContainer<?> consul;
