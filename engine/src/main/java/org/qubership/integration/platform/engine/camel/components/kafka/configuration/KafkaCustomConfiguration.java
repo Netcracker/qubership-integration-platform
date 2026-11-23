@@ -58,6 +58,7 @@ public class KafkaCustomConfiguration implements Cloneable, HeaderFilterStrategy
     private String brokers;
     @UriParam(label = "common")
     private String clientId;
+    private List<String> legacyHeaderNames = List.of();
     @UriParam(label = "common",
               description = "To use a custom HeaderFilterStrategy to filter header to and from Camel message.")
     private HeaderFilterStrategy headerFilterStrategy = new KafkaHeaderFilterStrategy();
@@ -686,6 +687,14 @@ public class KafkaCustomConfiguration implements Cloneable, HeaderFilterStrategy
 
     public String getTopic() {
         return topic;
+    }
+
+    public List<String> getLegacyHeaderNames() {
+        return legacyHeaderNames;
+    }
+
+    public void setLegacyHeaderNames(List<String> legacyHeaderNames) {
+        this.legacyHeaderNames = List.copyOf(legacyHeaderNames);
     }
 
     /**

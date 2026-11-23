@@ -13,6 +13,7 @@ import org.apache.camel.spi.ExceptionHandler;
 import org.apache.camel.spi.HeaderFilterStrategy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
+import org.qubership.integration.platform.engine.camel.components.kafka.KafkaLegacyHeaderCompatibility;
 import org.qubership.integration.platform.engine.camel.components.kafka.cloudcore.BGKafkaConsumerExtended;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 
@@ -28,6 +29,7 @@ public class KafkaBGRecordProcessor {
     private final KafkaCustomConfiguration configuration;
     private final Processor processor;
     private final BGKafkaConsumerExtended<?, ?> consumer;
+    private final KafkaLegacyHeaderCompatibility legacyHeaderCompatibility;
 
     public static final class ProcessResult {
 
@@ -60,6 +62,7 @@ public class KafkaBGRecordProcessor {
         this.configuration = configuration;
         this.processor = processor;
         this.consumer = consumer;
+        this.legacyHeaderCompatibility = new KafkaLegacyHeaderCompatibility(configuration.getLegacyHeaderNames());
     }
 
     private void setupExchangeMessage(Message message, Record<?, ?> record) {
@@ -104,6 +107,7 @@ public class KafkaBGRecordProcessor {
 
         setupExchangeMessage(message, record);
         propagateHeaders(record, exchange);
+        legacyHeaderCompatibility.apply(message);
 
         try {
             processor.process(exchange);

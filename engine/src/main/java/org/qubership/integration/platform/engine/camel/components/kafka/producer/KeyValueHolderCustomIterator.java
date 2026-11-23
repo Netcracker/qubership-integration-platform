@@ -7,6 +7,7 @@ import org.apache.camel.component.kafka.producer.support.KeyValueHolderIterator;
 import org.apache.camel.util.KeyValueHolder;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
+import org.qubership.integration.platform.engine.camel.components.kafka.KafkaLegacyHeaderCompatibility;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 
 import java.util.Iterator;
@@ -22,6 +23,7 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
     private final Iterator<Object> msgList;
     private final Exchange exchange;
     private final KafkaCustomConfiguration kafkaConfiguration;
+    private final KafkaLegacyHeaderCompatibility legacyHeaderCompatibility;
     private final String msgTopic;
     private final List<Header> propagatedHeaders;
 
@@ -30,6 +32,7 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
         this.msgList = msgList;
         this.exchange = exchange;
         this.kafkaConfiguration = kafkaConfiguration;
+        this.legacyHeaderCompatibility = new KafkaLegacyHeaderCompatibility(kafkaConfiguration.getLegacyHeaderNames());
         this.msgTopic = msgTopic;
         this.propagatedHeaders = propagatedHeaders;
     }
@@ -113,7 +116,7 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
     }
 
     private Object getInnerKey(Exchange innerExchange, Message innerMessage) {
-        Object innerKey = innerMessage.getHeader(KafkaConstants.KEY);
+        Object innerKey = legacyHeaderCompatibility.getHeaderValue(innerMessage, KafkaConstants.KEY);
         if (innerKey != null) {
 
             innerKey = kafkaConfiguration.getKey() != null ? kafkaConfiguration.getKey() : innerKey;
