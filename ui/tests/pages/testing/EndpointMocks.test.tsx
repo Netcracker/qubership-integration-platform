@@ -649,7 +649,7 @@ describe("EndpointMocks selection lifetime", () => {
     act(() => triggerIntersection());
     await screen.findByText("Second mock");
 
-    expect(rowCheckedState()).toEqual([true, true]);
+    await waitFor(() => expect(rowCheckedState()).toEqual([true, true]));
   });
 });
 

@@ -802,7 +802,7 @@ describe("TestCaseRuns selection lifetime", () => {
     act(() => triggerIntersection());
     await screen.findByText("run-2");
 
-    expect(rowCheckedState()).toEqual([true, true]);
+    await waitFor(() => expect(rowCheckedState()).toEqual([true, true]));
   });
 });
 

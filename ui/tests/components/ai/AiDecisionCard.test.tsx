@@ -57,7 +57,7 @@ jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
 
   return {
     MarkdownRenderer: ({ children }: { children: string }) => {
-      const listItems: ReactElement[] = [];
+      const listItems: ReactElement<any>[] = [];
       const body: ReactNode[] = [];
       const flushList = () => {
         if (listItems.length === 0) {

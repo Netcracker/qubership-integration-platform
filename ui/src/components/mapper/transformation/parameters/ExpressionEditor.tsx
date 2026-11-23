@@ -731,8 +731,8 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     constants: [],
   });
 
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const monacoRef = useRef<Monaco>();
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
+  const monacoRef = useRef<Monaco>(undefined);
 
   useEffect(() => {
     const uri = Uri.parse(action.id).toString();

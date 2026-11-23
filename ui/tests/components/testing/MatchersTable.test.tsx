@@ -358,7 +358,7 @@ describe("MatchersTable parameter editors", () => {
 
     expect(showModal).toHaveBeenCalledTimes(1);
     const modal = (
-      showModal.mock.calls[0][0] as { component: React.ReactElement }
+      showModal.mock.calls[0][0] as { component: React.ReactElement<any> }
     ).component as React.ReactElement<JsonMatcherParametersModalProps>;
     expect(modal.props.documentParameterName).toBe("schema");
 
@@ -385,7 +385,7 @@ describe("MatchersTable parameter editors", () => {
     );
 
     const modal = (
-      showModal.mock.calls[0][0] as { component: React.ReactElement }
+      showModal.mock.calls[0][0] as { component: React.ReactElement<any> }
     ).component as React.ReactElement<JsonMatcherParametersModalProps>;
     expect(modal.props.documentParameterName).toBe("sample");
   });

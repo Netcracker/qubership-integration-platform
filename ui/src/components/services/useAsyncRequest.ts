@@ -32,7 +32,7 @@ export function useAsyncRequest<
   const [error, setError] = useState<string | null>(null);
   const [errorObject, setErrorObject] = useState<Error>();
   const isMounted = useRef(true);
-  const lastArgs = useRef<Args>();
+  const lastArgs = useRef<Args>(undefined);
 
   const execute = useCallback(
     async (...args: Args | []) => {

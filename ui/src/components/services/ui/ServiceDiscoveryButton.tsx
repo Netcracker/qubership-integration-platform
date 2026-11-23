@@ -20,7 +20,7 @@ export const ServiceDiscoveryButton: React.FC<ServiceDiscoveryButtonProps> = ({
   onSystemsDiscovered,
 }) => {
   const notificationService = useNotificationService();
-  const pollingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const pollingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [inProgress, setInProgress] = useState<boolean>(false);
   const [status, setStatus] = useState<DiscoveryStatus>({
     status: "normal",

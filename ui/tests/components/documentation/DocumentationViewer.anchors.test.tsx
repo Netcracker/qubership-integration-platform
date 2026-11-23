@@ -213,7 +213,7 @@ describe("DocumentationViewer — root ref", () => {
 
 describe("DocumentationViewer — anchor icon rendering", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test harness
-  type AComponent = (props: any) => React.ReactElement;
+  type AComponent = (props: any) => React.ReactElement<any>;
   const React = jest.requireActual<typeof import("react")>("react");
 
   const getAComponent = (): AComponent => {

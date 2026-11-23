@@ -126,7 +126,7 @@ function makeSystem(
   } as IntegrationSystem;
 }
 
-function renderTab(ui?: React.ReactElement) {
+function renderTab(ui?: React.ReactElement<any>) {
   const el = ui ?? (
     <ServiceParametersTab
       systemId="sys-1"
@@ -239,7 +239,7 @@ describe("ServiceParametersTab", () => {
     });
     const toolbarCall = mockSetToolbar.mock.calls.find(
       (c) => c[1] !== null,
-    )?.[1] as React.ReactElement;
+    )?.[1] as React.ReactElement<any>;
     expect(toolbarCall).toBeTruthy();
     render(
       <UserPermissionsContext.Provider value={getAllPermissions()}>
@@ -259,7 +259,7 @@ describe("ServiceParametersTab", () => {
     });
     const toolbarNode = mockSetToolbar.mock.calls.find(
       (c) => c[1] !== null,
-    )?.[1] as React.ReactElement | undefined;
+    )?.[1] as React.ReactElement<any> | undefined;
     expect(toolbarNode).toBeTruthy();
     render(
       <UserPermissionsContext.Provider value={getAllPermissions()}>
@@ -289,7 +289,7 @@ describe("ServiceParametersTab", () => {
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
@@ -312,7 +312,7 @@ describe("ServiceParametersTab", () => {
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const showModalCallsAfterFirstPrompt = mockShowModal.mock.calls.length;
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
@@ -336,7 +336,7 @@ describe("ServiceParametersTab", () => {
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-no"));
@@ -355,7 +355,7 @@ describe("ServiceParametersTab", () => {
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = (
-      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement<any> }
     ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-close"));

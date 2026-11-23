@@ -635,7 +635,7 @@ describe("TestRuns selection lifetime", () => {
     act(() => triggerIntersection());
     await screen.findByText("tests-run-2");
 
-    expect(rowCheckedState()).toEqual([true, true]);
+    await waitFor(() => expect(rowCheckedState()).toEqual([true, true]));
   });
 });
 

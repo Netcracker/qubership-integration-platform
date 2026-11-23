@@ -10,7 +10,7 @@ export function TestQueryClientProvider({
   children,
 }: {
   children: React.ReactNode;
-}): React.ReactElement {
+}): React.ReactElement<any> {
   const [queryClient] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

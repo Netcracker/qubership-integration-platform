@@ -51,7 +51,7 @@ export const ElementsLibrarySidebar = ({
   const { libraryData, isLibraryLoading } = useLibraryContext();
 
   const [openKeysState, setOpenKeysState] = useState<string[]>();
-  const openKeysBeforeSearch = useRef<string[]>();
+  const openKeysBeforeSearch = useRef<string[]>(undefined);
   const [isSearch, setIsSearch] = useState(false);
 
   useEffect(() => {

@@ -60,7 +60,7 @@ describe("JsonField", () => {
         value: formData,
         mode: "json",
       }),
-      expect.anything(),
+      undefined,
     );
 
     const calledProps = mockScript.mock.calls[0][0] as unknown as {

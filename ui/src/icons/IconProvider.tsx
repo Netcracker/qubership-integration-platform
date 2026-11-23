@@ -124,10 +124,13 @@ const buildSource = (
     const normalized = isMonochromeSvgElement(IconComponent)
       ? normalizeSvgElementPaintToCurrentColor(IconComponent)
       : IconComponent;
-    const wrappedNode = React.cloneElement(normalized, {
-      width: "1em",
-      height: "1em",
-    });
+    const wrappedNode = React.cloneElement(
+      normalized as React.ReactElement<React.SVGProps<SVGSVGElement>>,
+      {
+        width: "1em",
+        height: "1em",
+      },
+    );
     const render = () => wrappedNode;
     return { kind: "element", render };
   }
@@ -157,7 +160,7 @@ const buildSource = (
 
   return {
     kind: "component",
-    component: IconComponent as React.ComponentType<AntdIconProps>,
+    component: IconComponent,
   };
 };
 
