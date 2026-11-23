@@ -43,11 +43,12 @@ type Publication struct {
 	Applied                 bool   `json:"applied"`
 }
 type publisher struct {
-	client *Client
-	plan   Plan
-	state  Publication
-	author int64
-	runDir string
+	client  *Client
+	plan    Plan
+	state   Publication
+	author  int64
+	runDir  string
+	claimID int64
 }
 type issueComment struct {
 	ID   int64            `json:"id"`
@@ -152,10 +153,22 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 		return false, e
 	}
 	found := false
+	p.claimID = 0
+	claim := ""
+	if attempt, ok := p.plan.workflowAttempt(); ok {
+		claim = scheduleReceipt(scheduleBasis(p.plan), attempt) + "\n"
+	}
 	for _, raw := range comments {
 		var comment issueComment
 		if e = json.Unmarshal(raw, &comment); e != nil {
 			return false, e
+		}
+		if claim != "" && comment.User.ID == p.author && strings.HasPrefix(comment.Body, claim) {
+			if p.claimID != 0 {
+				return false, fmt.Errorf("duplicate scheduled documentation claim")
+			}
+			p.claimID = comment.ID
+			continue
 		}
 		if !strings.HasPrefix(comment.Body, marker(p.plan)+"\n") {
 			continue
@@ -220,9 +233,15 @@ func (p *publisher) saveState(ctx context.Context, state Publication) error {
 	state.Plan = &p.plan
 	state.Applied = true
 	encoded, _ := json.Marshal(state)
-	body := marker(p.plan) + "\n" + agentsignature.Strip(state.IssueComment) + "\n\nDocumentation status: **" + state.Status + "**."
+	body := marker(p.plan) + "\n" + agentsignature.Strip(state.IssueComment)
+	if state.Decision != "no_change" || state.Status != "completed" {
+		body += "\n\nDocumentation status: **" + state.Status + "**."
+	}
 	if state.PRURL != "" {
 		body += " [Draft documentation PR](" + state.PRURL + ")."
+	}
+	if attempt, ok := p.plan.workflowAttempt(); ok {
+		body += "\n\n[View workflow run](" + attempt.url(p.plan.Repository) + ")"
 	}
 	body += "\n\n<!-- qip-docs-state:" + base64.StdEncoding.EncodeToString(encoded) + " -->" + stateFooter(state)
 	if len(body) > 65536 {
@@ -230,9 +249,13 @@ func (p *publisher) saveState(ctx context.Context, state Publication) error {
 	}
 	method, path := "POST", fmt.Sprintf("/issues/%d/comments", p.plan.IssueNumber)
 	action := "create-state-comment"
-	if p.state.CommentID > 0 {
+	commentID := p.state.CommentID
+	if commentID == 0 {
+		commentID = p.claimID
+	}
+	if commentID > 0 {
 		method = "PATCH"
-		path = fmt.Sprintf("/issues/comments/%d", p.state.CommentID)
+		path = fmt.Sprintf("/issues/comments/%d", commentID)
 		action = fmt.Sprintf("update-state-%s-%s-%d", state.Status, state.CommitSHA, state.PRNumber)
 	}
 	if p.state.CommentID > 0 && samePublicationState(p.state, state) {

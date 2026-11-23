@@ -279,6 +279,28 @@ func TestPublishNoChangeIsIdempotentForClosedIssue(t *testing.T) {
 		t.Fatalf("reconciliation changed the signed result: %s, %v", result.Status, e)
 	}
 }
+func TestPublishUpdatesScheduledClaim(t *testing.T) {
+	for _, needed := range []bool{false, true} {
+		plan, run, source := publicationFixture(t, needed)
+		plan.RequestID = "42:2"
+		plan.ID = ""
+		plan.ID = Digest(plan)
+		c, a := apiFixture(t, plan)
+		claim := issueComment{ID: 5, User: fixer.GitHubUser{ID: 99}, Body: scheduleReceipt(scheduleBasis(plan), ScheduledAttempt{42, 2}) + "\nChecking documentation."}
+		a.comments = []issueComment{claim}
+		options := PublishOptions{Actor: "alice", Apply: true, SourcePath: source}
+		for i := 0; i < 2; i++ {
+			result, err := Publish(context.Background(), c, plan, run, options)
+			if err != nil || result.CommentID != claim.ID {
+				t.Fatalf("needed=%t: result=%+v, err=%v", needed, result, err)
+			}
+		}
+		if len(a.comments) != 1 || a.commentCreates != 0 || !strings.Contains(a.comments[0].Body, "[View workflow run](https://github.com/org/repo/actions/runs/42/attempts/2)") {
+			t.Fatal("expected the result and run link on the original comment")
+		}
+	}
+}
+
 func TestPublishOpenIssueClosesAfterComment(t *testing.T) {
 	plan, run, _ := publicationFixture(t, false)
 	plan.IssueState = "open"
@@ -666,7 +688,7 @@ func TestReconcileEditsTheSignedNoChangeCommentInPlace(t *testing.T) {
 	}
 	result, e := Reconcile(ctx, c, recovered, PublishOptions{Actor: "alice", Apply: true})
 	body := api.comments[0].Body
-	if e != nil || result.Status != "completed" || api.commentCreates != 1 || !strings.Contains(body, "**completed**") ||
+	if e != nil || result.Status != "completed" || api.commentCreates != 1 || strings.Contains(body, "**publishing**") ||
 		!strings.HasSuffix(body, "\n\n"+signature) || strings.Count(body, "<sub>🤖") != 1 {
 		t.Fatalf("reconciliation lost or duplicated signed totals: %s, %v", body, e)
 	}

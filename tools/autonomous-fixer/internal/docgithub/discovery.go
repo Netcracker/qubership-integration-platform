@@ -39,6 +39,17 @@ type ScheduledAttempt struct {
 	Attempt int
 }
 
+func (p Plan) workflowAttempt() (ScheduledAttempt, bool) {
+	run, attempt, ok := strings.Cut(p.RequestID, ":")
+	id, runErr := fixer.PositiveID(run)
+	number, attemptErr := fixer.PositiveID(attempt)
+	return ScheduledAttempt{RunID: id, Attempt: int(number)}, ok && runErr == nil && attemptErr == nil
+}
+
+func (a ScheduledAttempt) url(repo string) string {
+	return fmt.Sprintf("https://github.com/%s/actions/runs/%d/attempts/%d", repo, a.RunID, a.Attempt)
+}
+
 func scheduleBasis(plan Plan) string {
 	return Digest(struct {
 		Repository, Item, Issue, Title, BodyHash string
@@ -437,7 +448,7 @@ func ClaimSchedule(ctx context.Context, c *Client, actions *fixer.GitHubClient, 
 	}
 	path := fmt.Sprintf("/issues/%d/comments", plan.IssueNumber)
 	marker := scheduleReceipt(basis, attempt)
-	body := fmt.Sprintf("%s\n\nDocumentation processing started in [workflow run %d](https://github.com/%s/actions/runs/%d/attempts/%d).", marker, attempt.RunID, plan.Repository, attempt.RunID, attempt.Attempt)
+	body := fmt.Sprintf("%s\n\nChecking whether the product help needs an update. [View workflow run](%s)", marker, attempt.url(plan.Repository))
 	requestErr := c.Request(ctx, "POST", path, map[string]string{"body": body}, nil)
 	reason, ownClaim, err = scheduleIssueBlock(ctx, c, actions, plan, publisher.ID, attempt)
 	if err == nil && reason == "" && ownClaim {
