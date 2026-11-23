@@ -6,13 +6,15 @@
  * elements become routes, and a compile that silently dropped the trigger would still answer 200
  * with an id.
  *
- * Six shapes measured rather than assumed:
+ * Seven shapes measured rather than assumed:
  *
  * - `xmlDefinition` reaches the caller on a full `GET .../snapshots/{id}` and nowhere else. The
  *   controller nulls it on the build response, the listing and `?light=true`, and the serializer
  *   then drops the key entirely — the field is **absent**, not `null`, so a spec reading the XML
  *   off the build response asserts over `undefined`.
- * - Snapshots are named `V1`, `V2`, … per chain, by the catalog and not by the caller.
+ * - A build with no body is named `V1`, `V2`, … per chain, by the catalog.
+ * - A build whose body carries a name and labels stores both, which is what the Save and Deploy
+ *   dialog sends when its snapshot name field is filled (#1247).
  * - `PUT .../snapshots/{id}` renames in place and does not need `labels`.
  * - The snapshot copies the chain's elements under **fresh ids**, so the compiled XML names none
  *   of the ids the chain was built with.
@@ -97,6 +99,26 @@ test.describe("snapshots", { tag: ["@catalog"] }, () => {
       [first.id, second.id].sort(),
     );
     expect((await catalog.listSnapshots(neighbor.id)).map((each) => each.id)).toEqual([other.id]);
+  });
+
+  test("a build stores the name and labels its request carries", async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "snapshot",
+      what: "named-build",
+      parentId: folder.id,
+    });
+    const name = tokenized(run, "snapshot-built");
+
+    const built = await catalog.createSnapshot(chain.id, {
+      name,
+      labels: [{ name: "release", technical: false }],
+    });
+
+    expect(built.name).toBe(name);
+    // Re-read the record, because a build that echoed the request body would pass on the response.
+    const stored = await catalog.getSnapshot(chain.id, built.id, true);
+    expect(stored.name).toBe(name);
+    expect(stored.labels).toEqual([expect.objectContaining({ name: "release", technical: false })]);
   });
 
   test("a snapshot is renamed in place and survives a re-read", async ({ catalog, folder, run }) => {

@@ -504,6 +504,11 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnapshotRequest"
       responses:
         "200":
           content:
@@ -9949,7 +9954,7 @@ components:
           description: Whether label should be treated as technical
     SnapshotRequest:
       type: object
-      description: Snapshot update request object
+      description: Snapshot create request object
       properties:
         labels:
           type: array

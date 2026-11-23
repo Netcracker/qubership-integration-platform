@@ -779,9 +779,10 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  createSnapshot = async (chainId: string): Promise<Snapshot> => {
+  createSnapshot = async (chainId: string, name?: string): Promise<Snapshot> => {
     const response = await this.instance.post<Snapshot>(
       `${this.v1()}/catalog/chains/${chainId}/snapshots`,
+      name?.trim() ? { name } : undefined
     );
     return response.data;
   };
