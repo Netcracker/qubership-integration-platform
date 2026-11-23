@@ -27,14 +27,12 @@ type UseEnginesResult = {
   retry: jest.Mock;
 };
 
-const mockUseEngines: jest.MockedFunction<() => UseEnginesResult> = jest.fn(
-  () => ({
-    engines: [],
-    isLoading: false,
-    error: undefined,
-    retry: jest.fn(),
-  }),
-);
+const mockUseEngines = jest.fn<UseEnginesResult, [string, number]>(() => ({
+  engines: [],
+  isLoading: false,
+  error: undefined,
+  retry: jest.fn(),
+}));
 
 jest.mock("react-resizable/css/styles.css", () => ({}));
 
@@ -88,7 +86,8 @@ jest.mock(
 jest.mock(
   "../../../../src/components/admin_tools/domains/hooks/useEngines.ts",
   () => ({
-    useEngines: () => mockUseEngines(),
+    useEngines: (domainName: string, reloadKey: number) =>
+      mockUseEngines(domainName, reloadKey),
   }),
 );
 
@@ -357,6 +356,24 @@ describe("DomainsTable", () => {
     expect(
       screen.queryByRole("button", { name: "Refresh" }),
     ).not.toBeInTheDocument();
+  });
+
+  test("refresh reloads the engines of an expanded domain", async () => {
+    const onRefresh = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const { container } = render(
+      <DomainsTable domains={[nativeDomain]} onRefresh={onRefresh} />,
+    );
+    fireEvent.click(
+      container.querySelector("tbody tr td button[type='button']")!,
+    );
+    expect(mockUseEngines).toHaveBeenLastCalledWith(nativeDomain.name, 0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() =>
+      expect(mockUseEngines).toHaveBeenLastCalledWith(nativeDomain.name, 1),
+    );
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   test("replaces rows when the domains prop changes", async () => {

@@ -11,10 +11,10 @@ import layoutStyles from "./DomainsTablesLayout.module.css";
 import { PodStatusValue } from "./PodStatusValue.tsx";
 
 interface Props {
-  onRefresh?: () => Promise<void>;
   engines: Engine[];
   isLoading?: boolean;
   domainName: string;
+  reloadKey?: number;
 }
 
 const EngineExpandIcon = treeExpandIcon<Engine>();
@@ -47,10 +47,12 @@ const restColumns: ColumnsType<Engine> = [
 const DeploymentsForEngine: React.FC<{
   engine: Engine;
   domainName: string;
-}> = ({ engine, domainName }) => {
+  reloadKey: number;
+}> = ({ engine, domainName, reloadKey }) => {
   const { deployments, isLoading, error, retry } = useDeploymentsForEngine(
     domainName,
     engine.host,
+    reloadKey,
   );
   if (error) {
     return (
@@ -68,6 +70,7 @@ export const EngineTable: React.FC<Props> = ({
   engines,
   isLoading = false,
   domainName,
+  reloadKey = 0,
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
@@ -129,7 +132,11 @@ export const EngineTable: React.FC<Props> = ({
         expandable={{
           showExpandColumn: false,
           expandedRowRender: (engine) => (
-            <DeploymentsForEngine engine={engine} domainName={domainName} />
+            <DeploymentsForEngine
+              engine={engine}
+              domainName={domainName}
+              reloadKey={reloadKey}
+            />
           ),
           expandedRowKeys,
         }}

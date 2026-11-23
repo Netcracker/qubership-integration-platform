@@ -28,8 +28,14 @@ interface Props {
   isLoading?: boolean;
 }
 
-const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
-  const { engines, isLoading, error, retry } = useEngines(domain.name);
+const EnginesForDomain: React.FC<{
+  domain: EngineDomain;
+  reloadKey: number;
+}> = ({ domain, reloadKey }) => {
+  const { engines, isLoading, error, retry } = useEngines(
+    domain.name,
+    reloadKey,
+  );
 
   if (error) {
     return (
@@ -44,10 +50,10 @@ const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
 
   return (
     <EngineTable
-      onRefresh={retry}
       engines={engines}
       isLoading={isLoading}
       domainName={domain.name}
+      reloadKey={reloadKey}
     />
   );
 };
@@ -72,6 +78,7 @@ const DomainsTable: React.FC<Props> = ({
   const [filteredData, setFilteredData] = useState<EngineDomain[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const notificationsService = useNotificationService();
 
   const toggleRow = useCallback((domain: EngineDomain) => {
@@ -81,6 +88,11 @@ const DomainsTable: React.FC<Props> = ({
         : [...keys, domain.id],
     );
   }, []);
+
+  const refresh = useCallback(async () => {
+    setReloadKey((key) => key + 1);
+    await onRefresh?.();
+  }, [onRefresh]);
 
   useEffect(() => {
     setTableData(domains);
@@ -210,7 +222,9 @@ const DomainsTable: React.FC<Props> = ({
         title="Domains"
         toolbar={
           <TableToolbar
-            refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}
+            refresh={
+              onRefresh ? { onRefresh: refresh, loading: isLoading } : undefined
+            }
             variant="admin"
             search={{
               value: searchTerm,
@@ -235,7 +249,9 @@ const DomainsTable: React.FC<Props> = ({
           onChange={handleConfiguredTableChange}
           expandable={{
             showExpandColumn: false,
-            expandedRowRender: (record) => <EnginesForDomain domain={record} />,
+            expandedRowRender: (record) => (
+              <EnginesForDomain domain={record} reloadKey={reloadKey} />
+            ),
             expandedRowKeys,
           }}
           rowKey="id"
