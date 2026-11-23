@@ -4,7 +4,8 @@ import { platformFetch as fetch } from "../env/platform-http.js";
  * deployed and deleted by the spec that reads it, and named in `SPEC_OWNED_FIXTURES`.
  */
 import { expect } from "@playwright/test";
-import { assembleFixture, readDocumentFixture } from "../fixtures/templating.js";
+import { assembleArchive, BROKERS_FIXTURE_DIR, readFixtureDocument, renderFixture, type RenderedTree } from "../fixtures/templating.js";
+import { configureBrokerFixture } from "../fixtures/external-brokers.js";
 import { noteChain } from "./diagnostics.js";
 import type { Catalog, ImportResult, LoggingProperties } from "./catalog.js";
 import type { DeployedChain } from "./corpus.js";
@@ -17,8 +18,8 @@ import type { Env } from "../env/index.js";
  * The trigger is found at the top level rather than through a walk: a trigger is never a
  * container's child.
  */
-function describeFixture(file: string, run: string, dir: string): DeployedChain {
-  const fixture = readDocumentFixture(file, run, dir);
+function describeFixture(file: string, tree: RenderedTree): DeployedChain {
+  const fixture = readFixtureDocument(file, tree);
   const content = (fixture.document.content ?? {}) as { elements?: Record<string, unknown>[] };
   const trigger = (content.elements ?? []).find((each) => each.type === "http-trigger");
   const contextPath = ((trigger?.properties ?? {}) as Record<string, string>).contextPath ?? "";
@@ -52,11 +53,13 @@ export async function withOwnFixture(
   { dir, logging }: { dir: string; logging?: LoggingProperties },
   body: (chain: DeployedChain) => Promise<void>,
 ): Promise<void> {
-  const chain = describeFixture(file, run, dir);
+  const rendered = renderFixture(dir, file, run);
+  const tree = dir === BROKERS_FIXTURE_DIR ? configureBrokerFixture(file, rendered) : rendered;
+  const chain = describeFixture(file, tree);
   noteChain(chain);
 
   await catalog.raw("delete", `/v1/chains/${chain.id}`);
-  const response = await catalog.importChains(await assembleFixture(file, run, dir));
+  const response = await catalog.importChains(await assembleArchive(file, tree));
   expect(response.status(), await response.text()).toBe(200);
   expect(((await response.json()) as ImportResult).chains).toEqual([
     expect.objectContaining({ id: chain.id, status: "CREATED" }),

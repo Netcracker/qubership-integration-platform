@@ -22,6 +22,7 @@ const included = [
   "e2e/env", "e2e/fixtures", "e2e/k8s", "e2e/pages", "e2e/portable", "e2e/registry",
   "e2e/specs", "e2e/suites", "e2e/support", "e2e/playwright.config.ts", "e2e/tsconfig.json",
   "schemas/src/test/resources/samples",
+  "schemas/src/main/resources/conf-model",
   "vscode-extension/src/web/test/golden", "vscode-extension/src/web/test/workspace",
   "LICENSE",
 ];

@@ -75,7 +75,7 @@ export class Engine {
 
   private async send(method: string, path: string, data?: object): Promise<APIResponse> {
     const url = `${this.base}${path}`;
-    noteReached("engine", method, url);
+    noteReached("engine", method, path);
     return await this.api.fetch(url, { method: method.toUpperCase(), ...(data === undefined ? {} : { data }) });
   }
 

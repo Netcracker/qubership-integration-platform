@@ -10,6 +10,7 @@
  *
  * The Compose container behind each role is in `env/compose-containers.ts`.
  */
+import type { KafkaConfig } from "kafkajs";
 import { externalService, externalSettings } from "./external-settings.ts";
 import type { Overlay, ServiceRole } from "./index.ts";
 import { target, type Target } from "./target.ts";
@@ -98,6 +99,11 @@ export function kafkaHostBrokers(): string {
   return externalSettings()?.brokers?.kafka?.host ?? process.env.CIP_KAFKA_URL ?? `localhost:${BROKER_PORT.kafka[target()]}`;
 }
 
+export function kafkaHostSecurity(): Pick<KafkaConfig, "sasl" | "ssl"> {
+  const kafka = externalSettings()?.brokers?.kafka;
+  return { sasl: kafka?.hostSasl, ssl: kafka?.hostTls };
+}
+
 /** The AMQP URL of RabbitMQ on the host, or `CIP_RABBITMQ_URL` when set. */
 export function rabbitmqHostUrl(): string {
   return externalSettings()?.brokers?.rabbitmq?.host ?? process.env.CIP_RABBITMQ_URL ?? `amqp://guest:guest@localhost:${BROKER_PORT.rabbitmq[target()]}`;
@@ -105,13 +111,22 @@ export function rabbitmqHostUrl(): string {
 
 /** The base URL of the pub/sub emulator on the host, or `CIP_PUBSUB_URL` when set. */
 export function pubsubHostUrl(): string {
-  return process.env.CIP_PUBSUB_URL ?? `http://localhost:${BROKER_PORT.pubsub[target()]}`;
+  return externalSettings()?.brokers?.pubsub?.host ?? process.env.CIP_PUBSUB_URL ?? `http://localhost:${BROKER_PORT.pubsub[target()]}`;
+}
+
+export function pubsubProjectId(): string {
+  return externalSettings()?.brokers?.pubsub?.projectId ?? "test-project";
 }
 
 /** The SFTP server on the host; `CIP_SFTP_HOST` and `CIP_SFTP_PORT` override each half. */
 export function sftpHostAddress(): { host: string; port: number } {
-  return {
+  return externalSettings()?.brokers?.sftp?.host ?? {
     host: process.env.CIP_SFTP_HOST ?? "localhost",
     port: Number(process.env.CIP_SFTP_PORT ?? BROKER_PORT.sftp[target()]),
   };
+}
+
+export function sftpHostConnection(): { host: string; port: number; username: string; password: string } {
+  const sftp = externalSettings()?.brokers?.sftp;
+  return { ...sftpHostAddress(), username: sftp?.username ?? "e2e", password: sftp?.password ?? "e2epass" };
 }

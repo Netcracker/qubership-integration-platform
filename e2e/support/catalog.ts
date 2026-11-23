@@ -201,7 +201,7 @@ export class Catalog {
     options: Omit<NonNullable<Parameters<APIRequestContext["fetch"]>[1]>, "method"> = {},
   ): Promise<APIResponse> {
     const url = `${this.base}${path}`;
-    noteReached("catalog", method, url);
+    noteReached("catalog", method, path);
     return await this.api.fetch(url, { method: method.toUpperCase(), ...options });
   }
 

@@ -17,7 +17,7 @@ import { API_ROUTES, NOT_PROXIED, UNCLAIMED_API_PATH, apiPath } from "../../env/
 import { repoRoot } from "../../env/host.js";
 
 const CONFIG = path.resolve(repoRoot(), "infrastructure/docker/nginx/routes.conf");
-const lines = fs.readFileSync(CONFIG, "utf-8").split("\n");
+let lines: string[];
 
 /** One `location ~` or `location ~*` block, as nginx will try it. */
 interface RegexLocation {
@@ -34,10 +34,7 @@ interface RegexLocation {
  * them, which is why `location /api/` at the bottom of the file is not collected here: it is the
  * rule that claims whatever no regex did, and `UNCLAIMED_API_PATH` is what pins it.
  */
-const regexLocations: RegexLocation[] = lines.flatMap((line, index) => {
-  const found = /^\s*location\s+(~\*?)\s+"?([^"\s{]+)"?\s*\{/.exec(line);
-  return found ? [{ line: index + 1, pattern: found[2], caseInsensitive: found[1] === "~*" }] : [];
-});
+let regexLocations: RegexLocation[];
 
 /** The block that serves `apiPath`, by the rule nginx itself follows. */
 function servingLocation(apiPath: string): RegexLocation | undefined {
@@ -47,6 +44,13 @@ function servingLocation(apiPath: string): RegexLocation | undefined {
 }
 
 test.describe("API prefixes against routes.conf", () => {
+  test.beforeAll(() => {
+    lines = fs.readFileSync(CONFIG, "utf-8").split("\n");
+    regexLocations = lines.flatMap((line, index) => {
+      const found = /^\s*location\s+(~\*?)\s+"?([^"\s{]+)"?\s*\{/.exec(line);
+      return found ? [{ line: index + 1, pattern: found[2], caseInsensitive: found[1] === "~*" }] : [];
+    });
+  });
   test("the table and the config both list locations", () => {
     // Every case below is a loop over one of these two, and a loop over nothing passes.
     expect(API_ROUTES.length).toBeGreaterThan(0);

@@ -19,10 +19,11 @@ import {
   RABBITMQ_HOST_URL,
   SFTP_HOST_CONFIG,
 } from "./brokers.js";
+import { kafkaHostSecurity, pubsubProjectId } from "../env/containers.js";
 import { readUntil } from "./poll.js";
 import { CORRELATION_HEADER, failedElements, type Sessions } from "./sessions.js";
 
-const kafka = new Kafka({ clientId: "e2e-broker-client", brokers: [KAFKA_HOST_BROKERS], logLevel: logLevel.NOTHING });
+const kafka = new Kafka({ clientId: "e2e-broker-client", brokers: [KAFKA_HOST_BROKERS], ...kafkaHostSecurity(), logLevel: logLevel.NOTHING });
 
 /** Publishes one message with the correlation header, for a trigger case to be found by. */
 export async function publishKafka(
@@ -230,7 +231,7 @@ export async function expectAckOutcome(
 }
 
 /** The emulator project every pub/sub fixture names. */
-const PUBSUB_PROJECT_ID = "test-project";
+const PUBSUB_PROJECT_ID = pubsubProjectId();
 
 /** The emulator's REST URL for `path` under the fixtures' project. */
 function pubsubUrl(path: string): string {

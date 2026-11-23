@@ -143,13 +143,10 @@ test.describe("vscode messages", () => {
 
   test.describe("registry", () => {
     const read = (relative: string) => fs.readFileSync(path.join(repoRoot(), relative), "utf-8");
-    const apiRouter = read("vscode-extension/src/web/response/apiRouter.ts");
-    const chainDiffEditor = read("vscode-extension/src/web/chainDiffEditor.ts");
-    const constants = read("ui/src/api/rest/vscodeExtensionApi.ts");
-    const uiFiles: SourceFile[] = (fs.readdirSync(path.join(repoRoot(), "ui/src"), { recursive: true, encoding: "utf-8" }) as string[])
-      .filter((file) => /\.tsx?$/.test(file))
-      .map((file) => file.split(path.sep).join("/"))
-      .map((file) => ({ path: `ui/src/${file}`, text: read(`ui/src/${file}`) }));
+    const handledFromSource = () => handledTypes(
+      read("vscode-extension/src/web/response/apiRouter.ts"),
+      read("vscode-extension/src/web/chainDiffEditor.ts"),
+    );
 
     test("the rows are unique and every uncovered row has a reason", () => {
       expect(validateMessageRegistry(messageRegistry)).toEqual([]);
@@ -160,7 +157,7 @@ test.describe("vscode messages", () => {
     });
 
     test("the extension parser reads two handlers", () => {
-      const handled = handledTypes(apiRouter, chainDiffEditor);
+      const handled = handledFromSource();
       expect(handled).toHaveLength(70);
       expect(handled).toEqual(expect.arrayContaining(["startup", "listChainExportTargets", "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"]));
       // The second `switch` in apiRouter.ts switches on a file type, after getApiResponse ends.
@@ -184,10 +181,15 @@ test.describe("vscode messages", () => {
     });
 
     test("the rows match what the extension and the UI hold", () => {
+      const constants = read("ui/src/api/rest/vscodeExtensionApi.ts");
+      const uiFiles: SourceFile[] = (fs.readdirSync(path.join(repoRoot(), "ui/src"), { recursive: true, encoding: "utf-8" }) as string[])
+        .filter((file) => /\.tsx?$/.test(file))
+        .map((file) => file.split(path.sep).join("/"))
+        .map((file) => ({ path: `ui/src/${file}`, text: read(`ui/src/${file}`) }));
       const { types, unresolved } = sentTypes(uiFiles, constants);
       expect(unresolved).toEqual([]);
       expect(types).toEqual(expect.arrayContaining(["startup", "navigate", "comparedDocumentsRequest", "exportImagesItemWarning", "getSpecificationModelSource"]));
-      expect(sourceDrift(messageRegistry, handledTypes(apiRouter, chainDiffEditor), types)).toEqual([]);
+      expect(sourceDrift(messageRegistry, handledFromSource(), types)).toEqual([]);
       expect(messageRegistry.filter((entry) => entry.status === "unhandled").map((entry) => entry.message).sort()).toEqual(
         ["createContextService", "importSystems"],
       );

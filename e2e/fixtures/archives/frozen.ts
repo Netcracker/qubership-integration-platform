@@ -62,8 +62,8 @@ export const SAMPLE_DIR = path.resolve(HERE, "../../../schemas/src/test/resource
 
 /** Where the three migration lists live, as classes named `V<version>…ImportFileMigration.java`. */
 export const MIGRATION_SOURCE_DIR = path.resolve(
-  HERE,
-  "../../../integration-build-pipeline/src/main/java/org/qubership/integration/platform/io/readers/migrations",
+  process.env.CIP_REPO_ROOT ?? path.resolve(HERE, "../../.."),
+  "integration-build-pipeline/src/main/java/org/qubership/integration/platform/io/readers/migrations",
 );
 
 /**

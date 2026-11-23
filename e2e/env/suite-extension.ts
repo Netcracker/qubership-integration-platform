@@ -19,6 +19,9 @@ export interface SuiteExtension {
     container?: (role: ServiceRole) => string;
     microService?: (domain: string) => string;
   };
+  brokers?: {
+    restart?: (broker: "kafka" | "rabbitmq") => Promise<void>;
+  };
   lifecycle?: {
     schemas?: () => Promise<boolean>;
     startUi?: () => Promise<{ pid: number | null; built: boolean }>;

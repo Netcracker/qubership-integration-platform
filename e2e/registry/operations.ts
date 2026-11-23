@@ -67,6 +67,13 @@ export interface ServiceDoc {
   docPath: string;
 }
 
+export const SERVICE_DOCUMENTS: ReadonlyArray<readonly [ServiceName, ServiceRole, string]> = [
+  ["catalog", "runtime-catalog", "/v3/api-docs"],
+  ["engine", "engine", "/v3/api-docs"],
+  ["sessions-management", "sessions-management", "/v3/api-docs"],
+  ["testing-service", "testing-service", "/api/v1/swagger/doc.json"],
+];
+
 /**
  * Read at call time rather than frozen at import, so a spec can set the environment first.
  *
@@ -79,18 +86,9 @@ export interface ServiceDoc {
  * flag an endpoint on. It answers on a different path, which is what `docPath` carries, and in a
  * different document format, which costs the reader below nothing: see `operationsFromOpenApi`.
  */
-export function operationServices(): ServiceDoc[] {
-  const documented: Array<[ServiceName, ServiceRole, string]> = [
-    ["catalog", "runtime-catalog", "/v3/api-docs"],
-    ["engine", "engine", "/v3/api-docs"],
-    ["sessions-management", "sessions-management", "/v3/api-docs"],
-    ["testing-service", "testing-service", "/api/v1/swagger/doc.json"],
-  ];
-  return documented.map(([service, role, docPath]) => ({
-    service,
-    baseUrl: serviceUrl(role),
-    docPath,
-  }));
+export function operationServices(roles?: readonly ServiceRole[]): ServiceDoc[] {
+  return SERVICE_DOCUMENTS.filter(([, role]) => !roles || roles.includes(role))
+    .map(([service, role, docPath]) => ({ service, baseUrl: serviceUrl(role), docPath }));
 }
 
 /** The verbs a path item may carry. Anything else under a path — `parameters`, `servers` — is not

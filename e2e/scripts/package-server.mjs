@@ -29,6 +29,14 @@ export async function packageServer() {
       response.writeHead(status, { "Content-Type": "application/json", ...headers });
       response.end(body === undefined ? undefined : JSON.stringify(body));
     };
+    if (url.pathname === "/unavailable-pubsub/v1/projects/e2e-package/topics") {
+      answer({}, 503);
+      return;
+    }
+    if (url.pathname === "/v1/projects/e2e-package/topics") {
+      answer({ topics: [] });
+      return;
+    }
     if (url.pathname === "/infrastructure/log") {
       const deployment = [...chains.values()].find((chain) => chain.deployed)?.deployment;
       const level = restartLog === "error" ? "ERROR" : "INFO";
@@ -66,8 +74,15 @@ export async function packageServer() {
     if (path === "/actuator/health" && ["catalog", "engine", "sessions"].includes(role)) {
       healthLog.push(`${method} ${url.pathname}`);
       const auth = request.headers.authorization;
-      if ((underApi || auth) && auth !== "Bearer package-test") { answer({ error: "Unauthorized" }, 401); return; }
+      if ((underApi || auth) && auth !== "Bearer package-test" && !(role === "sessions" && auth === "Bearer package-sessions")) {
+        answer({ error: "Unauthorized" }, 401);
+        return;
+      }
       answer({ status: healthStatus, groups: ["liveness", "readiness"] });
+      return;
+    }
+    if (role === "testing" && path === "/health") {
+      answer({ status: healthStatus });
       return;
     }
     if (role === "unrelated") {
@@ -90,7 +105,10 @@ export async function packageServer() {
 
     if (role === "catalog") {
       if (method === "GET") {
-        if (path === "/v1/folders") { answer([...folders.values()]); return; }
+        if (path === "/v1/folders") {
+          answer([...folders.values()].map((folder) => ({ ...folder, itemType: "FOLDER" })));
+          return;
+        }
         if (path === "/v1/chains") { answer([...chains.values()]); return; }
         if (path === "/v1/common-variables") { answer({}); return; }
         const emptyListings = [
@@ -98,6 +116,12 @@ export async function packageServer() {
           "/v1/catalog/mcp-system", "/v1/detailed-design/templates", "/v2/secured-variables",
         ];
         if (emptyListings.includes(path)) { answer([]); return; }
+      }
+      const phase = request.headers["x-e2e-phase"];
+      if (phase && ((path === "/v1/folders" && method === "POST" && phase !== "setup")
+        || (path.startsWith("/v1/folders/") && method === "DELETE" && phase !== "cleanup"))) {
+        answer({ error: "Unexpected authorization phase" }, 403);
+        return;
       }
       if (path === "/v1/folders" && method === "POST") {
         const folder = { id: randomUUID(), ...data };

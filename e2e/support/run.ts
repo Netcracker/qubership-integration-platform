@@ -20,8 +20,11 @@
  * The module also keeps the manifest of runs, because the token is what a sweep of a *previous*
  * run has to match on and nothing else records one.
  */
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { externalRunStateDir, externalSettings } from "../env/external-settings.js";
+import { RUN_TOKEN_PATTERN } from "./run-token.js";
 import { stateFileName } from "../env/target.js";
 import { readStateFile, writeStateFile } from "./state-file.js";
 
@@ -52,9 +55,28 @@ export interface RunRecord {
   startedAt: string;
 }
 
+function externalStandDir(file: string | undefined): string | undefined {
+  return file === undefined && process.env.E2E_RUN_MANIFEST === undefined
+    ? externalSettings()?.full?.standDir : undefined;
+}
+
+function externalManifest(standDir: string, run: string): string {
+  return path.join(externalRunStateDir(standDir, run), "manifest.json");
+}
+
 /** The manifest's records. A truncated manifest reads as empty, which costs one uncollected sweep. */
-export function readRuns(file: string = RUN_MANIFEST_FILE): RunRecord[] {
-  const parsed = readStateFile<unknown>(file);
+export function readRuns(file?: string): RunRecord[] {
+  const standDir = externalStandDir(file);
+  if (standDir) {
+    const runs = path.join(standDir, "runs");
+    if (!fs.existsSync(runs)) return [];
+    return fs.readdirSync(runs, { withFileTypes: true }).flatMap((entry) => {
+      if (!entry.isDirectory() || !RUN_TOKEN_PATTERN.test(entry.name)) return [];
+      const record = readStateFile<RunRecord>(externalManifest(standDir, entry.name));
+      return record?.run === entry.name ? [record] : [];
+    });
+  }
+  const parsed = readStateFile<unknown>(file ?? RUN_MANIFEST_FILE);
   return Array.isArray(parsed) ? (parsed as RunRecord[]) : [];
 }
 
@@ -70,16 +92,19 @@ export function writeRuns(records: readonly RunRecord[], file: string = RUN_MANI
 }
 
 /** Records this run, so a later one can clean up after it if this one never gets the chance. */
-export function recordRun(run: string, file: string = RUN_MANIFEST_FILE): RunRecord {
+export function recordRun(run: string, file?: string): RunRecord {
   const record: RunRecord = { run, pid: process.pid, startedAt: new Date().toISOString() };
-  writeRuns([...readRuns(file).filter((each) => each.run !== run), record], file);
+  const standDir = externalStandDir(file);
+  if (standDir) writeStateFile(externalManifest(standDir, run), record);
+  else writeRuns([...readRuns(file).filter((each) => each.run !== run), record], file);
   return record;
 }
 
 /** Drops a run from the manifest, once its own teardown has swept what it created. */
-export function forgetRun(run: string, file: string = RUN_MANIFEST_FILE): void {
-  const left = readRuns(file).filter((each) => each.run !== run);
-  writeRuns(left, file);
+export function forgetRun(run: string, file?: string): void {
+  const standDir = externalStandDir(file);
+  if (standDir) fs.rmSync(externalManifest(standDir, run), { force: true });
+  else writeRuns(readRuns(file).filter((each) => each.run !== run), file);
 }
 
 /** Whether a process is still around: a recorded run, or the runner that started a UI preview. */

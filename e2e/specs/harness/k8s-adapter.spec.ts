@@ -13,7 +13,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { platformTest as test } from "./platform-test.js";
 import { K8sEnv, MICRO_LOG_HEAD_BYTES, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
 import { readingOfTop } from "../../env/k8s-observer.js";
 import {

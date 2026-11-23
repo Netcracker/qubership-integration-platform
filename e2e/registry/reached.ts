@@ -15,6 +15,9 @@
 import { test, type APIRequestContext } from "@playwright/test";
 import { REACHED_ANNOTATION } from "./elements.js";
 import { matchOperationPath, operationServices, type ServiceName } from "./operations.js";
+import { ROLES } from "../env/containers.js";
+import { externalSettings } from "../env/external-settings.js";
+import { pathWithin } from "../env/platform-http.js";
 
 /** The proxy's `/e2e/svc/<service>` prefix, which reaches port 8080 of a Service on `k8s`. */
 const PROXIED_SERVICE = /^\/e2e\/svc\/[a-z0-9-]+(?=\/)/;
@@ -62,18 +65,19 @@ export function noteReached(service: ServiceName, method: string, url: string): 
 /**
  * The service a URL addresses directly, or `undefined` for anything else.
  *
- * Matched on origin against the same table `operationServices()` builds the registry's readers
+ * Matched on origin and base path against the same table `operationServices()` builds the registry's readers
  * from, so a port that moves moves here too. The proxy's origin is deliberately absent: an `/api/`
  * path is nginx's spelling of a call rather than the service's, and it matches no registry row.
  */
-function serviceAt(url: string): ServiceName | undefined {
-  let origin: string;
-  try {
-    origin = new URL(url).origin;
-  } catch {
-    return undefined;
-  }
-  return operationServices().find((doc) => new URL(doc.baseUrl).origin === origin)?.service;
+function serviceAt(url: string): { service: ServiceName; path: string } | undefined {
+  const absolute = URL.parse(url);
+  if (!absolute) return;
+  const external = externalSettings();
+  const roles = external && ROLES.filter((role) => external.services[role] !== undefined);
+  return operationServices(roles).flatMap(({ service, baseUrl }) => {
+    const path = pathWithin(absolute, new URL(baseUrl));
+    return path === undefined ? [] : [{ service, path }];
+  }).sort((a, b) => a.path.length - b.path.length)[0];
 }
 
 /** The `APIRequestContext` methods that issue a request. Each names its verb, except `fetch`. */
@@ -114,9 +118,9 @@ export function recordingRequest(api: APIRequestContext): APIRequestContext {
         const [url, options] = args as [unknown, { method?: string } | undefined];
         // `fetch` also takes a `Request`, which carries no URL this reader can read.
         if (typeof url === "string") {
-          const service = serviceAt(url);
-          if (service !== undefined) {
-            noteReached(service, property === "fetch" ? (options?.method ?? "GET") : property, url);
+          const addressed = serviceAt(url);
+          if (addressed) {
+            noteReached(addressed.service, property === "fetch" ? (options?.method ?? "GET") : property, addressed.path);
           }
         }
         return call.apply(target, args);

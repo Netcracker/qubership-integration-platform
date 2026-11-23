@@ -1,7 +1,8 @@
 // Shown failing: leaving relative URLs unresolved omits the catalog token from the request.
 // Shown failing: removing the UI setup's finally block leaves the bundle reservation in place.
 // Shown failing: following redirects sends platform headers to the redirect target.
-import { test, expect, request, type APIRequestContext } from "@playwright/test";
+import { expect, request, type APIRequestContext } from "@playwright/test";
+import { platformTest as test } from "./platform-test.js";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { once } from "node:events";

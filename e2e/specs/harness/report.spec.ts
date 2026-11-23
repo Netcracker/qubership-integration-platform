@@ -7,7 +7,8 @@
  * that reports a chain as silent because it matched the wrong field.
  * Shown failing: dropping pin metadata from the catalog mislabeled a prebuilt image as from GHCR.
  */
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { platformTest as test } from "./platform-test.js";
 import { ComposeEnv } from "../../env/compose.js";
 import { caseRows, renderCatalog, type StackHeader } from "../../support/report.js";
 import { filterChainLog, sessionLink } from "../../support/diagnostics.js";

@@ -7,6 +7,7 @@
  * platform through `Env`; a spec in `specs/k8s/` asserts the Kubernetes resources themselves, which
  * no other target has.
  */
+import { engineProxyEndpoint } from "../env/platform-http.js";
 import { proxyUrl } from "../env/containers.js";
 import {
   deploymentOf,
@@ -115,5 +116,5 @@ export function pods(): Promise<Pod[]> {
 
 /** The public gateway, through the proxy's `/e2e/gateway/` location. */
 export function gatewayUrl(path: string): string {
-  return `${proxyUrl()}/e2e/gateway${path}`;
+  return engineProxyEndpoint(`${proxyUrl()}/e2e/gateway`) + path;
 }

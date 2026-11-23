@@ -1,3 +1,5 @@
+import { externalSettings } from "./external-settings.js";
+import { awaitOverlayReady, checkExternalOverlay, externalOverlayReady } from "./overlays.js";
 import { suiteExtension } from "./suite-extension.js";
 /**
  * What differs between the two targets, behind one interface.
@@ -14,7 +16,7 @@ import type {
   Project,
 } from "@playwright/test";
 import { ComposeEnv } from "./compose.js";
-import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
+import type { EngineKind, Env, Overlay, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
 import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE, recordedMicroDomain } from "./k8s.js";
 import { collectK8sHeader, k8sBaseline, startK8sSampler } from "./k8s-observer.js";
@@ -116,6 +118,7 @@ function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
       // project: one red broker case would skip both. The cost is the reverse, so a red `global`
       // case skips the restart cases. On `k8s`, `env-micro` waits for this project too.
       name: "brokers-restart",
+      metadata: { qipBrokerRestart: true },
       testDir: "./specs/brokers",
       testMatch: /broker-restart\.spec\.ts$/,
       workers: 1,
@@ -295,5 +298,33 @@ function k8sSetup(): TargetSetup {
 /** The setup of `name`, which defaults to the target `CIP_TARGET` names. */
 export function targetSetup(name?: Target): TargetSetup {
   const base = (name ?? target()) === "compose" ? composeSetup() : k8sSetup();
-  return name === undefined ? suiteExtension().target?.(base) ?? base : base;
+  if (name !== undefined) return base;
+  const extension = suiteExtension();
+  const setup = extension.target?.(base) ?? base;
+  if (!externalSettings()?.full) return setup;
+  return {
+    ...setup,
+    createEnv(kind, state) {
+      const env = setup.createEnv(kind, state);
+      const brokers = {
+        ensureOverlay: checkExternalOverlay,
+        async removeOverlay() {},
+        async restartOverlay(overlay: Overlay) {
+          const restart = extension.brokers?.restart;
+          if (!restart || (overlay !== "kafka" && overlay !== "rabbitmq")) {
+            throw new Error(`Configure adapter.brokers.restart for the external ${overlay} broker.`);
+          }
+          await restart(overlay);
+          await awaitOverlayReady(overlay, async () => (await externalOverlayReady(overlay)) ? "readiness probe failed" : null, "recover");
+        },
+      };
+      return new Proxy(env, {
+        get(target, key: keyof Env) {
+          if (Object.hasOwn(brokers, key)) return brokers[key as keyof typeof brokers];
+          const value = target[key];
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
+  };
 }

@@ -6,9 +6,10 @@ import { platformFetch as fetch } from "./platform-http.js";
  */
 import net from "node:net";
 import amqp from "amqplib";
+import Client from "ssh2-sftp-client";
 import { Kafka, logLevel } from "kafkajs";
 import type { Overlay } from "./index.js";
-import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "./containers.js";
+import { kafkaHostBrokers, kafkaHostSecurity, pubsubHostUrl, pubsubProjectId, rabbitmqHostUrl, sftpHostAddress, sftpHostConnection } from "./containers.js";
 import { pollUntil } from "./host.js";
 
 /**
@@ -87,6 +88,8 @@ export function kafkaReady(brokers: string[]): () => Promise<string | null> {
     const admin = new Kafka({
       clientId: "e2e-overlay-ready-probe",
       brokers,
+      ...kafkaHostSecurity(),
+      connectionTimeout: 2_000,
       logLevel: logLevel.NOTHING,
       requestTimeout: 2_000,
       retry: { retries: 0 },
@@ -144,4 +147,29 @@ export function hostReady(overlay: Overlay): () => Promise<string | null> {
       }
     }
   };
+}
+
+async function sftpReady(): Promise<string | null> {
+  const client = new Client();
+  try {
+    await client.connect({ ...sftpHostConnection(), readyTimeout: 2_000 });
+    await client.list("/upload");
+    return null;
+  } catch {
+    return "the SFTP client could not list /upload";
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+export function externalOverlayReady(overlay: Overlay): Promise<string | null> {
+  if (overlay === "sftp") return sftpReady();
+  if (overlay === "pubsub") return httpReady(`${pubsubHostUrl()}/v1/projects/${pubsubProjectId()}/topics`)();
+  return hostReady(overlay)();
+}
+
+export async function checkExternalOverlay(overlay: Overlay): Promise<void> {
+  if (await externalOverlayReady(overlay)) {
+    throw new Error(`Cannot connect to the external ${overlay} broker from the runner. Check its host address and credentials.`);
+  }
 }

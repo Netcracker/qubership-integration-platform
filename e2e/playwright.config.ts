@@ -18,6 +18,7 @@ import {
   type PlaywrightWorkerOptions,
 } from "@playwright/test";
 import { proxyUrl, serviceUrl } from "./env/containers.js";
+import { externalSettings } from "./env/external-settings.js";
 import { target } from "./env/target.js";
 import { PROJECT_LANES } from "./support/lanes.mjs";
 import { VSCODE_PORT } from "./support/vscode-server.js";
@@ -42,6 +43,7 @@ import {
  * that measures something better.
  */
 const workers = Number(process.env.E2E_WORKERS ?? 8);
+const external = externalSettings();
 
 const suite: SuiteProject[] = [
   {
@@ -245,7 +247,7 @@ const suite: SuiteProject[] = [
     dependencies: ["seed", "ui-server"],
     use: {
       ...devices["Desktop Chrome"],
-      baseURL: proxyUrl(),
+      baseURL: external ? external.ui ?? external.proxy : proxyUrl(),
       // Pinned rather than inherited: the chain canvas renders only the nodes inside the viewport,
       // so `specs/ui/chain-graph.spec.ts` counts nodes against this size.
       viewport: { width: 1600, height: 900 },
@@ -363,7 +365,7 @@ export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & Sui
   ],
   use: {
     // Off the one table every addressed service is read from, so a port that moves moves once.
-    baseURL: serviceUrl("runtime-catalog"),
+    baseURL: external ? external.services["runtime-catalog"] : serviceUrl("runtime-catalog"),
     // Every request and response of a failed spec, and nothing at all on a green run. It replaces
     // `on-first-retry`, which `retries: 0` makes unreachable: without it a red spec yields the
     // assertion diff and the source line, and no request URL, response body, or engine log.
