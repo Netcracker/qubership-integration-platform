@@ -2,4 +2,4 @@ module github.com/Netcracker/qubership-integration-platform/tools/autonomous-fix
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
