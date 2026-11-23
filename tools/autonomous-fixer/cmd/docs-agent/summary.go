@@ -91,9 +91,6 @@ func writeWorkSummary(prepared, run, output, outcome, checkIDs string) error {
 	diagnostics.AuthorActivity = describeAuthor(diagnostics, provider, progress, profile, session)
 	diagnostics.RoutingReason = explainRoute(diagnostics.Route, route, classifier)
 	diagnostics.Notice = documentationStopNotice(prepared, work, report)
-	if diagnostics.Notice != nil && !safeModel(diagnostics.Notice.Signature.Model) {
-		diagnostics.Notice.Signature = agentsignature.Signature{}
-	}
 	if err := save(filepath.Join(output, "summary.json"), diagnostics); err != nil {
 		return err
 	}
@@ -252,7 +249,10 @@ func describeAuthor(d workDiagnostics, provider authorDiagnostics, progress expe
 		return modelActivity{State: "no-requests", Description: "No OpenRouter requests recorded.", Cost: new(float64)}
 	case d.AuthorAttempts != nil:
 		state = "attempted"
-		description = fmt.Sprintf("OpenRouter request attempts %d.", *d.AuthorAttempts)
+		description = "Attempted one OpenRouter request."
+		if *d.AuthorAttempts > 1 {
+			description = fmt.Sprintf("Attempted %d OpenRouter requests.", *d.AuthorAttempts)
+		}
 	case progress.Stage == string(doccycle.AuthorStage) && progress.PID > 0:
 		state = "runtime-started"
 		description = "Runtime started. Request count unknown."
