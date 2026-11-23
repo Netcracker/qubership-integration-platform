@@ -109,7 +109,7 @@ Open the **"Deployments"** tab and click **"Create deployment"**. Fill in:
 Click **"Deploy"**. The **Status** column moves from **_Progressing_** to **_Deployed_** once every requested engine
 has confirmed. On **_Failed_**, hover over the engine's status to read the error.
 
-> ℹ️  A chain must be deployed on at least one engine domain, otherwise it cannot be triggered.
+> ℹ️ A chain must be deployed on at least one engine domain, otherwise it cannot be triggered.
 
 ### 6. Call the Endpoint
 
@@ -139,7 +139,7 @@ Click an element name to inspect what it did: the **Body** tab shows the payload
 **Exchange properties** show the before and after values of each entry, and **Technical context** lists the context
 headers the chain received.
 
-> ℹ️  Session records are populated according to the logging level set for the chain. If the **"Sessions"**
+> ℹ️ Session records are populated according to the logging level set for the chain. If the **"Sessions"**
 > tab stays empty, check the chain's [Logging](../../01__Chains/5__Logging/readme.md) tab — **Sessions logging
 > level** of **Off** records nothing.
 

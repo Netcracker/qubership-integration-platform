@@ -5,7 +5,7 @@
 ---
 Context Storage provides an ability to manage context data through the chain using a [Context Services](../../../../../02__Services/4__Context/readme.md).
 
-> ⚠️  Context Storage **shall NOT** be used to store/manage sensitive data.
+> ⚠️ Context Storage **shall NOT** be used to store/manage sensitive data.
 
 ## User Interface
 
@@ -27,7 +27,7 @@ Depending on selected operation, **additional** parameters will be presented:
 | Value        | O         | String    | Context value. When blank value is passed and there is context data that already exists for the given session id, this data will be cleared out. | Text        |
 | Time to live | M         | Integer   | Time period (in seconds) by which Context is active.<br>**Default value:** 21600<br><br>ℹ️ Value cannot be less than 1 second.          | 21600       |
 
-> ℹ️  Updating any parameter (Key, Value or Lifetime) renews the object’s expiration time, setting it to **`currentTime + lifeTime`**
+> ℹ️ Updating any parameter (Key, Value or Lifetime) renews the object’s expiration time, setting it to **`currentTime + lifeTime`**
 
 - **Get context**
 

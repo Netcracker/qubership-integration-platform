@@ -11,7 +11,7 @@ There are two variable types:
 - **Common** - commonly used type of variables. Their values are stored in the Consul and visible for user.
 - **Secured** - variables, specifically derived to handle protected data (e.g. credentials). Such variables are stored in K8S secrets, and their values are hidden on respective tab.
 
-> ℹ️  When it is required to refer to the secured variables, which are stored in **non-default secret**, it is required to specify their secret before their names with a "**:**" delimiter.
+> ℹ️ When it is required to refer to the secured variables, which are stored in **non-default secret**, it is required to specify their secret before their names with a "**:**" delimiter.
 
 ### Design Time Variables
 Variables, that are specified on Admin Tools and referred within a chain via **"\#{"** combination, are considered to be **design time variables**.
@@ -47,7 +47,7 @@ There are currently two default variables, that are being specified as part of t
 
 Both variables will be available on Common variables tab in the application.
 
-> ℹ️  Please note, that both variables will be restored with refreshed values during pod startup. Before operating with mentioned variables, it is strongly recommended to consult with technical team.
+> ℹ️ Please note, that both variables will be restored with refreshed values during pod startup. Before operating with mentioned variables, it is strongly recommended to consult with technical team.
 
 ### Variables Autocompletion
 If variable is configured in Admin Tools, there is no need to remember its exact name when specifying it for a particular field.
@@ -56,7 +56,7 @@ When specific fields do not "recognize" such combination, it means that fields d
 (the only exception is URI field for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
 and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md), please read respective articles for more details).
 
-> ℹ️  For **common variables used in design time mode** there is no need to remember its value or check it on dedicated UI page. **Just hover the mouse on variable name and the value will appear on the screen**.
+> ℹ️ For **common variables used in design time mode** there is no need to remember its value or check it on dedicated UI page. **Just hover the mouse on variable name and the value will appear on the screen**.
 
 ## Process Initialization
 
@@ -99,13 +99,13 @@ Under each secret the following actions can be applied:
 * ![cloud-download](img/cloud-download.svg) - export secret as Helm Chart.
 * ![plus](img/plus.svg) - add variable.
 
-> ⚠️  This icon is disabled for the **default secret**, since adding new variables to it is no longer allowed.
+> ⚠️ This icon is disabled for the **default secret**, since adding new variables to it is no longer allowed.
 
 ### Create Secret
 To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.
 As the result of this operation, there will be new Secret created with a given name in Kubernetes. Secret's name must be specified in lower case, start with a letter and contain no special symbols besides "-", which could be used as a delimiter.
 
-> ⚠️  Never **ever** attempt to override or re-create secret with the name "*cip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
+> ⚠️ Never **ever** attempt to override or re-create secret with the name "*cip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
 
 ### Create Variable
 To add new variable, click actions menu icon ![plus](img/plus.svg) for respective secret, specify variable name and value in the respective fields. Finally, press button **"Add"** on the widget.
@@ -119,7 +119,7 @@ To delete variable(s), select the suitable variables by checkbox near variable k
 ### Export Variables
 To export common variables, select the suitable variable by checkboxes near respective keys and click ![cloud-download](img/cloud-download.svg).
 
-> ℹ️  If no specific records are checked for export, all existing variables are going to be exported by pressing the export button.
+> ℹ️ If no specific records are checked for export, all existing variables are going to be exported by pressing the export button.
 
 ### Download Secrets
 To download a secret from "**Secured Variables**" tab, click on ![cloud-download](img/cloud-download.svg) for respective secret record. Resulted file will have **.yaml** format.
@@ -137,7 +137,7 @@ ENV_TYPE: "PROD"
 1: "1"
 ```
 If there are Import Instructions configured for common variables that are going to be imported, system **ignores** them during the import process. Find more details about Import Instructions in the respective article: [Import Instructions](../4__Import_Instructions/readme.md).
-> ℹ️  There are syntax specifics, that shall be considered:
+> ℹ️ There are syntax specifics, that shall be considered:
 >
 > - every numeric key shall be wrapped with quotation marks.
 > - both key and value will be imported with AS-IS letter cases.

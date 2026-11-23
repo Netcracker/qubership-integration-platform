@@ -41,7 +41,7 @@ Table contains sessions, aggregated by correlation identifier, if it is availabl
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
-  > ℹ️  When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
+  > ℹ️ When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
   - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter sessions by **Chain**, **Status**, **Start Time**, **Finish Time**, and **Engine**.
   - ![Settings|20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **ID**.
   - ![Delete|20](img/delete.svg) - deletes selected session(s).
@@ -49,13 +49,13 @@ At the top of the table the following options are available:
   - ![Upload|20](img/cloud-upload.svg) - opens pop-up for session import.
   - ![Redo|20](img/redo.svg) - refreshes session table.
 
-> ℹ️  Imported sessions will be highlighted in the table. For such sessions, references to the chain and chain elements won't be available.
+> ℹ️ Imported sessions will be highlighted in the table. For such sessions, references to the chain and chain elements won't be available.
 
 Additionally, at the top of the table there is search box providing ability to find particular session(s) by body field name, body field value, header name or header value.
 
 ### Session View
 Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![20](img/right.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related configuration graph instead of chain element.
+- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the chain graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related chain graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -72,11 +72,11 @@ Click **Session ID value** in the respective row of sessions table to see the li
 ### Session's element view
 Click element's name to open additional window with detailed element's information, including its state before and after it has been executed. For convenient navigation between elements, use "**Next**" and "**Previous**" buttons.
 Next information is available, when element's name clicked and window with its details presented:
-- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related configuration graph instead of chain element.
+- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the chain graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related chain graph instead of chain element.
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
 - **Body** tab - contains before/after states of request body, participated in the processing.  Slider **"View diff"** highlights payloads differences.
 - **Headers** tab - contains the list of headers and their before/after values.
-    > ℹ️  For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
+    > ℹ️ For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
 - **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../05__How_To/1__Build_Logic_Around_Failed_Elements/readme.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that has been received by the chain.
 

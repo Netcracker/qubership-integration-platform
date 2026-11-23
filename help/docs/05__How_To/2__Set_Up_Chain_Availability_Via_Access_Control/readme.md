@@ -1,4 +1,4 @@
-# Chain Availability Setup (Access Control)
+# Set Up Chain Availability via Access Control
 ## Description
 
 ---

@@ -40,7 +40,7 @@ As an example, user may need to prohibit the request processing for any environm
 ${exchangeProperty.systemProperty_bluegreenState} == 'active'
 ```
 
-System properties are available in the sessions, when viewing **"Exchange** **properties**" tab (both for **[Configuration Graph]** and **[Admin Tools]** windows, under respective tab/section **"Sessions"**). This is only applicable for cases, when a chain is deployed with an option to produce logs, otherwise sessions won't be visible at all.
+System properties are available to check in the particular [session details](../../01__Chains/4__Sessions/readme.md#sessions-element-view), when viewing **"Exchange properties**" tab (available also in [Sessions on Admin Tools](../../03__Admin_Tools/5__Sessions/readme.md#sessions-element-view)). This is only applicable for cases, when a chain is deployed with an option to produce session logs, otherwise sessions won't be visible at all.
 
 ## Data Storage
 

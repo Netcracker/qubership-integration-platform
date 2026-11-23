@@ -17,7 +17,7 @@ Snapshot shall be created manually via CIP UI (navigate to "**Snapshots**" tab, 
 ### Snapshot Table View
 There is a **"Snapshots"** tab, available for each particular chain. By navigating to this tab user will be presented with a table, that contains next info and control elements:
 - **Name** - snapshot's name. First snapshot is automatically named "**V1**". Every subsequent snapshot will be named with incremented number (**V2**, **V3**, etc).
-    > ℹ️  To change a snapshot's name, click its **Name** cell, enter a new name, and press **`Enter`** or click outside the cell.
+    > ℹ️ To change a snapshot's name, click its **Name** cell, enter a new name, and press **`Enter`** or click outside the cell.
 - **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed by clicking the cell. Click outside the cell to submit the changes. **Technical** labels cannot be updated manually.
 - **Created By** - username of snapshot creation.
 - **Created At** - the datetime of snapshot creation.
@@ -44,12 +44,12 @@ To create snapshot, click button ![plus](img/plus.svg). If chain graph is valid,
 ### Delete Snapshot
 To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click ![delete](img/delete.svg) on control panel or select "**Delete**" option in actions menu for each row.
 
-> ℹ️  Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older than the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
+> ℹ️ Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older than the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 
 ### Revert Chain to the Particular Snapshot
 To revert chain to the particular version, select **"Revert to"** option in actions menu. After this a popup with the confirmation will be opened. Then the graph will be shown with all the information and the elements that were saved in the chosen snapshot.
 
-> ℹ️  In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version.
+> ℹ️ In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version.
 
 ### Open Snapshot Sequence Diagram
 To build the sequence diagram by particular snapshot data, select "**Show Diagram**" option in actions menu. This will open new pop-up window with sequence diagram.
@@ -59,4 +59,4 @@ Sequence diagram could be exported via button **"Export"** with 3 output formats
 ### Compare Snapshots
 Select exactly two snapshots using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog.
 
-> ℹ️  The dialog reuses the same comparison feature described in the **Compare Chains** section of [Chains](../readme.md) — the **Graph**, **Table**, and **Text** views, the color-coded element states, the **Previous change**/**Next change** navigation, and the fullscreen toggle — applied to the two selected snapshots instead of two chains.
+> ℹ️ The dialog reuses the same comparison feature described in the **Compare Chains** section of [Chains](../readme.md) — the **Graph**, **Table**, and **Text** views, the color-coded element states, the **Previous change**/**Next change** navigation, and the fullscreen toggle — applied to the two selected snapshots instead of two chains.
