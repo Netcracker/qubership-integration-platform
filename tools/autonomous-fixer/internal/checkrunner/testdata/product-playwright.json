@@ -1,0 +1,110 @@
+{
+  "suites": [
+    {
+      "title": "ui/chain-header.spec.ts",
+      "suites": [
+        {
+          "title": "chains header",
+          "suites": [],
+          "specs": [
+            {
+              "title": "shows the Chains heading on root and folder lists",
+              "file": "ui/chain-header.spec.ts",
+              "tests": [
+                {
+                  "expectedStatus": "passed",
+                  "projectName": "ui",
+                  "status": "expected",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "errors": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "uses the compact search in every theme",
+              "file": "ui/chain-header.spec.ts",
+              "tests": [
+                {
+                  "expectedStatus": "passed",
+                  "projectName": "ui",
+                  "status": "expected",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "errors": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "shows folder breadcrumbs above the chain title",
+              "file": "ui/chain-header.spec.ts",
+              "tests": [
+                {
+                  "expectedStatus": "passed",
+                  "projectName": "ui",
+                  "status": "expected",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "errors": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "returns to the chain folder from every entry path",
+              "file": "ui/chain-header.spec.ts",
+              "tests": [
+                {
+                  "expectedStatus": "passed",
+                  "projectName": "ui",
+                  "status": "expected",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "errors": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "browser Back returns to the previous page",
+              "file": "ui/chain-header.spec.ts",
+              "tests": [
+                {
+                  "expectedStatus": "passed",
+                  "projectName": "ui",
+                  "status": "expected",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "errors": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "specs": []
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-16T12:38:57.403Z",
+    "duration": 89317.58399999999,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
