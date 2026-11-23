@@ -13,7 +13,8 @@ import { ensureRunToken, readRuns, recordRun, sweepableRuns, type RunRecord } fr
 import { Catalog } from "../support/catalog.js";
 import { discardCorpusStateOf } from "../support/corpus.js";
 import { formatPreviousRunSweep, sweepPreviousRuns } from "../support/fixtures.js";
-import { publishedLabel, writeStackHeader } from "../support/report.js";
+import { writeStackHeader } from "../support/report.js";
+import { publishedImagesLine } from "../support/run-report.mjs";
 import { reserveBundleBuild } from "../support/ui-server.js";
 import { targetSetup } from "./target-setup.js";
 
@@ -43,7 +44,7 @@ export interface ProvisionReport {
   started: string[];
   /** Services left exactly as they were found. */
   untouched: string[];
-  /** Images the Kubernetes target ran from GHCR instead of building them, which `E2E_BUILD` decides. */
+  /** Prebuilt images the Kubernetes target kept instead of building them. */
   published: PublishedImage[];
   /**
    * Compose support services whose configuration has moved on and which the suite will not recreate.
@@ -62,8 +63,9 @@ export interface ProvisionReport {
 /** An image a run did not build, and the digest its pod runs. */
 export interface PublishedImage {
   name: string;
-  /** The reference the chart names, with the tag `latest`. */
+  /** The exact reference the chart names. */
   image: string;
+  pinned?: boolean;
   /** The pod's `imageID`, which carries the digest; `null` where no pod runs the image yet. */
   imageId: string | null;
 }
@@ -105,12 +107,8 @@ export function formatReport(report: ProvisionReport): string {
     );
   }
   if (report.started.length) lines.push(`[provision]   started: ${report.started.join(", ")}`);
-  if (report.published.length) {
-    lines.push(
-      `[provision]   from GHCR: ` +
-        report.published.map((each) => `${each.name} ${publishedLabel(each)}`).join(", "),
-    );
-  }
+  const published = publishedImagesLine(report.published);
+  if (published) lines.push(`[provision]   ${published}`);
   // The one line the suite prints instead of acting. Silence here reads as "the stack matches the
   // commit", and the container that does not match is the one holding the data every spec asserts
   // against.

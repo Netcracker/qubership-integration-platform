@@ -25,7 +25,7 @@ import fs from "node:fs";
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ ms: number, project: string, location: string, title: string }} TimedTest
- * @typedef {{ name: string, image: string, imageId: string | null }} PublishedImage
+ * @typedef {{ name: string, image: string, imageId: string | null, pinned?: boolean }} PublishedImage
  */
 
 export const ERROR_LINES = 8;
@@ -324,12 +324,22 @@ export function utcDate(iso) {
   return `${shortDate(iso)}, ${new Date(iso).getUTCFullYear()}, ${shortTime(iso)} UTC`;
 }
 
-/**
- * A published image by its digest, which the tag `latest` does not pin.
- *
- * @param {PublishedImage} each
- */
-export function publishedLabel(each) {
+/** @param {PublishedImage} each */
+function publishedLabel(each) {
   if (each.imageId === null) return `${each.image} (no pod yet)`;
-  return /sha256:[0-9a-f]{64}/.exec(each.imageId)?.[0] ?? each.imageId;
+  const imageId = /sha256:[0-9a-f]{64}/.exec(each.imageId)?.[0] ?? each.imageId;
+  return each.pinned ? `${each.image} (${imageId})` : imageId;
+}
+
+/** @param {readonly PublishedImage[]} images */
+export function publishedImagesLine(images, markdown = false) {
+  if (images.length === 0) return undefined;
+  const pinned = images.some((image) => image.pinned);
+  const heading = pinned ? "prebuilt images" : "from GHCR";
+  const title = markdown ? heading[0].toUpperCase() + heading.slice(1) : heading;
+  const labels = images.map((image) => {
+    const label = publishedLabel(image);
+    return `${image.name} ${markdown ? `\`${label}\`` : label}`;
+  });
+  return `${title}: ${labels.join(", ")}`;
 }

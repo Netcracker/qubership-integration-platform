@@ -8,7 +8,8 @@
  *
  * Each image is tagged with a hash over its own inputs, so an image whose tag already exists is not
  * rebuilt, and Helm leaves a Deployment whose tag did not change alone. `E2E_BUILD` narrows the
- * images built from the checkout; every other one runs as its published `:latest` from GHCR.
+ * images built from the checkout; omitted images use operator pins when configured, otherwise
+ * their published `:latest` from GHCR.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -356,6 +357,31 @@ export function suiteImages(): SuiteImage[] {
 /** The tag of an image this run does not build: the one `_maven-module-release.yaml` publishes. */
 export const PUBLISHED_TAG = "latest";
 
+export const PINNED_IMAGES_FILE_ENV = "E2E_PINNED_IMAGES_FILE";
+export type PinnedImageTags = Partial<Record<SuiteImageName, string>>;
+
+export function readPinnedImageTags(
+  images: readonly SuiteImage[],
+  file: string | undefined = process.env[PINNED_IMAGES_FILE_ENV],
+): PinnedImageTags | undefined {
+  if (file === undefined) return undefined;
+  const references: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
+  if (!references || typeof references !== "object" || Array.isArray(references)) {
+    throw new Error(`${PINNED_IMAGES_FILE_ENV} must name a JSON object of image references`);
+  }
+  const tags: PinnedImageTags = {};
+  for (const [name, reference] of Object.entries(references)) {
+    const image = images.find((entry) => entry.name === name);
+    if (!image) throw new Error(`${PINNED_IMAGES_FILE_ENV} names unknown image ${name}`);
+    const prefix = `${image.repository}:`;
+    if (typeof reference !== "string" || !reference.startsWith(prefix) || reference.length === prefix.length) {
+      throw new Error(`${PINNED_IMAGES_FILE_ENV} requires a ${prefix}<tag> reference for ${name}`);
+    }
+    tags[image.name] = reference.slice(prefix.length);
+  }
+  return tags;
+}
+
 /**
  * The images `E2E_BUILD` builds from the checkout: a comma list of image names, `all`, or `none`.
  * Unset or empty means `all`; `all` beside other names is still `all`, and `none` beside other
@@ -377,17 +403,21 @@ export function imagesToBuild(raw: string | undefined = process.env.E2E_BUILD): 
   return new Set(tokens.filter((each) => each !== "none") as SuiteImageName[]);
 }
 
-/** Each image's tag: a hash over its sources when this run builds it, otherwise `latest`. */
+/** Built images follow their sources; omitted images keep configured pins or use `latest`. */
 export function imageTags(
   root: string,
   images: readonly SuiteImage[],
   build: ReadonlySet<SuiteImageName>,
+  pinned?: Readonly<PinnedImageTags>,
 ): Record<SuiteImageName, string> {
   return Object.fromEntries(
-    images.map((image) => [
-      image.name,
-      build.has(image.name) ? imageTag(root, image.sources, image.mavenArgs) : PUBLISHED_TAG,
-    ]),
+    images.map((image) => {
+      if (build.has(image.name)) return [image.name, imageTag(root, image.sources, image.mavenArgs)];
+      if (pinned === undefined) return [image.name, PUBLISHED_TAG];
+      const tag = pinned[image.name];
+      if (!tag) throw new Error(`${PINNED_IMAGES_FILE_ENV} does not pin omitted image ${image.name}`);
+      return [image.name, tag];
+    }),
   ) as Record<SuiteImageName, string>;
 }
 
@@ -396,8 +426,13 @@ export function imageTags(
  * micro-engine image is a `prod` build, which the chart cannot start, so `seed-micro` would wait
  * for a pod that never serves.
  */
-export function checkMicroBuild(build: ReadonlySet<SuiteImageName>, microProjects: readonly string[]): void {
+export function checkMicroBuild(
+  build: ReadonlySet<SuiteImageName>,
+  microProjects: readonly string[],
+  pinned?: Readonly<PinnedImageTags>,
+): void {
   if (build.has("micro-engine") || !microProjects.length) return;
+  if (/^e2e-[a-f0-9]{12}$/.test(pinned?.["micro-engine"] ?? "")) return;
   throw new Error(
     `E2E_BUILD=${process.env.E2E_BUILD ?? ""} leaves out micro-engine, and this run selects ` +
       `${microProjects.join(", ")}, which run the micro engine. The published micro-engine image is a ` +
@@ -542,14 +577,20 @@ async function ensureNamespace(): Promise<void> {
  * The image each role's pod runs, for the images this run did not build. The micro engine has no
  * pod until a micro domain is deployed, so its digest is `null`.
  */
-async function publishedImages(images: readonly SuiteImage[], build: ReadonlySet<SuiteImageName>): Promise<PublishedImage[]> {
+async function publishedImages(
+  images: readonly SuiteImage[],
+  build: ReadonlySet<SuiteImageName>,
+  tags: Readonly<Record<SuiteImageName, string>>,
+  pinned?: Readonly<PinnedImageTags>,
+): Promise<PublishedImage[]> {
   const published: PublishedImage[] = [];
   for (const image of images) {
     if (build.has(image.name)) continue;
     published.push({
       name: image.name,
-      image: `${image.repository}:${PUBLISHED_TAG}`,
+      image: `${image.repository}:${tags[image.name]}`,
       imageId: image.name === "micro-engine" ? null : await podImageId(image.name),
+      ...(pinned === undefined ? {} : { pinned: true }),
     });
   }
   return published;
@@ -580,15 +621,16 @@ export async function provisionK8s(
   }
 
   const build = imagesToBuild();
-  checkMicroBuild(build, microProjects);
+  const images = suiteImages();
+  const pinned = readPinnedImageTags(images);
+  checkMicroBuild(build, microProjects, pinned);
   // E2E_BOOTSTRAP_LOG names the log of a bootstrap still running, so the cluster is checked after
   // the image builds, which need no cluster. Otherwise it is checked first, before the long build.
   const bootstrapLog = process.env.E2E_BOOTSTRAP_LOG || null;
   let cluster = bootstrapLog ? null : await readyCluster(null);
 
   const root = repoRoot();
-  const images = suiteImages();
-  const tags = imageTags(root, images, build);
+  const tags = imageTags(root, images, build, pinned);
   const built = images.filter((image) => build.has(image.name));
   const missing: SuiteImage[] = [];
   for (const image of built) {
@@ -644,7 +686,7 @@ export async function provisionK8s(
     if (before[role] === after[role]) report.untouched.push(role);
     else report.started.push(role);
   }
-  report.published = await publishedImages(images, build);
+  report.published = await publishedImages(images, build, tags, pinned);
   report.durationMs = Date.now() - startedAt;
   return report;
 }

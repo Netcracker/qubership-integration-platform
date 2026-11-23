@@ -169,22 +169,28 @@ npx playwright install chromium
 ```
 
 Then run `npm install` at the repository root as well, because the `ui-server` project builds and
-serves the UI bundle itself. It rebuilds the production bundle when it is stale, starts
-`vite preview` on port 4200, and stops it at the end of the run; nginx on 8080 sends every request
-outside `/api/` to that port. Before it, the `schemas-build` project builds `schemas/` when its
-sources, compiler configuration, or dependencies change, or an output is missing, because the UI imports
-`schemas/dist` and `npm install` does not create it. The rebuild of the bundle takes about 75
+serves the UI bundle itself. It rebuilds the production bundle when it is stale and starts
+`vite preview` on port 4200. By default, teardown stops the preview the suite started. The nginx
+proxy on port 8080 sends requests outside `/api/` to port 4200. Before the bundle build, the
+`schemas-build` project builds `schemas/` when its sources, compiler configuration, or dependencies
+change, or an output is missing. The UI imports `schemas/dist`, which `npm install` does not create.
+The rebuild of the bundle takes about 75
 seconds: `npm run build --ignore-scripts -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`,
 where `--ignore-scripts` skips the `prebuild` that would build the schemas again. The bundle is
 stale when `ui/dist` was built outside the suite (the suite's own build leaves `ui/dist/.e2e-build`
 behind), or when anything it is built from is newer: `ui/src`, `ui/public`, the `ui/.env*` files,
 `schemas/src/main`, `help/docs`, or the lockfile.
 
-A server already answering on 4200 is used as found and left running. A dev server started with
-`npm -w @netcracker/qip-ui run dev` is a different artifact from the bundle, so the browser cases
-then test the dev server. A preview an interrupted run left on 4200 is stopped first, because
-`.e2e-ui-server.json` still records it; when the runner that started it is still alive, the setup
-fails naming its pid instead.
+By default, the suite reuses a server already answering on 4200 and leaves it running. If you start
+`npm -w @netcracker/qip-ui run dev`, the browser cases run against the dev server. When
+`.e2e-ui-server.json` records a preview whose runner exited, setup stops the preview before starting
+a new one. If the recorded runner is still alive, setup fails with the runner's PID.
+
+For serial runs from the same checkout, set `E2E_UI_PREVIEW_OWNER_PID` to the PID of a process that
+stays alive until the last run ends. The suite shares a preview recorded for that PID, rebuilding
+and restarting it when the bundle changes. An unrelated listener on port 4200 or a stale preview
+record fails setup. Teardown leaves the preview running. The owner calls `releaseUiServer(pid)`
+after the last run. See the [UI preview owner example](../tools/autonomous-fixer/WORK-CYCLE.md#keep-the-ui-preview-across-stages).
 
 The `vscode` project needs the same root `npm install` and the same Chromium, and no stack. Its
 `vscode-server` setup builds the UI library and the extension when they are stale, then serves VS
@@ -758,9 +764,11 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
 | `E2E_VSCODE_COMMIT`       | `VSCODE_COMMIT` in `support/vscode-server.ts` | The VS Code insiders build `vscode-server` serves, by its commit (see [The `vscode` project](#the-vscode-project)). |
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
-| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. The nightly and the pull request jobs build every image their projects run. |
+| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout. Set a comma-separated list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or use `all` or `none`. `all` includes every image, `none` adds no images, and an unknown name fails the run. Omitted images use `E2E_PINNED_IMAGES_FILE` when set and published `:latest` images from GHCR otherwise. |
+| `E2E_PINNED_IMAGES_FILE`  | unset                                | On `k8s`, a JSON file that maps each service omitted by `E2E_BUILD` to a `repository:tag` reference in its suite image repository. For micro projects, build `micro-engine` or pin an `e2e-<12-character hex hash>` tag from a suite build. The run header gives each pin and any digest observed on the pod. |
 | `E2E_BOOTSTRAP_LOG`       | unset                                | On `k8s`, the log of a cluster bootstrap still running in the background, which `_e2e-kind.yaml` starts before it installs the dependencies. The run builds the images first, then waits for the exit code the workflow writes to `<log>.exit`, and checks the cluster only after that. A non-zero code fails the run with the log. Unset, the run checks the cluster before it builds the images. |
 | `E2E_AI_RECOVERY`         | unset                                | `1` includes the Compose AI recovery lifecycle case in `env`; requires a running `qip-ai-service`. Ignored on `k8s`. |
+| `E2E_UI_PREVIEW_OWNER_PID` | unset                                | The PID of the process that owns `vite preview` across serial suite runs. The owner releases the preview after the last run. See [Prerequisites](#prerequisites). |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
