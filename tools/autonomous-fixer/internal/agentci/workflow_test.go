@@ -27,11 +27,18 @@ func TestObserverFollowsOrdinaryPullRequestWorkflows(t *testing.T) {
 			allowed[name] = true
 		}
 	}
-	// Revision completion wakes the observer after a worker releases its PR.
-	if !allowed["QIP agent work"] {
-		t.Fatal("observer does not follow completed revisions")
+	if !strings.Contains(string(data), "branches: ['agent/fix/**', 'refs/pull/**', 'pull/**']") {
+		t.Fatal("CI completion must be scoped to agent branches and PR merge refs")
 	}
-	delete(allowed, "QIP agent work")
+	control, err := os.ReadFile(filepath.Join(directory, "agent-control.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{"workflows: [QIP agent work]", "qip-agent-revise|", "qip-agent-auto-revise|", "uses: ./.github/workflows/agent-ci.yaml"} {
+		if !strings.Contains(string(control), route) {
+			t.Errorf("missing revision completion route %q", route)
+		}
+	}
 	files, err := os.ReadDir(directory)
 	if err != nil {
 		t.Fatal(err)
