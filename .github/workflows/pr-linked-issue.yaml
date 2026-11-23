@@ -28,7 +28,33 @@ jobs:
     name: Verify linked issue
     runs-on: ubuntu-latest
     steps:
+      - name: Check out trusted documentation verifier
+        if: ${{ vars.AGENT_DOCS_PUBLISHER_LOGIN != '' && github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN && startsWith(github.head_ref, 'agent/docs/') }}
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up documentation verifier
+        if: ${{ vars.AGENT_DOCS_PUBLISHER_LOGIN != '' && github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN && startsWith(github.head_ref, 'agent/docs/') }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Verify documentation relationship
+        id: documentation
+        if: ${{ vars.AGENT_DOCS_PUBLISHER_LOGIN != '' && github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN && startsWith(github.head_ref, 'agent/docs/') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PUBLISHER: ${{ vars.AGENT_DOCS_PUBLISHER_LOGIN }}
+        run: |
+          set -euo pipefail
+          go -C tools/autonomous-fixer run ./cmd/docs-agent verify-pr \
+            --repository "$REPOSITORY" --pull-request "$PR_NUMBER" --publisher-login "$PUBLISHER"
+          echo 'verified=true' >> "$GITHUB_OUTPUT"
       - name: Check that the PR closes an issue
+        if: steps.documentation.outputs.verified != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.event.repository.owner.login }}
@@ -128,7 +154,9 @@ jobs:
           patch_failed=false
           if [ -n "$issues" ]; then
             keywords=$(for number in $issues; do echo "Closes #$number"; done)
-            if [ -n "$body" ]; then
+            if [[ ${body##*$'\n'} == '<sub>🤖 '*'</sub>' ]]; then
+              new_body=$(printf '%s\n\n%s' "$keywords" "$body")
+            elif [ -n "$body" ]; then
               new_body=$(printf '%s\n\n%s' "$body" "$keywords")
             else
               new_body="$keywords"

@@ -1,0 +1,202 @@
+name: QIP documentation queue
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Process eligible issues if scheduled application is enabled
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.event_name == 'issue_comment' && format('qip-docs-command-{0}', github.event.comment.id) || 'qip-docs-schedule' }}
+  cancel-in-progress: false
+
+jobs:
+  authorize_command:
+    if: >-
+      ${{ github.event_name == 'issue_comment' && github.event.comment.body == '/agent docs' &&
+          github.event.issue.pull_request == null && github.event.comment.user.type == 'User' &&
+          vars.AGENT_DOCS_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      authorized: ${{ steps.authorized.outputs.authorized }}
+      issue: ${{ steps.authorized.outputs.issue }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Verify the documentation command
+        id: authorized
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          result=$(go run ./cmd/docs-agent authorize-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR")
+          jq -r '"authorized=\(.authorized)", "issue=\(.issue)"' <<< "$result" >> "$GITHUB_OUTPUT"
+
+  discover:
+    needs: authorize_command
+    if: >-
+      ${{ !cancelled() && vars.AGENT_DOCS_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch || 'main') &&
+          (github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'schedule' && vars.AGENT_DOCS_SCHEDULE_ENABLED == 'true') ||
+            (github.event_name == 'issue_comment' && needs.authorize_command.outputs.authorized == 'true')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      apply: ${{ steps.discover.outputs.apply }}
+      issues: ${{ steps.discover.outputs.issues }}
+      has_issues: ${{ steps.discover.outputs.has_issues }}
+      skip_reason: ${{ steps.discover.outputs.skip_reason }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build documentation agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - name: Identify the repository for the App token
+        id: repository
+        if: vars.AGENT_DOCS_APP_ID != ''
+        run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+      - name: Create a read-only GitHub App token
+        id: app-token
+        if: vars.AGENT_DOCS_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        env:
+          INPUT_PERMISSION-VARIABLES: read
+        with:
+          app-id: ${{ vars.AGENT_DOCS_APP_ID }}
+          private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository.outputs.name }}
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+          permission-organization-projects: read
+      - name: Discover issues in documentation review
+        id: discover
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          ACTIONS_READ_TOKEN: ${{ github.token }}
+          PROJECT_NUMBER: ${{ vars.AGENT_DOCS_PROJECT_NUMBER || '12' }}
+          BATCH_SIZE: ${{ vars.AGENT_DOCS_SCHEDULE_BATCH_SIZE || '2' }}
+          ACTOR: ${{ github.actor }}
+          ISSUE: ${{ needs.authorize_command.outputs.issue || '0' }}
+          IS_COMMAND: ${{ github.event_name == 'issue_comment' }}
+          REQUEST_APPLY: ${{ github.event_name == 'schedule' || inputs.apply }}
+          SCHEDULE_ENABLED: ${{ vars.AGENT_DOCS_SCHEDULE_ENABLED }}
+          SCHEDULE_APPLY: ${{ vars.AGENT_DOCS_SCHEDULE_APPLY }}
+        run: |
+          [[ "$PROJECT_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid documentation project number'; exit 1; }
+          [[ "$BATCH_SIZE" =~ ^([1-9]|10)$ ]] || { echo 'Set the documentation batch size to an integer between 1 and 10'; exit 1; }
+          report="$RUNNER_TEMP/docs-discovery.json"
+          "$RUNNER_TEMP/docs-agent" discover --repository "$GITHUB_REPOSITORY" --project "$PROJECT_NUMBER" --actor "$ACTOR" --issue "$ISSUE" > "$report"
+          apply=false
+          if [[ "$IS_COMMAND" == true || ( "$REQUEST_APPLY" == true && "$SCHEDULE_ENABLED" == true && "$SCHEDULE_APPLY" == true ) ]]; then
+            apply=true
+          fi
+          {
+            printf 'apply=%s\n' "$apply"
+            jq -cr --argjson limit "$BATCH_SIZE" '"issues=\(.eligible[:$limit])", "has_issues=\(.eligible | length > 0)"' "$report"
+            if [[ "$IS_COMMAND" == true ]]; then
+              jq -r '"skip_reason=\(.skipped[0].reason // "")"' "$report"
+            fi
+          } >> "$GITHUB_OUTPUT"
+          {
+            printf '## Documentation queue\n\n'
+            if [[ "$apply" == true ]]; then printf 'Apply mode. Batch size %s.\n\n' "$BATCH_SIZE"; else printf 'Preview mode.\n\n'; fi
+            jq -r '"Eligible issues (\(.eligible | length))\n", (.eligible[] | "- #\(.issue)"), "\nSkipped items (\(.skipped | length))\n", (.skipped | group_by(.reason)[] | "- \(.[0].reason) (\(length))"), "\nDownload the discovery artifact for per-item reasons."' "$report"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the discovery report
+        if: steps.discover.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-discovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/docs-discovery.json
+          if-no-files-found: error
+
+  process:
+    name: "Process documentation issue #${{ matrix.candidate.issue }}"
+    needs: discover
+    if: needs.discover.outputs.apply == 'true' && needs.discover.outputs.has_issues == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        candidate: ${{ fromJSON(needs.discover.outputs.issues) }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/agent-docs.yaml
+    with:
+      issue: ${{ format('{0}', matrix.candidate.issue) }}
+      operation: run
+      apply: true
+      scheduled_basis: ${{ matrix.candidate.basis }}
+    secrets:
+      AGENT_DOCS_APP_PRIVATE_KEY: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+      AGENT_DOCS_READ_TOKEN: ${{ secrets.AGENT_DOCS_READ_TOKEN }}
+      AGENT_DOCS_GITHUB_TOKEN: ${{ secrets.AGENT_DOCS_GITHUB_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+  reply:
+    needs: [authorize_command, discover, process]
+    if: >-
+      ${{ !cancelled() && github.event_name == 'issue_comment' &&
+          needs.authorize_command.outputs.authorized == 'true' && needs.discover.result == 'success' &&
+          (needs.discover.outputs.skip_reason != '' || needs.process.outputs.skip_reason != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Reply to the skipped documentation command
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
+          ACTOR: ${{ github.actor }}
+          REASON: ${{ needs.discover.outputs.skip_reason || needs.process.outputs.skip_reason }}
+        run: go run ./cmd/docs-agent reply-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR" --reason "$REASON"
