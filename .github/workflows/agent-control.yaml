@@ -89,7 +89,10 @@ jobs:
     if: >-
       ${{ vars.AGENT_ENABLED == 'true' && github.event_name != 'pull_request' &&
           inputs.operation != 'check' &&
-          (github.event_name != 'issue_comment' || !github.event.issue.pull_request) &&
+          (github.event_name != 'issue_comment' ||
+           (!github.event.issue.pull_request && github.event.comment.user.type == 'User' &&
+            (contains(fromJSON('["/agent fix","/agent status","/agent stop","/agent resume","/agent retry"]'), github.event.comment.body) ||
+             startsWith(github.event.comment.body, '/agent answer ')))) &&
           (github.event_name != 'workflow_run' ||
             (github.event.workflow_run.event == 'workflow_dispatch' &&
              !startsWith(github.event.workflow_run.display_title, 'qip-agent-auto-revise|'))) &&
