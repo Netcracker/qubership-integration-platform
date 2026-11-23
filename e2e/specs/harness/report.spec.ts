@@ -5,6 +5,7 @@
  * what would otherwise fail silently: a case catalog that quietly drops a project's tests, a
  * start-of-run sweep that decides ownership from the shape of a token, and an engine log filter
  * that reports a chain as silent because it matched the wrong field.
+ * Shown failing: dropping pin metadata from the catalog mislabeled a prebuilt image as from GHCR.
  */
 import { test, expect } from "@playwright/test";
 import { ComposeEnv } from "../../env/compose.js";
@@ -200,6 +201,22 @@ test.describe("reporting layer", () => {
       // The failure this guards is the one the header exists for: a report that does not say what it
       // tested reads exactly like one that does, and half a day was spent testing a stale jar.
       expect(renderCatalog(REPORT, null, COMPONENT_TAGS)).toContain("cannot say what it was run against");
+    });
+
+    test("a k8s header reports the prebuilt image pin and digest", () => {
+      const report = { ...REPORT, config: { metadata: { target: "k8s" } } };
+      const pin = "ghcr.io/netcracker/qubership-integration-engine:e2e-0123456789ab";
+      const digest = `sha256:${"ab".repeat(32)}`;
+      const header: StackHeader = {
+        ...HEADER,
+        target: "k8s",
+        provision: {
+          ...HEADER.provision,
+          published: [{ name: "engine", image: pin, imageId: digest, pinned: true }],
+        },
+      };
+      const catalog = renderCatalog(report, header, COMPONENT_TAGS);
+      expect(catalog).toContain(`- Prebuilt images: engine \`${pin} (${digest})\``);
     });
 
     test("a header from the other target is left out", () => {

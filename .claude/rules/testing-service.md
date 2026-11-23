@@ -3,7 +3,7 @@ paths:
   - "testing-service/**"
 ---
 
-The one Go module in the repository. `testing-service/README.md` covers running and embedding the service; this
+The testing service is a separate Go module. `testing-service/README.md` covers running and embedding the service; this
 instruction covers the constraints that are easy to break while changing it. The repository's Maven and npm commands do
 not cover the module: build and test it with the Go toolchain from inside `testing-service/`.
 

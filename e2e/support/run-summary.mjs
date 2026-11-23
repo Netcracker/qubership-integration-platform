@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { GROUPS, GROUP_TITLES, clock, eachTest, escapeHtml, publishedLabel, readIfPresent, shortDate, shortTime, slowestTests, stripAnsi } from "./run-report.mjs";
+import { GROUPS, GROUP_TITLES, clock, eachTest, escapeHtml, publishedImagesLine, readIfPresent, shortDate, shortTime, slowestTests, stripAnsi } from "./run-report.mjs";
 import { readHistory, writeOutcomes } from "./run-history.mjs";
 import { byNovelty, groupsSentence, historyParts, runOf } from "./run-model.mjs";
 
@@ -103,17 +103,6 @@ function timing(run, stack) {
   if (stack?.provision?.durationMs !== undefined) parts.push(`${minutes(stack.provision.durationMs)} of it provisioning the stack`);
   if (stack?.workers) parts.push(`on ${stack.workers} workers`);
   return parts.length > 0 ? `${parts.join(", ")}.` : undefined;
-}
-
-/**
- * The images the run took from GHCR rather than building them, which `E2E_BUILD` decides.
- *
- * @param {Stack | undefined} stack
- */
-function publishedLine(stack) {
-  const published = stack?.provision?.published ?? [];
-  if (published.length === 0) return undefined;
-  return `From GHCR: ${published.map((each) => `${each.name} \`${publishedLabel(each)}\``).join(", ")}.`;
 }
 
 /**
@@ -333,7 +322,8 @@ export function summaryMarkdown({ report, lastRun, stack, coverage, history = []
     const parts = [];
     if (report || lastRun) parts.push(verdictLine(run));
     if (report) parts.push(timing(run, stack));
-    parts.push(publishedLine(stack));
+    const published = publishedImagesLine(stack?.provision?.published ?? [], true);
+    if (published) parts.push(`${published}.`);
     parts.push(linksSection(run));
     // Playwright colors the messages with ANSI escapes.
     if (report && report.errors.length > 0) {

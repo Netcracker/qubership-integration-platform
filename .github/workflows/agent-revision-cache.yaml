@@ -1,0 +1,68 @@
+name: QIP agent revision cache
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  prewarm:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' && vars.AGENT_MODE == 'hosted' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: qip-agent-revision-cache
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Authorize the operator
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+          AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          "$RUNNER_TEMP/qip-agent" authorize
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Restore the Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/qip-revision-maven-repository
+          key: maven-${{ runner.os }}-agent-revision-${{ hashFiles('trusted/**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-agent-revision-
+      - name: Build the product reactor to cache its dependencies
+        if: steps.maven-cache.outputs.cache-hit != 'true'
+        working-directory: trusted
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ vars.QIP_AGENT_MAVEN_USERNAME || github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.QIP_AGENT_MAVEN_TOKEN || github.token }}
+        run: |
+          mvn --batch-mode -s .github/maven-settings.xml \
+            "-Dmaven.repo.local=$RUNNER_TEMP/qip-revision-maven-repository" \
+            -pl runtime-catalog,engine,sessions-management,micro-engine -am clean install \
+            -DskipTests -Dgpg.skip=true -Dmaven.javadoc.skip=true -Dmaven.source.skip=true \
+            -Dquarkus.profile=development,no-m2m
+      - name: Save the Maven repository
+        if: steps.maven-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/qip-revision-maven-repository
+          key: ${{ steps.maven-cache.outputs.cache-primary-key }}

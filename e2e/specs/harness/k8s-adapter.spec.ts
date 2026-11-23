@@ -6,6 +6,9 @@
  * `kubectl top` parser, the broker overlay methods, the micro engine's address and restart, the
  * edges only the Kubernetes target adds, and the `env` patches a restart sends.
  * Shown failing: ignoring k8s' micro requirement lets its run pass the check without micro-engine.
+ * Shown failing: replacing a supplied tag with `latest` broke the exact reference assertion.
+ * Shown failing: falling back to `latest` for a missing pin let the build plan pass validation.
+ * Shown failing: skipping the repository check let the pin file name a different repository.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -27,6 +30,7 @@ import {
   imagesToBuild,
   imageTags,
   mavenReactor,
+  readPinnedImageTags,
   suiteImages,
 } from "../../env/provision/k8s.js";
 import { microProjects } from "../../env/provision.js";
@@ -369,6 +373,58 @@ test.describe("k8s adapter", () => {
       expect(tagArguments("none,micro-engine")).toEqual(expected(["micro-engine"]));
       expect(tagArguments("all,micro-engine")).toEqual(expected(every));
       expect(() => tagArguments("engin")).toThrow(/E2E_BUILD names engin/);
+    });
+
+    test("a partial build keeps exact operator pins for omitted images", () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-pinned-images-"));
+      try {
+        const images = suiteImages();
+        const baselineTags = imageTags(repoRoot(), images, imagesToBuild("all"));
+        const references = Object.fromEntries(images.map((image) => [image.name, `${image.repository}:${baselineTags[image.name]}`]));
+        references.engine = "ghcr.io/netcracker/qubership-integration-engine:old-engine";
+        const file = path.join(directory, "images.json");
+        fs.writeFileSync(file, JSON.stringify(references));
+        const pinned = readPinnedImageTags(images, file);
+        const tags = imageTags(repoRoot(), images, imagesToBuild("engine"), pinned);
+        expect(tags.engine).toBe(baselineTags.engine);
+        for (const image of images.filter((entry) => entry.name !== "engine")) {
+          expect(`${image.repository}:${tags[image.name]}`).toBe(references[image.name]);
+        }
+        const args = helmArguments({ root: "/repo", choice: clusterChoice("docker-desktop"), devServerHost: "host", tags });
+        expect(args).toContain(`cip-runtime-catalog.image.tag=${baselineTags["runtime-catalog"]}`);
+        expect(args).toContain(`global.qip.deploy.micro.image=${references["micro-engine"]}`);
+        expect(args.some((argument) => argument.endsWith("=latest") || argument.endsWith(":latest"))).toBe(false);
+        expect(imageTags(repoRoot(), images, imagesToBuild("none"), pinned)).toEqual(pinned);
+        expect(() => checkMicroBuild(imagesToBuild("engine"), ["runtime-micro"], pinned)).not.toThrow();
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    test("pin mode requires every omitted image", () => {
+      const images = suiteImages();
+      expect(() => imageTags(repoRoot(), images, imagesToBuild("engine"), {})).toThrow(
+        "E2E_PINNED_IMAGES_FILE does not pin omitted image runtime-catalog",
+      );
+      expect(() => imageTags(repoRoot(), images, imagesToBuild("all"), {})).not.toThrow();
+      expect(() => checkMicroBuild(imagesToBuild("engine"), ["runtime-micro"], { "micro-engine": "latest" })).toThrow(
+        "leaves out micro-engine",
+      );
+    });
+
+    test("pin files require known image repositories", () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-pinned-images-"));
+      try {
+        const file = path.join(directory, "images.json");
+        const images = suiteImages();
+        expect(withEnv({ E2E_PINNED_IMAGES_FILE: undefined }, () => readPinnedImageTags(images))).toBeUndefined();
+        fs.writeFileSync(file, JSON.stringify({ ui: "nginx:stable" }));
+        expect(() => readPinnedImageTags(images, file)).toThrow("names unknown image ui");
+        fs.writeFileSync(file, JSON.stringify({ engine: "other/engine:baseline" }));
+        expect(() => readPinnedImageTags(images, file)).toThrow("requires a ghcr.io/netcracker/qubership-integration-engine:<tag>");
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
     });
 
     test("one Maven reactor installs every module the build lists", () => {

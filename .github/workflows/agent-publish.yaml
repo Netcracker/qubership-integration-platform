@@ -1,0 +1,126 @@
+name: QIP agent publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+        type: string
+      candidate_run:
+        description: Authorized hosted worker run ID
+        required: false
+        type: string
+      candidate_attempt:
+        description: Authorized hosted worker run attempt
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      issue:
+        required: true
+        type: string
+      candidate_run:
+        required: true
+        type: string
+      candidate_attempt:
+        required: true
+        type: string
+    secrets:
+      AGENT_VARIABLES_READ_TOKEN:
+        required: true
+      AGENT_PUBLICATION_TOKEN:
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+      pull-requests: read
+    concurrency:
+      group: qip-agent-control
+      queue: max
+      cancel-in-progress: false
+    env:
+      AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+      AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
+      AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      INPUT_ISSUE: ${{ inputs.issue }}
+      INPUT_CANDIDATE_RUN: ${{ inputs.candidate_run }}
+      INPUT_CANDIDATE_ATTEMPT: ${{ inputs.candidate_attempt }}
+    steps:
+      - name: Set the publication paths
+        run: |
+          printf 'AGENT_HOSTED_ARTIFACT_DIR=%s/agent-publish-artifact\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'AGENT_HOSTED_PUBLICATION_PATH=%s/agent-publication.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          if [[ "$AGENT_MODE" == hosted ]]; then
+            go build -trimpath -o "$RUNNER_TEMP/agent-candidate" ./cmd/agent-candidate
+          fi
+      - id: route
+        run: '"$RUNNER_TEMP/qip-agent" route-publish'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+      - if: steps.route.outputs.download == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ steps.route.outputs.artifact_id }}
+          run-id: ${{ steps.route.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ env.AGENT_HOSTED_ARTIFACT_DIR }}
+          merge-multiple: true
+      - id: authorize
+        if: env.AGENT_MODE == 'fake' || steps.route.outputs.process == 'true'
+        run: '"$RUNNER_TEMP/qip-agent" publish'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+      - name: Publish the selected draft pull request
+        if: steps.authorize.outputs.process == 'true'
+        env:
+          AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+          AGENT_RESULT_SIGNATURE: ${{ steps.authorize.outputs.result_signature }}
+          BASE_SHA: ${{ steps.authorize.outputs.base_sha }}
+          CANDIDATE_SHA256: ${{ steps.authorize.outputs.candidate_sha256 }}
+          REPORT_SHA256: ${{ steps.authorize.outputs.report_sha256 }}
+          DEFAULT_BRANCH: ${{ steps.authorize.outputs.default_branch }}
+          SCOPE_PATHS: ${{ steps.authorize.outputs.scope_paths }}
+          WORKER_RUN_ID: ${{ steps.authorize.outputs.run_id }}
+          WORKER_ATTEMPT: ${{ steps.authorize.outputs.run_attempt }}
+        run: |
+          "$RUNNER_TEMP/agent-candidate" publish --workspace "$GITHUB_WORKSPACE" \
+            --bundle "$AGENT_HOSTED_ARTIFACT_DIR/candidate.json" --base "$BASE_SHA" \
+            --expected-sha256 "$CANDIDATE_SHA256" --expected-report-sha256 "$REPORT_SHA256" \
+            --repository "$GITHUB_REPOSITORY" \
+            --issue "$INPUT_ISSUE" --run "$WORKER_RUN_ID" --attempt "$WORKER_ATTEMPT" \
+            --default-branch "$DEFAULT_BRANCH" --scope-paths "$SCOPE_PATHS" > "$AGENT_HOSTED_PUBLICATION_PATH"
+      - name: Record the draft pull request
+        if: steps.authorize.outputs.process == 'true'
+        run: '"$RUNNER_TEMP/qip-agent" confirm-publish'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}

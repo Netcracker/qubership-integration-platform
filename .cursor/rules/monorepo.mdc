@@ -16,7 +16,8 @@ module, scoped by `applyTo` to that module's path:
 - `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
-- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, built with the Go toolchain rather than Maven or npm
+- `testing-service` — Go service for chain test cases and endpoint mocks
+- `tools/autonomous-fixer` — Go tooling for issue triage, fixes, and documentation automation
 - `e2e` — the end-to-end suite (Playwright) against a local stack, Docker Compose or a Kubernetes cluster (`CIP_TARGET`); outside the npm workspaces, with its own `package.json` and lockfile
 - `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). It holds the ANTLR mapper grammar, the Handlebars element templates, and the import-file migrations. No instruction of its own yet.
 - `integration-build-maven-plugin` — `qip-integration-build-maven-plugin`, the Maven plugin (`build-crs`, `build-libs`) built on integration-build-pipeline. No instruction of its own.

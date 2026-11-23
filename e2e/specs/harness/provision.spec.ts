@@ -7,6 +7,7 @@
  * distinguishes a four-minute Maven build from a hung suite; and the stack-free selection is what
  * this very project runs on a machine with no Docker to fall back to.
  * `specs/schema/provision.spec.ts` reads the watched paths against the compose file and the checkout.
+ * Shown failing: dropping pin metadata from the console report hid the configured reference.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -103,6 +104,17 @@ test.describe("provisioning", () => {
           "micro-engine ghcr.io/netcracker/qubership-integration-micro-engine:latest (no pod yet)",
       );
       expect(formatReport(NOTHING)).not.toContain("GHCR");
+    });
+
+    test("reports the pin and digest of each prebuilt image", () => {
+      const reference = "ghcr.io/netcracker/qubership-integration-runtime-catalog:e2e-123456789abc";
+      const digest = `sha256:${"cd".repeat(32)}`;
+      const lines = formatReport({
+        ...NOTHING,
+        published: [{ name: "runtime-catalog", image: reference, imageId: digest, pinned: true }],
+      });
+      expect(lines).toContain(`prebuilt images: runtime-catalog ${reference} (${digest})`);
+      expect(lines).not.toMatch(/from GHCR/);
     });
 
     test("reports a run where provisioning did nothing", () => {

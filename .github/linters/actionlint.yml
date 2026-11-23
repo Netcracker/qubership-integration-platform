@@ -1,0 +1,17 @@
+# Super-linter keeps this local file instead of the shared configuration.
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2086:info.+'
+      - 'shellcheck reported issue in this script: SC2002:style.+'
+      - 'property "workflow_(sha|ref|repository)" is not defined in object type'
+      - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
+  actions/**/*.{yml,yaml}:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2086:info.+'
+      - 'shellcheck reported issue in this script: SC2002:style.+'
+  .github/workflows/agent-{ci,control,work,publish,docs,outcome}.yaml:
+    ignore:
+      # GitHub supports queue; remove this exception when actionlint supports it.
+      # Keep all other concurrency errors visible, including cancellation settings.
+      - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'

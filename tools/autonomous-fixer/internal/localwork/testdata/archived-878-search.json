@@ -1,0 +1,44 @@
+{
+  "suites": [
+    {
+      "title": "ui/chain-subheader.spec.ts",
+      "suites": [
+        {
+          "title": "chain subheader",
+          "specs": [
+            {
+              "title": "uses the compact Search control",
+              "file": "ui/chain-subheader.spec.ts",
+              "tests": [
+                {
+                  "projectName": "ui",
+                  "expectedStatus": "passed",
+                  "status": "unexpected",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "errors": [
+                        {
+                          "message": "Error: expect(received).toBe(expected)"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "specs": []
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-17T10:12:18.432Z",
+    "expected": 0,
+    "unexpected": 1,
+    "skipped": 0,
+    "flaky": 0
+  }
+}

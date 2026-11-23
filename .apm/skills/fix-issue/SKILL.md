@@ -280,6 +280,9 @@ is not yours to take silently. A claim in a stop report clears the same evidence
 
 The issue comment, and on a stop the only thing the run leaves behind.
 
+When publishing a run result to GitHub, follow the signature format in
+[delivery.md](delivery.md#sign-the-run-result). A stop for a human decision also reports a result.
+
 1. **Verdict**: the label, the gate reached, and **Assisted**: each decision a person made during
    the run, or "none".
 2. **Defects**: the issue split into numbered items.

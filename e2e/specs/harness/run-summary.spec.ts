@@ -1,5 +1,6 @@
 /**
  * The run summary the CI step summary carries, read off reports trimmed from a green and a red CI run.
+ * Shown failing: dropping pin metadata from the summary mislabeled the micro image as from GHCR.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -74,6 +75,13 @@ test.describe("run summary", () => {
 
     run.stack.provision = { published: [] };
     expect(summaryMarkdown(run)).not.toContain("From GHCR");
+  });
+
+  test("reports prebuilt image pins before pods exist", () => {
+    const run = readRun("green");
+    const pin = "ghcr.io/netcracker/qubership-integration-micro-engine:e2e-0123456789ab";
+    run.stack.provision = { published: [{ name: "micro-engine", image: pin, imageId: null, pinned: true }] };
+    expect(summaryMarkdown(run).split("\n")).toContain(`Prebuilt images: micro-engine \`${pin} (no pod yet)\`.`);
   });
 
   test("a red run lists each failure with its first error line", () => {

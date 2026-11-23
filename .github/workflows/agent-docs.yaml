@@ -1,0 +1,479 @@
+name: QIP documentation agent
+run-name: qip-docs|${{ inputs.issue }}|${{ inputs.operation }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+        type: string
+      operation:
+        description: Prepare input, run documentation work, or reconcile a merged documentation PR
+        required: true
+        type: choice
+        default: prepare
+        options: [prepare, run, reconcile]
+      apply:
+        description: Apply GitHub changes after validation
+        required: true
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      issue:
+        type: string
+        required: true
+      operation:
+        type: string
+        default: run
+      apply:
+        type: boolean
+        required: true
+      scheduled_basis:
+        type: string
+        required: true
+    outputs:
+      skip_reason:
+        description: Reason the requested issue was skipped
+        value: ${{ jobs.prepare.outputs.skip_reason }}
+    secrets:
+      AGENT_DOCS_APP_PRIVATE_KEY:
+        required: false
+      AGENT_DOCS_READ_TOKEN:
+        required: false
+      AGENT_DOCS_GITHUB_TOKEN:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: qip-docs-issue-${{ inputs.issue }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  prepare:
+    if: >-
+      ${{ (inputs.operation == 'prepare' || inputs.operation == 'run') && vars.AGENT_DOCS_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch || 'main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.prepared.outputs.artifact-id }}
+      base_sha: ${{ steps.prepare.outputs.base_sha }}
+      check_ids: ${{ steps.prepare.outputs.check_ids }}
+      claimed: ${{ steps.claim.outputs.claimed }}
+      skip_reason: ${{ steps.claim.outputs.skip_reason || steps.prepare.outputs.skip_reason }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build documentation agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - name: Identify the repository for the App token
+        id: repository
+        if: vars.AGENT_DOCS_APP_ID != ''
+        run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+      - name: Create read-only GitHub App token
+        id: app-token
+        if: vars.AGENT_DOCS_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        env:
+          # This pinned version reads permission inputs from environment variables.
+          INPUT_PERMISSION-VARIABLES: read
+        with:
+          app-id: ${{ vars.AGENT_DOCS_APP_ID }}
+          private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository.outputs.name }}
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+          permission-organization-projects: read
+      - name: Prepare trusted input
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          ISSUE: ${{ inputs.issue }}
+          PROJECT_NUMBER: ${{ vars.AGENT_DOCS_PROJECT_NUMBER || '12' }}
+          REPOSITORY: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          BASIS: ${{ inputs.scheduled_basis }}
+        run: |
+          set -o pipefail
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid issue number'; exit 1; }
+          [[ "$PROJECT_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid documentation project number'; exit 1; }
+          test -n "$GITHUB_TOKEN" || { echo 'A GitHub read token is required'; exit 1; }
+          "$RUNNER_TEMP/docs-agent" prepare --repository "$REPOSITORY" --issue "$ISSUE" --project "$PROJECT_NUMBER" --basis "$BASIS" \
+            --source "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/prepared" --actor "$ACTOR" \
+            --request-id "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" 2>&1 | tee "$RUNNER_TEMP/prepare.log"
+          if [[ ! -f "$RUNNER_TEMP/prepared/plan.json" ]]; then
+            jq -er '"skip_reason=\(.skip_reason | strings | select(length > 0))"' "$RUNNER_TEMP/prepare.log" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base_sha=$(jq -er '.base_sha | select(test("^[0-9a-f]{40}$"))' "$RUNNER_TEMP/prepared/plan.json")
+          check_ids=$(jq -ce '.publication_checks | map(.id)' "$RUNNER_TEMP/prepare.log")
+          printf 'base_sha=%s\ncheck_ids=%s\n' "$base_sha" "$check_ids" >> "$GITHUB_OUTPUT"
+      - name: Save the prepared input
+        id: prepared
+        if: steps.prepare.outputs.base_sha != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-prepared-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.scheduled_basis != '' && format('-{0}', inputs.issue) || '' }}
+          path: ${{ runner.temp }}/prepared/
+          if-no-files-found: error
+      - name: Create a GitHub App claim token
+        id: claim-token
+        if: inputs.scheduled_basis != '' && inputs.apply && steps.prepare.outputs.base_sha != '' && vars.AGENT_DOCS_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        env:
+          INPUT_PERMISSION-VARIABLES: read
+        with:
+          app-id: ${{ vars.AGENT_DOCS_APP_ID }}
+          private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository.outputs.name }}
+          permission-contents: read
+          permission-issues: write
+          permission-pull-requests: read
+          permission-organization-projects: read
+      - name: Claim the scheduled documentation basis
+        id: claim
+        if: inputs.scheduled_basis != '' && inputs.apply && steps.prepare.outputs.base_sha != ''
+        env:
+          GITHUB_TOKEN: ${{ steps.claim-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          ACTIONS_READ_TOKEN: ${{ github.token }}
+          BASIS: ${{ inputs.scheduled_basis }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          report=$("$RUNNER_TEMP/docs-agent" claim --prepared "$RUNNER_TEMP/prepared" --basis "$BASIS" --actor "$ACTOR" --apply)
+          jq -r '"claimed=\(.claimed)", "skip_reason=\(.reason)"' <<< "$report" >> "$GITHUB_OUTPUT"
+          jq . <<< "$report"
+      - name: Save the preparation log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-prepare-log-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.scheduled_basis != '' && format('-{0}', inputs.issue) || '' }}
+          path: ${{ runner.temp }}/prepare.log
+          if-no-files-found: ignore
+
+  work:
+    # Claim recovery uses this job name and the Run documentation work step.
+    name: "Work on documentation issue #${{ inputs.issue }}"
+    needs: prepare
+    if: inputs.operation == 'run' && (inputs.scheduled_basis == '' || needs.prepare.outputs.claimed == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.result.outputs.artifact-id }}
+      publishable: ${{ steps.work.outputs.publishable }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build documentation agent
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id || 'missing' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/prepared
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+      - name: Install OpenCode
+        run: |
+          opencode_archive="$RUNNER_TEMP/opencode-linux-x64.tar.gz"
+          curl --fail --location --silent --show-error --output "$opencode_archive" \
+            https://github.com/anomalyco/opencode/releases/download/v2.2.6/opencode-linux-x64.tar.gz
+          printf '%s  %s\n' 08bb21d6326ce740d91cce7ebe88a6536933f6e1e30353b91a06b01f25da306c "$opencode_archive" | sha256sum --check
+          tar -xzf "$opencode_archive" -C "$RUNNER_TEMP" opencode
+          "$RUNNER_TEMP/opencode" --version
+      - name: Run documentation work
+        id: work
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DOCS_MODEL: ${{ vars.AGENT_DOCS_MODEL || 'openrouter/openai/gpt-6-luna' }}
+          DOCS_EFFORT: ${{ vars.AGENT_DOCS_EFFORT || 'medium' }}
+        run: |
+          "$RUNNER_TEMP/docs-agent" work --prepared "$RUNNER_TEMP/prepared" \
+            --source "$GITHUB_WORKSPACE/source" --workspace "$RUNNER_TEMP/docs-candidate" \
+            --output "$RUNNER_TEMP/docs-result" --handoff "$RUNNER_TEMP/docs-handoff" \
+            --hosted --runtime "$RUNNER_TEMP/opencode" --runtime-version 'opencode v2.2.6' \
+            --model "$DOCS_MODEL" --effort "$DOCS_EFFORT" > "$RUNNER_TEMP/docs-status.json"
+          status=$(jq -er '.status' "$RUNNER_TEMP/docs-status.json")
+          case "$status" in
+            docs-no-change|docs-ready-for-pr)
+              echo 'publishable=true' >> "$GITHUB_OUTPUT"
+              jq '{status, route, plan_id}' "$RUNNER_TEMP/docs-status.json"
+              ;;
+            needs-human|verification-blocked)
+              jq -r '
+                def quote:
+                  strings | select(length > 0 and (contains(env.OPENROUTER_API_KEY) | not))
+                  | gsub("\r\n?"; "\n") | split("\n") | map("    " + .) | join("\n");
+                "## Documentation needs input\n",
+                (.question.text | quote // "    The documentation stage stopped before it could finish."),
+                "\n**Needed to continue**\n",
+                (.question.needed | quote // "    Inspect the work diagnostics and check the issue evidence.")
+              ' "$RUNNER_TEMP/docs-result/work/report.json" >> "$GITHUB_STEP_SUMMARY"
+              [[ "$status" == needs-human ]]
+              ;;
+            *)
+              echo 'Documentation work returned an unexpected status.'
+              exit 1
+              ;;
+          esac
+      - name: Save the documentation result
+        id: result
+        if: steps.work.outputs.publishable == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-result-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.scheduled_basis != '' && format('-{0}', inputs.issue) || '' }}
+          path: ${{ runner.temp }}/docs-handoff/
+          if-no-files-found: error
+          include-hidden-files: true
+      - name: Summarize work diagnostics
+        id: diagnostics
+        if: always()
+        env:
+          WORK_OUTCOME: ${{ steps.work.outcome }}
+          CHECK_IDS: ${{ needs.prepare.outputs.check_ids }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          diagnostics=$(mktemp -d "$RUNNER_TEMP/docs-diagnostics.XXXXXX")
+          printf 'path=%s\n' "$diagnostics/" >> "$GITHUB_OUTPUT"
+          report="$RUNNER_TEMP/docs-result/work/report.json"
+          usage="$RUNNER_TEMP/docs-result/work/provider-usage.json"
+          jev="$RUNNER_TEMP/docs-result/jev-report.json"
+          if [[ ! -f "$report" || -L "$report" ]]; then report=/dev/null; fi
+          if [[ ! -f "$usage" || -L "$usage" ]]; then usage=/dev/null; fi
+          if [[ ! -f "$jev" || -L "$jev" ]]; then jev=/dev/null; fi
+          if [[ "$WORK_OUTCOME" == failure && "$report" != /dev/null && -x "$RUNNER_TEMP/docs-agent" ]]; then
+            "$RUNNER_TEMP/docs-agent" rejected-diff --prepared "$RUNNER_TEMP/prepared" \
+              --run "$RUNNER_TEMP/docs-result/work" --workspace "$RUNNER_TEMP/docs-candidate" \
+              --output "$diagnostics/rejected.patch" || echo 'Rejected documentation diff is unavailable.'
+          fi
+          rejected_diff_saved=false
+          if [[ -s "$diagnostics/rejected.patch" ]]; then rejected_diff_saved=true; fi
+          jq -n --argjson required_ids "$CHECK_IDS" --arg outcome "$WORK_OUTCOME" --argjson rejected_diff_saved "$rejected_diff_saved" \
+            --rawfile report "$report" --rawfile usage "$usage" --rawfile jev "$jev" '
+            def parse_object: (try fromjson catch null) | objects // {};
+            def one_of($values): . as $value | if $values | index($value) then $value else null end;
+            ($report | parse_object) as $run |
+            ($usage | parse_object) as $provider |
+            ($jev | parse_object) as $classifier |
+            [$run.observations[]? | objects | select(.stage == "docs-author") | .declaration.checks[]? | objects] as $checks |
+            {
+              work_step_outcome: $outcome,
+              status: ($run.status | one_of(["rejected", "needs-human", "verification-blocked", "docs-no-change", "docs-ready-for-pr"])),
+              route: ((try $run.request.documentation_entry.route catch null) | one_of(["docs-no-change", "docs-assess", "docs-write"])),
+              stages: [$run.observations[]? | objects | .stage | select(. == "docs-author")],
+              required_check_results: [$required_ids[] as $id | $checks[] | select(.id == $id) |
+                {id: $id, outcome: ((.outcome | one_of(["pass", "fail"])) // "invalid")}],
+              missing_required_checks: [
+                select((try $run.documentation.decision catch null) == "needed") |
+                $required_ids[] as $id | select($checks | any(.id == $id) | not) | $id
+              ],
+              additional_check_count: ([$checks[] | select((.id | one_of($required_ids)) == null)] | length),
+              native_openrouter_attempts: ($provider.attempts | numbers) // null,
+              native_openrouter_cost_usd: ($provider.reported_cost_usd | numbers) // null,
+              jev_request_attempted: (if ($classifier.request_attempted | type) == "boolean" then $classifier.request_attempted else null end),
+              jev_cost_usd: ((try $classifier.response.usage.cost catch null) | numbers) // null,
+              rejected_diff_saved: $rejected_diff_saved
+            }
+          ' > "$diagnostics/summary.json"
+      - name: Save work diagnostics
+        if: always() && steps.diagnostics.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-work-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.scheduled_basis != '' && format('-{0}', inputs.issue) || '' }}
+          path: ${{ steps.diagnostics.outputs.path }}
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, work]
+    if: inputs.operation == 'run' && needs.work.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    concurrency:
+      group: qip-docs-publish-${{ inputs.issue }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build documentation agent
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id || 'missing' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/prepared
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ needs.work.outputs.artifact_id || 'missing' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/docs-handoff
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+          path: source
+          persist-credentials: false
+      - name: Restore and verify the documentation candidate
+        run: |
+          "$RUNNER_TEMP/docs-agent" restore --prepared "$RUNNER_TEMP/prepared" --run "$RUNNER_TEMP/docs-handoff/work" \
+            --source "$GITHUB_WORKSPACE/source" --workspace "$RUNNER_TEMP/docs-candidate"
+      - name: Identify the repository for the App token
+        id: repository
+        if: vars.AGENT_DOCS_APP_ID != ''
+        run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub App publication token
+        id: app-token
+        if: vars.AGENT_DOCS_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        env:
+          INPUT_PERMISSION-VARIABLES: read
+        with:
+          app-id: ${{ vars.AGENT_DOCS_APP_ID }}
+          private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository.outputs.name }}
+          permission-contents: ${{ inputs.apply && 'write' || 'read' }}
+          permission-issues: ${{ inputs.apply && 'write' || 'read' }}
+          permission-pull-requests: ${{ inputs.apply && 'write' || 'read' }}
+          permission-organization-projects: ${{ inputs.apply && 'write' || 'read' }}
+      - name: Publish the documentation result
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || (!inputs.apply && secrets.AGENT_DOCS_READ_TOKEN) || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -o pipefail
+          test -n "$GITHUB_TOKEN" || { echo 'A GitHub publication token is required'; exit 1; }
+          args=()
+          if [[ "$APPLY" == true ]]; then args+=(--apply); fi
+          "$RUNNER_TEMP/docs-agent" publish --prepared "$RUNNER_TEMP/prepared" --run "$RUNNER_TEMP/docs-handoff/work" \
+            --source "$RUNNER_TEMP/docs-candidate" --actor "$ACTOR" "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/publish.log"
+      - name: Save publication evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-publish-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.scheduled_basis != '' && format('-{0}', inputs.issue) || '' }}
+          path: |
+            ${{ runner.temp }}/publish.log
+            ${{ runner.temp }}/docs-handoff/work/publication-journal.jsonl
+          if-no-files-found: ignore
+
+  reconcile:
+    if: >-
+      ${{ inputs.operation == 'reconcile' && vars.AGENT_DOCS_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: qip-docs-publish-${{ inputs.issue }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build documentation agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - name: Create GitHub App publication token
+        id: app-token
+        if: vars.AGENT_DOCS_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        env:
+          # This pinned version reads permission inputs from environment variables.
+          INPUT_PERMISSION-VARIABLES: read
+        with:
+          app-id: ${{ vars.AGENT_DOCS_APP_ID }}
+          private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-organization-projects: write
+      - name: Reconcile publication
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE: ${{ inputs.issue }}
+          ACTOR: ${{ github.actor }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -o pipefail
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid issue number'; exit 1; }
+          test -n "$GITHUB_TOKEN" || { echo 'A GitHub publication token is required'; exit 1; }
+          args=()
+          if [[ "$APPLY" == true ]]; then args+=(--apply); fi
+          "$RUNNER_TEMP/docs-agent" reconcile --repository "$REPOSITORY" --issue "$ISSUE" \
+            --actor "$ACTOR" "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/reconcile.log"
+      - name: Save reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-reconcile-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reconcile.log
+          if-no-files-found: warn

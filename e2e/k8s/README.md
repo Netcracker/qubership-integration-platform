@@ -250,8 +250,11 @@ is missing or runs another version.
    `parents/base/pom.xml`. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
    `pom.xml`, the library linked into its jar, and the testing service's covers its whole directory.
    These are the sources the Compose provisioner compares. An image whose tag exists is not rebuilt, and one
-   `mvn install -T 1C` runs for the modules whose image is missing. `E2E_BUILD` narrows the images
-   built to the ones it lists; every other one is tagged `latest` and comes from GHCR. The micro engine is built with
+   `mvn install -T 1C` runs for the modules whose image is missing. `E2E_BUILD` selects the images
+   to build. For omitted images, the chart uses the tags in `E2E_PINNED_IMAGES_FILE` when set and
+   `latest` from GHCR otherwise. Make each omitted image available to the cluster before the run.
+   On Docker Desktop, pull any omitted `:latest` images first, since the node uses the host's copies.
+   The micro engine is built with
    `-Dquarkus.profile=development,no-m2m`, the profiles `micro-engine/README.md` gives for a local
    stack, and the tag covers them too: Quarkus fixes part of its configuration at build time, and a
    `prod` build stops at startup with `auth method "cip-e2e" not found`, because it logs in to

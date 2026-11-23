@@ -1,0 +1,41 @@
+{
+  "numFailedTests": 0,
+  "numFailedTestSuites": 0,
+  "numPassedTests": 1,
+  "numPassedTestSuites": 1,
+  "numPendingTests": 0,
+  "numPendingTestSuites": 0,
+  "numTodoTests": 0,
+  "numRuntimeErrorTestSuites": 0,
+  "numTotalTests": 1,
+  "numTotalTestSuites": 1,
+  "snapshot": {
+    "failure": false
+  },
+  "startTime": 1794830000000,
+  "success": true,
+  "wasInterrupted": false,
+  "testResults": [
+    {
+      "name": "/fixture/example.test.ts",
+      "status": "passed",
+      "message": "",
+      "summary": "",
+      "startTime": 1794830000000,
+      "endTime": 1794830000100,
+      "coverage": {},
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "example"
+          ],
+          "fullName": "example succeeds",
+          "title": "succeeds",
+          "status": "passed",
+          "failureMessages": [],
+          "duration": 1
+        }
+      ]
+    }
+  ]
+}
