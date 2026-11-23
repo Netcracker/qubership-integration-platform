@@ -18,11 +18,16 @@ package org.qubership.integration.platform.sessions.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.sessions.dto.Session;
 import org.qubership.integration.platform.sessions.service.ImportService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -45,9 +50,13 @@ public class ImportController {
         this.importService = importService;
     }
 
-    @Operation(description = "Import session(s) from file")
+    @Operation(description = "Import session(s) from file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"files"}),
+                schemaProperties = @SchemaProperty(name = "files", array = @ArraySchema(arraySchema = @Schema(description = "List of files to import"), schema = @Schema(type = "string", format = "binary"))))))
     @PostMapping()
-    public ResponseEntity<List<Session>> importSessions(@RequestParam @Parameter(description = "List of files to import") MultipartFile[] files) {
+    public ResponseEntity<List<Session>> importSessions(@RequestParam @Parameter(hidden = true) MultipartFile[] files) {
         log.debug("Request to import sessions");
         return ResponseEntity.ok(importService.importSessions(files));
     }
