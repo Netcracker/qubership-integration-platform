@@ -1,0 +1,172 @@
+name: QIP agent control
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [labeled, unlabeled, edited]
+  # Default-branch code checks run provenance before downloading a checkpoint.
+  # Downloaded checkpoints are parsed as JSON and never executed.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [QIP agent work]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Check the controller, reconcile state, or observe a worker run
+        required: true
+        type: choice
+        default: check
+        options: [check, control, reconcile-run]
+      issue:
+        description: Issue number for control or reconciliation
+        required: false
+        type: string
+      worker_run:
+        description: Worker run ID for reconcile-run
+        required: false
+        type: string
+      worker_attempt:
+        description: Worker run attempt for reconcile-run
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - tools/autonomous-fixer/**
+      - .github/workflows/agent-*.yaml
+      - .github/workflows/agent-*.yml
+      - .github/workflows/pr-linked-issue.yaml
+      - .github/workflows/pr-linked-issue.yml
+
+permissions: {}
+
+jobs:
+  check:
+    if: >-
+      ${{ github.event_name == 'pull_request' ||
+          (github.event_name == 'workflow_dispatch' && inputs.operation == 'check') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Check Go sources
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+          set -o pipefail
+          go vet ./... 2>&1 | tee "$RUNNER_TEMP/agent-vet.log"
+          go test -race ./... 2>&1 | tee "$RUNNER_TEMP/agent-test.log"
+          go build ./cmd/...
+          go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          "$RUNNER_TEMP/qip-agent" demo 2>&1 | tee "$RUNNER_TEMP/agent-demo.log"
+      - name: Check hosted scripts
+        working-directory: tools/autonomous-fixer/scripts
+        run: python3 -B -W error -m unittest discover
+      - name: Save controller check evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-check-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-*.log
+          if-no-files-found: warn
+
+  control:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' && github.event_name != 'pull_request' &&
+          inputs.operation != 'check' &&
+          (github.event_name != 'issue_comment' || !github.event.issue.pull_request) &&
+          (github.event_name != 'workflow_run' ||
+            (github.event.workflow_run.event == 'workflow_dispatch' &&
+             !startsWith(github.event.workflow_run.display_title, 'qip-agent-auto-revise|'))) &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      hosted_candidate: ${{ steps.control.outputs.hosted_candidate }}
+      automatic_publish: ${{ steps.control.outputs.automatic_publish }}
+      issue: ${{ steps.control.outputs.issue }}
+      candidate_run: ${{ steps.control.outputs.candidate_run }}
+      candidate_attempt: ${{ steps.control.outputs.candidate_attempt }}
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+    concurrency:
+      group: qip-agent-control
+      queue: max
+      cancel-in-progress: false
+    env:
+      AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+      AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
+      AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      INPUT_OPERATION: ${{ inputs.operation }}
+      INPUT_WORKER_RUN: ${{ inputs.worker_run }}
+      INPUT_WORKER_ATTEMPT: ${{ inputs.worker_attempt }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+      - id: route
+        run: '"$RUNNER_TEMP/qip-agent" route'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+      - if: steps.route.outputs.download == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ steps.route.outputs.artifact_id }}
+          run-id: ${{ steps.route.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/agent-checkpoint
+          merge-multiple: true
+      - if: steps.route.outputs.process == 'true'
+        id: control
+        run: '"$RUNNER_TEMP/qip-agent" control'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/agent-checkpoint/checkpoint.json
+          AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-checkpoint
+
+  publish-hosted:
+    needs: control
+    if: >-
+      ${{ vars.AGENT_AUTO_PUBLISH == 'true' && needs.control.outputs.automatic_publish == 'true' }}
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+      pull-requests: read
+    uses: ./.github/workflows/agent-publish.yaml
+    with:
+      issue: ${{ needs.control.outputs.issue }}
+      candidate_run: ${{ needs.control.outputs.candidate_run }}
+      candidate_attempt: ${{ needs.control.outputs.candidate_attempt }}
+    secrets:
+      AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+      AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}

@@ -1,0 +1,170 @@
+name: QIP agent CI observation
+
+on:
+  # The observer runs default-branch code and reads PR and run metadata through GitHub.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [opened, reopened, synchronize]
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows:
+      - QIP agent work
+      - QIP agent review submitted
+      - QIP agent control
+      - AI Schema Host Compatibility
+      - AI Service Build
+      - Automatic PR Labeler
+      - Checkstyle Build
+      - CLA Assistant
+      - E2E PR
+      - End-to-End Host Compatibility
+      - Engine Build
+      - Integration Build Maven Plugin Build
+      - Integration Build Pipeline Library Build
+      - Link Checker
+      - Micro Engine Build
+      - Auto-Assign PR
+      - Conventional Commits PR Check
+      - PR Linked Issue Check
+      - Lint PR Title
+      - Profanity filter
+      - Runtime Catalog Build
+      - Schemas Build
+      - Sessions Management Build
+      - Snapshot Flow Build
+      - Lint Code Base
+      - Testing Service Build
+      - Ui Build
+      - Version Invariants
+      - Vscode Extension Build
+    types: [completed]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Published engineering pull request number
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  observe:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' && vars.AGENT_MODE == 'hosted' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+          (github.event_name != 'pull_request_target' ||
+            (github.event.pull_request.head.repo.full_name == github.repository &&
+             github.event.pull_request.base.repo.full_name == github.repository &&
+             startsWith(github.event.pull_request.head.ref, 'agent/fix/'))) &&
+          (github.event_name != 'workflow_run' ||
+            (github.event.workflow_run.head_repository.full_name == github.repository &&
+             ((github.event.workflow_run.path == '.github/workflows/agent-work.yaml' &&
+               github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+               (startsWith(github.event.workflow_run.display_title, 'qip-agent-auto-revise|') ||
+                startsWith(github.event.workflow_run.display_title, 'qip-agent-revise|'))) ||
+              startsWith(github.event.workflow_run.head_branch, 'agent/fix/') ||
+              startsWith(github.event.workflow_run.pull_requests[0].head.ref, 'agent/fix/') ||
+              startsWith(github.event.workflow_run.head_branch, 'refs/pull/') ||
+              startsWith(github.event.workflow_run.head_branch, 'pull/')))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      pull_requests: ${{ steps.observe.outputs.pull_requests }}
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: write
+      statuses: read
+    concurrency:
+      group: qip-agent-ci
+      queue: max
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build the CI observer
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/agent-ci" ./cmd/agent-ci
+      - name: Observe current PR checks
+        id: observe
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+          AGENT_MODE: ${{ vars.AGENT_MODE }}
+          AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
+          AGENT_CI_REQUIRED_CHECKS: ${{ vars.AGENT_CI_REQUIRED_CHECKS }}
+          INPUT_PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          result="$RUNNER_TEMP/agent-ci-observation.json"
+          status=0
+          "$RUNNER_TEMP/agent-ci" --apply > "$result" || status=$?
+          if [[ -s "$result" ]]; then
+            prs=$(jq -c '[.[] | select(.disposition == "published" or .disposition == "unchanged") | .pull_request] | unique' "$result")
+            printf 'pull_requests=%s\n' "$prs" >> "$GITHUB_OUTPUT"
+          fi
+          if jq -e 'length > 0' "$result" > /dev/null; then
+            printf 'has_reports=true\n' >> "$GITHUB_OUTPUT"
+            jq -r '.[] | "- PR #\(.pull_request), head `\(.ci.head_sha)`, CI **\(.ci.status)**, observation \(.disposition)"' "$result" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+      - name: Save CI observations
+        if: always() && steps.observe.outputs.has_reports == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-ci-observation.json
+          if-no-files-found: error
+
+  follow:
+    needs: observe
+    if: >-
+      ${{ !cancelled() && needs.observe.outputs.pull_requests != '' &&
+          needs.observe.outputs.pull_requests != '[]' && vars.AGENT_ENABLED == 'true' &&
+          vars.AGENT_MODE == 'hosted' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        pull_request: ${{ fromJSON(needs.observe.outputs.pull_requests) }}
+    concurrency:
+      group: qip-agent-revision-${{ matrix.pull_request }}
+      queue: max
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      issues: read
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Process review and CI feedback
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+          AGENT_MODE: ${{ vars.AGENT_MODE }}
+          AGENT_CI_REQUIRED_CHECKS: ${{ vars.AGENT_CI_REQUIRED_CHECKS }}
+          INPUT_PULL_REQUEST: ${{ matrix.pull_request }}
+        run: go run ./cmd/agent-follow

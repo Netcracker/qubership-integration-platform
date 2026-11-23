@@ -1,0 +1,430 @@
+name: QIP agent work
+run-name: >-
+  ${{ github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' &&
+      (startsWith(github.event.comment.body, '/agent revise ') || github.event.comment.body == '/agent revise') &&
+      format('qip-agent-revise|{0}|{1}', github.event.issue.number, github.event.comment.id) ||
+      github.event_name == 'issue_comment' && 'Skip unrelated comment' ||
+      inputs.auto_pr != '' && format('qip-agent-auto-revise|{0}|{1}', inputs.auto_pr, inputs.auto_request) ||
+      format('qip-agent-work|{0}|{1}|{2}|{3}', inputs.issue, inputs.execution, inputs.generation, inputs.contract_version) }}
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: false
+        type: string
+      execution:
+        description: Execution ID
+        required: false
+        type: string
+      generation:
+        description: Execution generation
+        required: false
+        type: string
+      contract_version:
+        description: Contract version
+        required: false
+        type: string
+      trusted_sha:
+        description: Trusted commit SHA
+        required: false
+        type: string
+      mode:
+        description: Worker mode recorded by the controller
+        required: false
+        type: choice
+        default: fake
+        options: [fake, hosted]
+      auto_pr:
+        description: Pull request number for an automatic revision
+        required: false
+        type: string
+      auto_request:
+        description: GitHub Actions comment ID for an automatic revision
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  admit:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' &&
+          github.event_name == 'workflow_dispatch' && inputs.auto_pr == '' && inputs.auto_request == '' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+    concurrency:
+      group: qip-agent-control
+      queue: max
+      cancel-in-progress: false
+    env:
+      AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+      AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
+      AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      INPUT_ISSUE: ${{ inputs.issue }}
+      INPUT_EXECUTION: ${{ inputs.execution }}
+      INPUT_GENERATION: ${{ inputs.generation }}
+      INPUT_CONTRACT_VERSION: ${{ inputs.contract_version }}
+      INPUT_TRUSTED_SHA: ${{ inputs.trusted_sha }}
+      INPUT_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build agent
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+      - id: admit
+        run: '"$RUNNER_TEMP/qip-agent" admit'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+
+  admit-revision:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' && vars.AGENT_MODE == 'hosted' &&
+          ((github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+            github.event.comment.user.type == 'User' &&
+            (startsWith(github.event.comment.body, '/agent revise ') || github.event.comment.body == '/agent revise')) ||
+           (github.event_name == 'workflow_dispatch' && inputs.auto_pr != '' && inputs.auto_request != '' &&
+            github.event.sender.login == 'github-actions[bot]' && github.event.sender.type == 'Bot')) &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      statuses: read
+      issues: read
+      pull-requests: write
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+    concurrency:
+      group: qip-agent-revision-${{ github.event.issue.number || inputs.auto_pr }}
+      queue: max
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build revision controller
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/qip-agent-revise" ./cmd/agent-revise
+      - id: admit
+        run: '"$RUNNER_TEMP/qip-agent-revise" admit'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+
+  work:
+    needs: [admit, admit-revision]
+    if: >-
+      ${{ !cancelled() && vars.AGENT_ENABLED == 'true' &&
+          (needs.admit.outputs.admitted == 'true' ||
+            (needs.admit-revision.outputs.admitted == 'true' && github.run_attempt == 1)) &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ (inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true') && 360 || 15 }}
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      statuses: read
+      issues: read
+      packages: read
+      pull-requests: read
+    concurrency:
+      group: qip-agent-work
+      queue: max
+      cancel-in-progress: false
+    env:
+      AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+      AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
+      AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      INPUT_ISSUE: ${{ inputs.issue }}
+      INPUT_EXECUTION: ${{ inputs.execution }}
+      INPUT_GENERATION: ${{ inputs.generation }}
+      INPUT_CONTRACT_VERSION: ${{ inputs.contract_version }}
+      INPUT_TRUSTED_SHA: ${{ inputs.trusted_sha }}
+      INPUT_MODE: ${{ needs.admit-revision.outputs.admitted == 'true' && 'hosted' || inputs.mode }}
+      REVISION: ${{ needs.admit-revision.outputs.admitted }}
+    steps:
+      - name: Set the work directory
+        run: printf 'HOSTED_DIR=%s/qip-hosted\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build agent
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          if [[ "$INPUT_MODE" == hosted ]]; then
+            go build -trimpath -o "$RUNNER_TEMP/qip-work" ./cmd/work
+            go build -trimpath -o "$RUNNER_TEMP/work-metrics" ./cmd/work-metrics
+            go build -trimpath -o "$RUNNER_TEMP/agent-candidate" ./cmd/agent-candidate
+          fi
+          if [[ "$REVISION" == true ]]; then
+            go build -trimpath -o "$RUNNER_TEMP/qip-agent-revise" ./cmd/agent-revise
+          fi
+      - id: work
+        if: needs.admit.outputs.admitted == 'true'
+        run: '"$RUNNER_TEMP/qip-agent" work'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+      - id: revision
+        if: needs.admit-revision.outputs.admitted == 'true'
+        run: '"$RUNNER_TEMP/qip-agent-revise" work'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          AGENT_REVISION_ASSIGNMENT_PATH: ${{ runner.temp }}/qip-hosted/revision.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: inputs.mode == 'fake' && needs.admit.outputs.admitted == 'true'
+        with:
+          name: agent-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          if-no-files-found: error
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        with:
+          ref: ${{ steps.revision.outputs.base_sha || steps.work.outputs.base_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Freeze the issue and attachments
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORK_ISSUE: ${{ steps.revision.outputs.issue || inputs.issue }}
+        run: |
+          [[ "$WORK_ISSUE" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/issues/$WORK_ISSUE" > "$HOSTED_DIR/issue.json"
+          revision_args=()
+          if [[ "$REVISION" == true ]]; then
+            revision_args=(--revision "$HOSTED_DIR/revision.json")
+          fi
+          python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_issue.py" \
+            "$HOSTED_DIR/checkpoint.json" "$HOSTED_DIR/issue.json" "$HOSTED_DIR/assignment" "${revision_args[@]}"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Restore the Maven repository
+        if: inputs.mode == 'hosted' && needs.admit.outputs.admitted == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('candidate/**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
+      - name: Restore the Maven repository for the revision
+        if: needs.admit-revision.outputs.admitted == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/qip-revision-maven-repository
+          key: maven-${{ runner.os }}-agent-revision-${{ hashFiles('trusted/**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-agent-revision-
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+      - name: Install OpenCode
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        shell: bash
+        run: |
+          opencode_archive="$RUNNER_TEMP/opencode-linux-x64.tar.gz"
+          curl --fail --location --silent --show-error --output "$opencode_archive" \
+            https://github.com/anomalyco/opencode/releases/download/v2.2.6/opencode-linux-x64.tar.gz
+          printf '%s  %s\n' 08bb21d6326ce740d91cce7ebe88a6536933f6e1e30353b91a06b01f25da306c "$opencode_archive" | sha256sum --check
+          tar -xzf "$opencode_archive" -C "$RUNNER_TEMP" opencode
+          "$RUNNER_TEMP/opencode" --version
+      - name: Prepare the product environment
+        if: needs.admit.outputs.admitted == 'true' && inputs.mode == 'hosted'
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ vars.QIP_AGENT_MAVEN_USERNAME || github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.QIP_AGENT_MAVEN_TOKEN || github.token }}
+        run: |
+          bash "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_prepare.sh" \
+            "$GITHUB_WORKSPACE/trusted" "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR"
+      - name: Prepare the revision environment
+        if: needs.admit-revision.outputs.admitted == 'true'
+        run: |
+          bash "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_prepare_revision.sh" \
+            "$GITHUB_WORKSPACE/trusted" "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR"
+      - name: Run the author and reviewer
+        id: author
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          QIP_AGENT_MODEL: ${{ vars.QIP_AGENT_MODEL || 'openrouter/openai/gpt-6-luna' }}
+          QIP_AGENT_EFFORT: ${{ vars.QIP_AGENT_EFFORT || 'high' }}
+          QIP_AGENT_REVIEW_MODEL: ${{ vars.QIP_AGENT_REVIEW_MODEL || 'openrouter/openai/gpt-6-luna' }}
+          QIP_AGENT_REVIEW_EFFORT: ${{ vars.QIP_AGENT_REVIEW_EFFORT || 'xhigh' }}
+        run: |
+          python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_launch.py" \
+            "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR/assignment" "$HOSTED_DIR" \
+            "$RUNNER_TEMP/qip-work" "$RUNNER_TEMP/opencode"
+      - name: Stage hosted evidence
+        if: always() && (inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true')
+        run: |
+          if [[ -d "$HOSTED_DIR" ]]; then
+            python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_evidence.py" \
+              "$HOSTED_DIR" "$RUNNER_TEMP/qip-hosted-evidence"
+          fi
+      - name: Summarize staged measurements
+        if: always() && (inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true')
+        continue-on-error: true
+        run: |
+          staged="$RUNNER_TEMP/qip-hosted-evidence"
+          if [[ -f "$staged/result/config.json" ]]; then
+            "$RUNNER_TEMP/work-metrics" --output "$RUNNER_TEMP/qip-hosted-metrics.json" "$staged/result"
+          fi
+      - name: Package the author result
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        env:
+          BASE_SHA: ${{ steps.revision.outputs.base_sha || steps.work.outputs.base_sha }}
+          AUTHOR_OUTCOME: ${{ steps.author.outcome }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/qip-hosted/artifact
+          AGENT_HOSTED_USAGE_DIR: ${{ runner.temp }}/qip-hosted/result
+        run: |
+          mkdir -m 700 "$AGENT_HOSTED_ARTIFACT_DIR"
+          cp "$RUNNER_TEMP/qip-hosted-evidence/result/report.json" "$AGENT_HOSTED_ARTIFACT_DIR/report.json"
+          outcome=$(jq -er '.status' "$AGENT_HOSTED_ARTIFACT_DIR/report.json")
+          if [[ "$outcome" == author-reported-fixed ]]; then
+            [[ "$AUTHOR_OUTCOME" == success ]]
+            "$RUNNER_TEMP/agent-candidate" pack --workspace "$GITHUB_WORKSPACE/candidate" \
+              --base "$BASE_SHA" --output "$AGENT_HOSTED_ARTIFACT_DIR/candidate.json"
+          fi
+          "$RUNNER_TEMP/qip-agent" seal
+      - name: Save the author result
+        if: inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/artifact/
+          if-no-files-found: error
+      - name: Save hosted evidence
+        if: always() && (inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted-evidence/
+          if-no-files-found: ignore
+      - name: Save hosted metrics
+        if: always() && (inputs.mode == 'hosted' || needs.admit-revision.outputs.admitted == 'true')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-metrics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted-metrics.json
+          if-no-files-found: ignore
+
+  notify:
+    needs: [admit, work]
+    if: >-
+      ${{ always() && needs.admit.outputs.admitted == 'true' && vars.AGENT_ENABLED == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Notify the controller
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]]
+          gh workflow run agent-control.yaml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
+            -f operation=reconcile-run -f issue="$ISSUE" -f worker_run="$GITHUB_RUN_ID" -f worker_attempt="$GITHUB_RUN_ATTEMPT"
+
+  publish-revision:
+    needs: [admit-revision, work]
+    if: >-
+      ${{ always() && needs.admit-revision.outputs.admitted == 'true' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      statuses: read
+      issues: read
+      pull-requests: write
+    concurrency:
+      group: qip-agent-revision-${{ github.event.issue.number || inputs.auto_pr }}
+      queue: max
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build revision publisher
+        working-directory: tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: go build -trimpath -o "$RUNNER_TEMP/qip-agent-revise" ./cmd/agent-revise
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        if: needs.work.result == 'success'
+        continue-on-error: true
+        with:
+          name: agent-hosted-${{ github.run_id }}-1
+          path: ${{ runner.temp }}/agent-revision-artifact
+      - name: Publish and report the revision
+        run: '"$RUNNER_TEMP/qip-agent-revise" publish'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+          AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-revision-artifact
+          REVISION_WORK_RESULT: ${{ needs.work.result }}

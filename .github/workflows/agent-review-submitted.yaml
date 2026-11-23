@@ -1,0 +1,19 @@
+name: QIP agent review submitted
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  notify:
+    if: >-
+      ${{ vars.AGENT_ENABLED == 'true' && vars.AGENT_MODE == 'hosted' &&
+          github.event.review.state == 'changes_requested' &&
+          github.event.pull_request.head.repo.id == github.event.repository.id &&
+          startsWith(github.event.pull_request.head.ref, 'agent/fix/') }}
+    runs-on: ubuntu-latest
+    steps:
+      # Completion wakes the default-branch coordinator, which reads the review from GitHub.
+      - run: echo "Review submitted."
