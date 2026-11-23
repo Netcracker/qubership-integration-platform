@@ -81,6 +81,10 @@
         "title": "Delete Chain"
       },
       {
+        "command": "cip.duplicateChain",
+        "title": "Duplicate Chain"
+      },
+      {
         "command": "cip.openInTextEditor",
         "title": "Open in Text Editor"
       },
@@ -182,6 +186,11 @@
         },
         {
           "command": "cip.deleteChain",
+          "when": "viewItem == cip-chain",
+          "group": "1_modification"
+        },
+        {
+          "command": "cip.duplicateChain",
           "when": "viewItem == cip-chain",
           "group": "1_modification"
         }

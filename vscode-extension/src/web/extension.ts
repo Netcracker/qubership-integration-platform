@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, deleteChain, deleteService, getApiResponse, listChainExportTargets } from "./response";
+import { CHAIN_DIFF_PATH, deleteChain, deleteService, duplicateChain, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -806,6 +806,20 @@ export function activate(context: ExtensionContext): void {
           } catch (error) {
             vscode.window.showErrorMessage(`Failed to delete chain: ${error}`);
           }
+        }
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cip.duplicateChain", async (item: any) => {
+      if (item && item.fileUri) {
+        try {
+          const result = await duplicateChain(item.fileUri);
+          cipProvider.refresh();
+          vscode.window.showInformationMessage(`Chain ${item.label} duplicated to ${result.name}`);
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to duplicate chain: ${error}`);
         }
       }
     }),

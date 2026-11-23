@@ -296,6 +296,53 @@ suite("Delete commands", function () {
   });
 });
 
+suite("Duplicate command", function () {
+  this.timeout(SUITE_TIMEOUT);
+
+  suiteSetup(activateExtension);
+
+  test("cip.duplicateChain writes a copy with new ids beside the source chain", async () => {
+    const source = await readYaml(workspaceUri(FIXTURES.chain));
+    const sourceTree = await listTree(workspaceUri(folderOf(FIXTURES.chain)));
+    const chainsBefore = await listDirectory(workspaceUri("chains"));
+    let copyId: string | undefined;
+    try {
+      const errors = await errorsFrom(() =>
+        vscode.commands.executeCommand("cip.duplicateChain", {
+          fileUri: workspaceUri(FIXTURES.chain),
+          label: source.name,
+        }),
+      );
+      assert.deepStrictEqual(errors, []);
+
+      const added = (await listDirectory(workspaceUri("chains"))).filter((name) => !chainsBefore.includes(name));
+      assert.strictEqual(added.length, 1, `expected one new chain folder, got ${JSON.stringify(added)}`);
+      copyId = added[0];
+      const copy = await readYaml(workspaceUri(`chains/${copyId}/${copyId}.chain.cip.yaml`));
+      assert.strictEqual(copy.id, copyId);
+      assert.strictEqual(copy.name, `${source.name} (1)`);
+      assert.strictEqual(copy.content.deployAction, "NONE");
+
+      const [script, trigger] = copy.content.elements;
+      const sourceIds = source.content.elements.map((element: any) => element.id);
+      assert.ok(!sourceIds.includes(script.id) && !sourceIds.includes(trigger.id), "the copy keeps a source element id");
+      assert.deepStrictEqual(copy.content.dependencies, [{ from: trigger.id, to: script.id }]);
+      const sourceScript = source.content.elements[0].properties.propertiesFilename;
+      assert.strictEqual(
+        await readText(workspaceUri(`chains/${copyId}/resources/${script.properties.propertiesFilename}`)),
+        await readText(workspaceUri(`${folderOf(FIXTURES.chain)}/resources/${sourceScript}`)),
+      );
+
+      assert.deepStrictEqual(await readYaml(workspaceUri(FIXTURES.chain)), source);
+      assert.deepStrictEqual(await listTree(workspaceUri(folderOf(FIXTURES.chain))), sourceTree);
+    } finally {
+      if (copyId) {
+        await vscode.workspace.fs.delete(workspaceUri(`chains/${copyId}`), { recursive: true });
+      }
+    }
+  });
+});
+
 suite("Open commands", function () {
   this.timeout(SUITE_TIMEOUT);
 

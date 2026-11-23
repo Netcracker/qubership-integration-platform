@@ -69,7 +69,7 @@ Each **chain** contains the following parameters in the table:
   - _**Generate DDS**_ - generates integration design document, based on the chain data.
   - _**Cut**_ - cuts the chain. To paste it, click "paste" ![carry-out](img/carry-out.svg) button, available on top of the screen.
   - _**Copy**_ - copies chain (whole object). To paste copied chain, click "paste" ![carry-out](img/carry-out.svg) button, available on top of the screen.
-  - _**Duplicate**_ - duplicates chain. New chain will be duplicated with the  **"- copy"** postfix.
+  - _**Duplicate**_ - creates a copy of the chain in the same folder, as described in [Duplicate Chain](#duplicate-chain).
   - _**Delete**_ - deletes chain.
 
 Each **folder** contains the following parameters in the table:
@@ -146,6 +146,22 @@ To create a chain using VS Code Extension, follow the steps outlined below:
 2. In the left bottom find CIP section and expand it.
 3. Next to the "Chains" section, click the **"CIP Create a chain in the current directory"** button.
 4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the CIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
+
+### Duplicate Chain
+<ins>Web UI</ins>
+
+From the Chains and Folders View, click the action menu ![more](img/more.svg) of the chain and select **Duplicate**.
+
+<ins>VS Code Extension</ins>
+
+Under the "Chains" section, right-click the chain and select **Duplicate Chain**. A notification in the bottom-right corner names the copy. The extension writes the copy to a new `<id>/<id>.chain.cip.yaml` folder beside the folder of the source chain, or under the workspace root when the source chain is stored there. Resource files, such as the `.groovy` files of Script elements, are copied under the new element IDs.
+
+In both clients, the copy:
+
+- stays in the folder of the source chain;
+- is named `<name> (n)`, where `n` is the smallest number that no other chain in that folder uses;
+- gets new IDs for the chain and for each element, and the connections and references between elements point to the new IDs;
+- has no snapshots or deployments.
 
 ### Move Chain or Folder
 **`⛔ Not available via the VS Code extension`**

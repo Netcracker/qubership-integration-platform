@@ -102,12 +102,20 @@ export function workspaceUri(relativePath = ""): ApiUri {
 
 const defaultWorkspaceFolders = () => [{ uri: workspaceRoot, name: "workspace", index: 0 }];
 
+type FakeWorkspaceFolder = { uri: FakeUri; name: string; index: number };
+
 export const workspace: {
   fs: typeof fileSystem;
-  workspaceFolders: { uri: FakeUri; name: string; index: number }[] | undefined;
+  workspaceFolders: FakeWorkspaceFolder[] | undefined;
+  getWorkspaceFolder(uri: FakeUri): FakeWorkspaceFolder | undefined;
 } = {
   fs: fileSystem,
   workspaceFolders: defaultWorkspaceFolders(),
+  // The host returns a folder for its own uri as well as for any uri under it.
+  getWorkspaceFolder: (uri) =>
+    workspace.workspaceFolders?.find(
+      (folder) => uri.path === folder.uri.path || uri.path.startsWith(`${folder.uri.path}/`),
+    ),
 };
 
 // The declared answer type is `any` rather than `undefined`, so a case can stub an answer.

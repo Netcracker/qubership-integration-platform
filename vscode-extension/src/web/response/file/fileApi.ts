@@ -3,7 +3,8 @@ import { Chain, LibraryData } from "@netcracker/qip-ui";
 import { Chain as ChainSchema } from "@netcracker/qip-schemas";
 
 export interface FileApi {
-  getRootDirectory(): Uri;
+  /** Returns the workspace folder that contains `uri`, or the first workspace folder when `uri` is omitted or lies outside every folder. */
+  getRootDirectory(uri?: Uri): Uri;
 
   getMainChain(parameters: any): Promise<ChainSchema>;
 
