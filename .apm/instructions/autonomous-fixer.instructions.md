@@ -1,0 +1,23 @@
+---
+description: "Maintaining the autonomous fixer's Go controller, GitHub workflows, and runner scripts."
+applyTo: "tools/autonomous-fixer/**"
+---
+
+The fixer is a separate Go module. Its command entry points are under `cmd/`. The corresponding
+GitHub Actions workflows are under `.github/workflows/agent-*.yaml`. When changing a workflow
+input, receipt, or artifact, check both the producer and the consumer.
+
+- For engineering work, follow `GITHUB-ACTIONS.md` in the module. The author runs the repository's
+  `fix-issue` skill, verifies the product, and delegates reviews. Keep GitHub write credentials
+  in the trusted jobs. The publisher checks the candidate against the admitted run, base, and scope.
+- For PR follow-up, change CI diagnostics in `internal/agentci`, coordination in
+  `internal/autofollow`, and revision admission and publication in `internal/hostedrevision`.
+  Existing PRs can carry receipts from earlier runs. Exercise replay on the same head and a head
+  change when modifying how the controller identifies feedback.
+- Jev advises before assignment and routes documentation work after merge. See
+  `JEV-ENGINEERING.md` for issue snapshots and `DOCS-GITHUB.md` for documentation publication.
+  The engineering author starts from the assigned issue and the repository instructions.
+
+From the module directory, run `go test -race ./...`, `go vet ./...`, and `go build ./cmd/...`.
+For runner script changes, also run `python3 -B -W error -m unittest discover -s scripts`.
+Use `go run ./cmd/agent demo` to exercise duplicate delivery and cancellation locally.

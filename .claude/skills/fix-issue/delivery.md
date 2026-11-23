@@ -6,6 +6,28 @@ a run; the verification after each one is the point.
 Wrap every network call in `timeout`. A `gh issue comment` hung for seven minutes and an image
 upload for 133 seconds; the run cannot tell a slow call from a dead one.
 
+## Sign the run result
+
+Append the [AI agent comment signature](https://github.com/Netcracker/qubership-ai-packages/blob/main/research/ai-autonomous-design/README.md#ai-agent-comment-signatures)
+to the PR description, issue body, top-level comment, or review body that reports the result.
+For a stop, put it below the question for the engineer. When both the PR and the issue describe
+the same work, sign the PR and link to it from the issue report. Leave inline review comments
+unsigned. A local assignment that delegates publication to the controller leaves the signature
+to the controller.
+
+Use one empty line followed by this last line, without a code fence:
+
+```text
+<sub>🤖 MODEL EFFORT in=12k cached=40k out=3k usd=0.083</sub>
+```
+
+Replace the example values with the main runtime's model identifier and reasoning effort, and
+the totals for the whole run, including subagents and retries. Count cache writes as input,
+cache reads as cached, and reasoning tokens as output. Use k for thousands and round USD to
+two significant digits. Omit each unknown field. For example, when only the model is known,
+write `<sub>🤖 MODEL</sub>` with its actual identifier. Before editing or retrying delivery,
+check where the run was already signed. Update that result in place.
+
 ## Commit and push
 
 ```bash
