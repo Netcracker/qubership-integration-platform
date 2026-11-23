@@ -345,7 +345,9 @@ public class ImportService {
                 logImportAction(file.getOriginalFilename());
                 ImportChainResult importChainDTO = restoreChainFromYaml(getFileContent(file), null,
                         null, technicalLabels);
-                response.setChains(makeDeployActions(importChainDTO, commitRequests, technicalLabels));
+                // The file holds one chain and restoreChainFromYaml saves it whatever the list selects
+                response.setChains(makeDeployActions(importChainDTO,
+                        CollectionUtils.isEmpty(commitRequests) ? null : commitRequests, technicalLabels));
             } catch (Exception e) {
                 log.warn("Exception while chain import: ", e);
                 response.setErrorMessage("Exception while chain import: " + e.getMessage());

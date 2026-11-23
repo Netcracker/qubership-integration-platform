@@ -10,6 +10,7 @@ import org.qubership.integration.platform.io.readers.chain.ChainModelMapper;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
@@ -138,6 +139,18 @@ class ImportServiceTest {
 
         verify(snapshotService).build(eq("c1"), any());
         verify(snapshotService, never()).build(eq("c2"), any());
+    }
+
+    @Test
+    void emptyListStillSnapshotsAChainImportedFromAYamlFile() throws Exception {
+        when(fileMigrationService.migrate(anyString(), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(chainExternalEntityMapper.toInternalEntity(any())).thenReturn(Chain.builder().id("c1").name("c1").build());
+        MockMultipartFile yaml = new MockMultipartFile(
+                "file", "c1.yaml", "application/yaml", CHAIN_YAML.getBytes(StandardCharsets.UTF_8));
+
+        service.importFile(yaml, List.of(), Set.of());
+
+        verify(snapshotService).build(eq("c1"), any());
     }
 
     @Test
