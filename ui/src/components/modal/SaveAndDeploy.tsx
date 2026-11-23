@@ -111,7 +111,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
       >
         <DomainsFormItem disabled={domainsLoading} />
         <Form.Item name="snapshotName" label="Snapshot name">
-          <Input placeholder="Auto-generated if left blank" />
+          <Input placeholder="Auto-generated if left blank" maxLength={255}/>
         </Form.Item>
       </Form>
     </Modal>
