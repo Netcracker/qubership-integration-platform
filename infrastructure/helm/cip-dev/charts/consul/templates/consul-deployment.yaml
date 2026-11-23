@@ -18,7 +18,7 @@ spec:
         - args:
             - agent
             - -bootstrap-expect=1
-          image: hashicorp/consul:1.15.4
+          image: hashicorp/consul:2.1.0
           name: consul
           ports:
             - containerPort: 8500

@@ -8,3 +8,10 @@ test-results/
 .e2e-*
 # The axis generator's output, rewritten by every seed.
 fixtures/axes/
+
+dist/
+*.tgz
+/LICENSE
+suite.json
+.qip-e2e/
+suite.zip

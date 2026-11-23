@@ -39,6 +39,7 @@ allowed_prefixes=(
     github.com/distribution
     github.com/dlclark
     github.com/docker
+    github.com/ebitengine
     github.com/felixge
     github.com/fsnotify
     github.com/go-logr
@@ -47,8 +48,10 @@ allowed_prefixes=(
     github.com/go-viper
     github.com/gofiber
     github.com/gogo
+    github.com/golang-jwt
     github.com/google
     github.com/grpc-ecosystem
+    github.com/jackc
     github.com/jinzhu
     github.com/josharian
     github.com/kisielk
@@ -64,12 +67,14 @@ allowed_prefixes=(
     github.com/moby
     github.com/morikuni
     github.com/munnerz
+    github.com/netcracker
     github.com/niemeyer
     github.com/opencontainers
     github.com/pkg
     github.com/pmezard
     github.com/power-devops
     github.com/prometheus
+    github.com/puzpuzpuz
     github.com/rivo
     github.com/rogpeppe
     github.com/santhosh-tekuri
@@ -84,6 +89,7 @@ allowed_prefixes=(
     github.com/tmthrgd
     github.com/uptrace
     github.com/valyala
+    github.com/viney-shih
     github.com/vmihailenco
     github.com/wI2L
     github.com/yuin

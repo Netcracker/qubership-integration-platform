@@ -9,8 +9,8 @@ import static net.logstash.logback.marker.Markers.append;
 public class LogExchangeMarkers extends AbstractTruncatedFieldLogger {
 
     public LogstashMarker buildExchangeMarkers(String body, String headers, String properties) {
-        return append("exchange_body", truncateValue(body))
+        return append("exchange_properties", truncateValue(properties))
                 .and(append("exchange_headers", truncateValue(headers)))
-                .and(append("exchange_properties", truncateValue(properties)));
+                .and(append("exchange_body", truncateValue(body)));
     }
 }

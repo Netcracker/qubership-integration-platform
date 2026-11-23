@@ -8,6 +8,7 @@ import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
 import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTaskParameters;
+import org.qubership.integration.platform.maven.plugin.domain.util.GeneratedFiles;
 import org.qubership.integration.platform.maven.plugin.domain.util.SkippableFailableOperationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,7 @@ public class DtoLibrariesBuildService {
         }
         Path filePath = outputDirectory.resolve(buildJarFileName(serviceSpecification));
         Files.write(filePath, data);
+        GeneratedFiles.record(filePath, taskContext.getProject().getArtifactId());
         taskContext.getProjectHelper().attachArtifact(taskContext.getProject(), "jar", serviceSpecification.getId(), filePath.toFile());
         log.info("Built DTO library for service '{}' ({}) specification '{}' ({}): {}",
             integrationService.getName(), integrationService.getId(),

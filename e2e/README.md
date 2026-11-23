@@ -1,5 +1,7 @@
 # End-to-end tests
 
+To use the npm package in another application, follow the [consumer guide](PACKAGE.md).
+
 Run the platform's end-to-end suite against a local stack, Docker Compose or a Kubernetes cluster,
 and read the report it produces. The suite decides nothing on its own: it reports what passed and
 what failed, and a person decides what to do about it.
@@ -455,12 +457,14 @@ instead. The command names the project, the `file:line`, and a `-g` pattern buil
 name:
 
 ```bash
-npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts:16 -g "seeded http-echo chain.*outlives the seed project and answers on its route"
+npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts -g "HTTP echo chain.*answers on its deployed route"
 ```
 
 The `file:line` alone is not enough, because the cases a loop or a function declares share one
-line, and the title alone can repeat under another describe. Run the command against a kept corpus,
-as [Reproducing one case](#reproducing-one-case) describes. A case of a project that needs no stack,
+line, and the title alone can repeat under another describe. For a shared suite, the command selects
+the entry spec file and the report links to the implementation separately.
+Run the command against a kept corpus, as [Reproducing one case](#reproducing-one-case) describes.
+A case of a project that needs no stack,
 such as `vscode`, reruns without `--no-deps`, so its setup builds and starts the VS Code server.
 
 A run whose only failures are pins to remove is titled "found fixed defects". The email also lists

@@ -161,7 +161,8 @@ export const DocumentationPage: React.FC = () => {
   return (
     <PageWithSidebar
       sidebar={sidebar}
-      sidebarWidth={300}
+      sidebarWidth={328}
+      sidebarVariant="inset"
       showCollapseToggle={false}
     >
       <div className={styles.docBody}>

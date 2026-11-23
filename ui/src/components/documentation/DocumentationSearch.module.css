@@ -1,5 +1,9 @@
 .container {
-  padding: 8px 10px;
+  margin-block-end: 16px;
+}
+
+.searchIcon {
+  color: var(--vscode-input-placeholderForeground);
 }
 
 .loading {

@@ -1,3 +1,4 @@
+import { suiteExtension } from "./suite-extension.js";
 /**
  * What differs between the two targets, behind one interface.
  *
@@ -16,7 +17,7 @@ import { ComposeEnv } from "./compose.js";
 import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
 import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE, recordedMicroDomain } from "./k8s.js";
-import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
+import { collectK8sHeader, k8sBaseline, startK8sSampler } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
 import { composeBaseline, startResourceSampler } from "./resources.js";
@@ -40,8 +41,8 @@ export interface SuiteProject
 export interface StackObserver {
   /** The envelope of every role, taken before any project runs. */
   baseline(): Promise<ProcessEnvelope[]>;
-  /** Starts sampling for the rest of the run, in a process that outlives `globalSetup`. */
-  startSampler(run: string, baseline: readonly ProcessEnvelope[]): void;
+  /** Starts sampling for the run and can return its teardown. */
+  startSampler(run: string, baseline: readonly ProcessEnvelope[]): (() => void) | void;
   header(about: { run: string; workers: number; provision: ProvisionReport }): Promise<StackFacts>;
 }
 
@@ -277,9 +278,7 @@ function k8sSetup(): TargetSetup {
     provision: provisionK8s,
     observer: {
       baseline: k8sBaseline,
-      startSampler(run, baseline) {
-        startResourceSampler(run, baseline, topSample());
-      },
+      startSampler: startK8sSampler,
       header: collectK8sHeader,
     },
     projects: [
@@ -294,6 +293,7 @@ function k8sSetup(): TargetSetup {
 }
 
 /** The setup of `name`, which defaults to the target `CIP_TARGET` names. */
-export function targetSetup(name: Target = target()): TargetSetup {
-  return name === "compose" ? composeSetup() : k8sSetup();
+export function targetSetup(name?: Target): TargetSetup {
+  const base = (name ?? target()) === "compose" ? composeSetup() : k8sSetup();
+  return name === undefined ? suiteExtension().target?.(base) ?? base : base;
 }

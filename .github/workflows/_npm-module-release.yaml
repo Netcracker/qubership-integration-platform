@@ -50,6 +50,11 @@ on:
         type: boolean
         default: false
         description: "Build @netcracker/qip-schemas (workspace dep) before the module build. Needed by ui."
+      standalone:
+        required: false
+        type: boolean
+        default: false
+        description: "Install and update the module's own lockfile outside the root workspaces."
     secrets:
       GH_BUMP_VERSION_APP_KEY:
         required: false
@@ -142,10 +147,12 @@ jobs:
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.scope }}
           cache: "npm"
+          cache-dependency-path: ${{ inputs.standalone && format('{0}/package-lock.json', inputs.module) || 'package-lock.json' }}
 
-      - name: Install dependencies (root workspaces)
+      - name: Install dependencies
         # Always (even in recovery): npm version + the lockfile sync below need a
         # consistent install; npm ci is cached and cheap.
+        working-directory: ${{ inputs.standalone && inputs.module || '.' }}
         run: npm ci
 
       # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
@@ -160,9 +167,17 @@ jobs:
         run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build
-        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        if: ${{ needs.check-version.outputs.recover != 'true' && inputs.module != 'e2e' }}
         working-directory: ${{ inputs.module }}
         run: npm run prepublishOnly
+
+      - name: Pack and verify E2E release
+        if: ${{ needs.check-version.outputs.recover != 'true' && inputs.module == 'e2e' }}
+        working-directory: e2e
+        run: |
+          npm run check-types
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm run test:package -- --tarball="$RUNNER_TEMP/netcracker-qip-e2e-$RELEASE_VERSION.tgz"
 
       - name: Publish to npm registry (idempotent)
         if: ${{ needs.check-version.outputs.recover != 'true' }}
@@ -172,6 +187,8 @@ jobs:
           pkg="$SCOPE/qip-$MODULE"
           if npm view "$pkg@$RELEASE_VERSION" version >/dev/null 2>&1; then
             echo "$pkg@$RELEASE_VERSION already published — skipping."
+          elif [ "$MODULE" = e2e ]; then
+            npm publish "$RUNNER_TEMP/netcracker-qip-e2e-$RELEASE_VERSION.tgz" --tag "$DIST_TAG"
           else
             npm publish --tag "$DIST_TAG"
           fi
@@ -180,14 +197,19 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           TAG: ${{ needs.check-version.outputs.release-tag }}
+          STANDALONE: ${{ inputs.standalone }}
         run: |
           set -eu
-          # Sync the root lockfile with the bumped version so the next `npm ci`
-          # doesn't fail on a mismatch. TAG tags this bump commit and pushes it
-          # first (see the script). Runs in recovery too — no-ops if unchanged.
-          npm install --package-lock-only
+          # Update the package's lockfile before committing and tagging the bump.
+          lockfile=package-lock.json
+          if [ "$STANDALONE" = true ]; then
+            npm --prefix "$MODULE" install --package-lock-only
+            lockfile="$MODULE/package-lock.json"
+          else
+            npm install --package-lock-only
+          fi
           bash scripts/commit-and-push.sh \
             "chore: $MODULE $RELEASE_VERSION [skip ci]" \
-            "$MODULE/package.json" package-lock.json
+            "$MODULE/package.json" "$lockfile"
 
   # No GitHub Release here — cut once per drop by release-all.

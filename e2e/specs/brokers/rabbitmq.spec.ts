@@ -36,9 +36,10 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
-import { publishAmqp as publish, bindConsumerQueue, expectAckOutcome, waitForAmqpMessage as waitForMessage } from "../../support/broker-clients.js";
+import { bindConsumerQueue, expectAckOutcome, waitForAmqpMessage as waitForMessage } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type Sessions } from "../../support/sessions.js";
+import { expectBrokerTrigger } from "../../support/broker-trigger.js";
 import { covers } from "../../registry/covers.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
@@ -52,19 +53,7 @@ test.describe("rabbitmq", { tag: ["@engine", "@sessions", "@rabbitmq"] }, () => 
       // No exchangeType covers() call: the brokers seed declares the exchange itself, so this case
       // passes for any type. specs/api/rabbitmq-trigger-snapshot.spec.ts covers the axis on the compile.
 
-      const corpus = readBrokersCorpusState();
-      const chain = brokerChain(corpus, "rabbitmq-trigger-basic");
-      const exchange = chain.broker.exchange as string;
-      const routingKey = chain.broker.routingKey as string;
-      const token = callToken("rabbitmq-consume");
-
-      await publish(exchange, routingKey, token, { ping: "rabbitmq" });
-
-      const session = await sessions.byExternalId(token, { elements: 2 });
-      expect(session.chainId).toBe(chain.id);
-      expect(session.externalSessionCipId).toBe(token);
-      expect(elementNames(session)).toEqual(["RabbitMQ Trigger", "Header Modification"]);
-      expect(failedElements(session)).toEqual([]);
+      await expectBrokerTrigger("rabbitmq", brokerChain(readBrokersCorpusState(), "rabbitmq-trigger-basic"), sessions);
     });
 
     const DEAD_LETTER_CASES = [

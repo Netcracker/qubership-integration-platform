@@ -8,6 +8,9 @@
 server:
   bind: ":8080"
 
+dbaas:
+  enabled: false
+
 postgres:
   # The DSN can carry a password, so it is supplied per installation through
   # CIP_TESTING_POSTGRES_DSN rather than shipped in the image. Its search_path

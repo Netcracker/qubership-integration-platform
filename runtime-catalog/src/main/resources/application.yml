@@ -212,7 +212,9 @@ cip:
         limit:
           cpu: ${MICRO_ENGINE_CONTAINER_LIMIT_CPU:}
           memory: ${MICRO_ENGINE_CONTAINER_LIMIT_MEMORY:1280Mi} # micro-engine/Dockerfile sizes the heap at 50% of this
+        readOnlyRootFilesystem: ${MICRO_ENGINE_CONTAINER_READONLY_FILE_SYSTEM_ENABLED:true}
         runAsUser: ${MICRO_ENGINE_CONTAINER_RUN_AS_USER:0}
+        runAsGroup: ${MICRO_ENGINE_CONTAINER_RUN_AS_GROUP:0}
         runAsNonRoot: ${MICRO_ENGINE_CONTAINER_RUN_AS_NON_ROOT:true}
         seccompProfileType: ${MICRO_ENGINE_CONTAINER_SECCOMP_PROFILE_TYPE:RuntimeDefault}
         allowPrivilegeEscalation: ${MICRO_ENGINE_CONTAINER_ALLOW_PRIVILEGE_ESCALATION:false}

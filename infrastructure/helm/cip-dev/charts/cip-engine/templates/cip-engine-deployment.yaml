@@ -29,7 +29,7 @@ spec:
       # after OpenSearch answers, as docker-compose.yml orders it.
       initContainers:
         - name: wait-for-opensearch
-          image: hashicorp/consul:1.15.4
+          image: curlimages/curl:8.23.0
           imagePullPolicy: IfNotPresent
           env:
             - name: OPENSEARCH_HOST

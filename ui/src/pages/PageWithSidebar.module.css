@@ -23,6 +23,31 @@
   overflow-y: auto;
 }
 
+.insetSidebar {
+  border-radius: 0;
+}
+
+.insetSidebar .sidebar {
+  background: var(--vscode-sideBar-background, var(--vscode-panel-background));
+  border-inline-end: 1px solid var(--vscode-border);
+}
+
+:global(:root[data-theme="light"]:not(.vscode-webview)) .insetSidebar .sidebar {
+  border-inline-end-color: color-mix(
+    in srgb,
+    var(--vscode-border) 30%,
+    var(--vscode-sideBar-background)
+  );
+}
+
+.insetSidebar .sidebarMenu {
+  padding: 16px;
+}
+
+.insetSidebar .contentArea {
+  border-radius: 0;
+}
+
 .sidebarToggleBar {
   height: 40px;
   line-height: 40px;

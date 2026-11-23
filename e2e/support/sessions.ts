@@ -39,9 +39,11 @@
  * project by construction: that project is defined as needing no stack.
  */
 import { expect, type APIRequestContext, type APIResponse } from "@playwright/test";
-import { callToken } from "./run.js";
-import { noteSession, noteSessionLookup } from "./diagnostics.js";
+import { callToken } from "./run-token.js";
+import { noteSession, noteSessionLookup } from "./diagnostic-record.js";
 import { noteReached } from "../registry/reached.js";
+import { externalSettings } from "../env/external-settings.js";
+import { assertExternalAuthorized } from "../env/external-auth.js";
 import { serviceUrl } from "../env/containers.js";
 
 /** `CamelConstants.Headers.EXTERNAL_SESSION_CIP_ID` (`CamelConstants.java:53`), copied literally. */
@@ -414,6 +416,7 @@ export class Sessions {
         .poll(
           async () => {
             last = await this.attemptByExternalId(token);
+            if (externalSettings() && (last.status === 401 || last.status === 403)) return true;
             const session = last.session;
             if (session === null) return false;
             if (wanted > 0) {
@@ -441,6 +444,7 @@ export class Sessions {
       );
     }
 
+    assertExternalAuthorized(last.status, "sessions-management");
     if (!found) throw new Error(`unreachable: the poll passed with no session (${last.status})`);
     noteSession({ id: found.id, chainId: found.chainId ?? undefined, token });
     return found;

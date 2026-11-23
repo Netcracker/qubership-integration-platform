@@ -17,14 +17,22 @@
 package org.qubership.integration.platform.engine.consul;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
+import org.qubership.integration.platform.engine.model.consul.KeyResponse;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
@@ -38,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -46,6 +55,7 @@ import static org.mockito.Mockito.when;
 
 class ConsulServiceTest {
 
+    private static final String CHAIN_SETTINGS_KEY = "config/engine/runtime-configurations/chains";
     private static final String FIRST_SESSION_ID = "first-session-id";
     private static final String SECOND_SESSION_ID = "second-session-id";
 
@@ -56,7 +66,7 @@ class ConsulServiceTest {
     @BeforeEach
     void setUp() {
         client = mock(ConsulClient.class);
-        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        ObjectMapper objectMapper = new ObjectMapper();
         applicationEventPublisher = mock(ApplicationEventPublisher.class);
 
         ServerConfiguration serverConfiguration = mock(ServerConfiguration.class);
@@ -72,6 +82,41 @@ class ConsulServiceTest {
                 objectMapper,
                 applicationEventPublisher,
                 new ConsulKeyValidator());
+        ReflectionTestUtils.setField(consulService, "keyPrefix", "config");
+        ReflectionTestUtils.setField(consulService, "keyEngineConfigRoot", "/engine");
+        ReflectionTestUtils.setField(consulService, "keyRuntimeConfigurations", "/runtime-configurations");
+        ReflectionTestUtils.setField(consulService, "keyChains", "/chains");
+    }
+
+    @Test
+    void readsLatestSettingsWithoutAdvancingTheWatchIndex() {
+        String settings = "{\"logLoggingLevel\":\"INFO\"}";
+        KeyResponse chain = KeyResponse.builder()
+                .key(CHAIN_SETTINGS_KEY + "/chain")
+                .value(Base64.getEncoder().encodeToString(settings.getBytes(StandardCharsets.UTF_8)))
+                .build();
+        when(client.waitForKVChanges(CHAIN_SETTINGS_KEY, false, 0, "20s"))
+                .thenReturn(Pair.of(10L, List.of(chain)), Pair.of(12L, List.of(chain)));
+        when(client.waitForKVChanges(CHAIN_SETTINGS_KEY, false, 10, "20s"))
+                .thenReturn(Pair.of(12L, List.of(chain)));
+
+        consulService.waitForChainRuntimeConfig();
+        var properties = consulService.readChainRuntimeConfig();
+        var update = consulService.waitForChainRuntimeConfig();
+
+        assertEquals(LogLoggingLevel.INFO, properties.get("chain").getLogLoggingLevel());
+        assertEquals(Boolean.TRUE, update.getLeft());
+        var requests = inOrder(client);
+        requests.verify(client, times(2)).waitForKVChanges(CHAIN_SETTINGS_KEY, false, 0, "20s");
+        requests.verify(client).waitForKVChanges(CHAIN_SETTINGS_KEY, false, 10, "20s");
+    }
+
+    @Test
+    void readsEmptySettingsWhenConsulHasNoRuntimeConfiguration() {
+        when(client.waitForKVChanges(CHAIN_SETTINGS_KEY, false, 0, "20s"))
+                .thenThrow(new KVNotFoundException());
+
+        assertEquals(Map.of(), consulService.readChainRuntimeConfig());
     }
 
     @Test

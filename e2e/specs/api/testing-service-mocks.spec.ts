@@ -34,7 +34,6 @@
  */
 import type { APIResponse } from "@playwright/test";
 import { test, expect } from "../../support/fixtures.js";
-import { proxyUrl } from "../../env/containers.js";
 import { UUID } from "../../support/absent.js";
 import { tokenized } from "../../support/run.js";
 import { leftBehind } from "../../support/teardown.js";
@@ -333,19 +332,18 @@ test.describe("endpoint mocks", { tag: ["@testing-service"] }, () => {
     });
   });
 
-  test("nginx blocks the mock call path the service serves", { tag: ["@infra"] }, async ({ testingService, request, run }) => {
+  test("nginx blocks the mock call path the service serves", { tag: ["@infra"] }, async ({ env, testingService, request, run }) => {
     const reference = inventedReference(run, "mocks-guard");
     const context = contextFor(reference);
     await testingService.withMock({ name: tokenized(run, "mock-guard"), reference, response: { status: 200, body: "mocked" } }, async (mock) => {
       expect(await answerOf(await testingService.callMock("post", context))).toEqual({ status: 200, body: "mocked" });
 
       // The prefix reaches the service for every other path, so the refusal below is the guard's.
-      const prefix = `${proxyUrl()}/api/v1/cip/testing-service`;
-      const read = await request.get(`${prefix}/endpoint-mocks/${mock.id}`);
+      const read = await request.get(env.apiUrl("testing-service", `/api/v1/endpoint-mocks/${mock.id}`));
       expect(read.status()).toBe(200);
       expect((await read.json()).id).toBe(mock.id);
 
-      const proxied = await request.post(`${prefix}/endpoint-mocks/call`, {
+      const proxied = await request.post(env.apiUrl("testing-service", CALL), {
         headers: { [TESTING_CONTEXT_HEADER]: encodeTestingContext(context) },
       });
       expect(proxied.status()).toBe(404);

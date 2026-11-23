@@ -94,7 +94,7 @@ export class Engine {
   async liveExchanges(): Promise<LiveExchange[]> {
     const response = await this.send("get", "/v1/engine/live-exchanges");
     if (response.status() === 204) return [];
-    if (!response.ok()) await fail(response, "GET", `${this.base}/v1/engine/live-exchanges`);
+    if (!response.ok()) await fail(response, "GET", `${this.base}/v1/engine/live-exchanges`, "engine");
     return (await response.json()) as LiveExchange[];
   }
 
@@ -147,7 +147,7 @@ export class Engine {
 
   private async call<T>(path: string): Promise<T> {
     const response = await this.send("get", path);
-    if (!response.ok()) await fail(response, "GET", `${this.base}${path}`);
+    if (!response.ok()) await fail(response, "GET", `${this.base}${path}`, "engine");
     return (await response.json()) as T;
   }
 }

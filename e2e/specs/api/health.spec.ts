@@ -37,11 +37,8 @@
  * dependency this reading can name, and the two custom indicators are the only per-service ones.
  */
 import { test, expect } from "../../support/fixtures.js";
-import type { APIRequestContext } from "@playwright/test";
+import { expectActuatorUp, expectTestingServiceUp, health, PROBE_GROUPS } from "../../support/health.js";
 import type { ServiceRole } from "../../env/index.js";
-
-/** Both are enabled explicitly in every service's `application.yml`, so both are a contract. */
-const PROBE_GROUPS = ["liveness", "readiness"];
 
 /**
  * The health indicator a service contributes beyond the ones Spring and Consul register.
@@ -55,28 +52,11 @@ const OWN_INDICATOR: Partial<Record<ServiceRole, string>> = {
   engine: "deployments",
 };
 
-interface HealthDocument {
-  status?: string;
-  groups?: string[];
-  components?: Record<string, { status?: string }>;
-}
-
-async function health(request: APIRequestContext, url: string): Promise<HealthDocument> {
-  const response = await request.get(url, { failOnStatusCode: false });
-  // 503 is the answer that matters here: the endpoint is reachable and the service is refusing
-  // traffic, so the body is still a health document and the status alone names the failure.
-  expect(response.status(), `${url} — is the stack up?`).toBe(200);
-  return (await response.json()) as HealthDocument;
-}
-
 test.describe("actuator health", () => {
   /** The cases every Spring Boot service answers, declared once per role. */
   function actuatorCases(role: ServiceRole) {
     test("reports UP and declares both probe groups", async ({ request, env }) => {
-      const document = await health(request, `${env.url(role)}/actuator/health`);
-
-      expect(document.status).toBe("UP");
-      expect([...(document.groups ?? [])].sort()).toEqual(PROBE_GROUPS);
+      await expectActuatorUp(request, env.url(role));
     });
 
     test("names no component as down", async ({ request, env }) => {
@@ -123,8 +103,7 @@ test.describe("actuator health", () => {
   test.describe("sessions-management", { tag: ["@sessions"] }, () => actuatorCases("sessions-management"));
   test.describe("testing-service", { tag: ["@testing-service"] }, () => {
     test("answers its own /health", async ({ request, env }) => {
-      const document = await health(request, `${env.url("testing-service")}/health`);
-      expect(document).toEqual({ status: "UP" });
+      await expectTestingServiceUp(request, env.url("testing-service"));
 
       // Not an actuator, and worth pinning: a spec that assumed the Spring path would poll a 404
       // forever and report the service down while it was serving.

@@ -256,6 +256,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             chainDeployments.add(deploymentUpdate);
         }
 
+        if (!updatesPerChain.isEmpty()) {
+            propertiesService.refreshRuntimePropertiesForDeployment();
+        }
         for (Entry<String, TreeSet<DeploymentUpdate>> entry : updatesPerChain.entrySet()) {
             TreeSet<DeploymentUpdate> chainDeployments = entry.getValue();
             completableFutures.add(process(chainDeployments, DeploymentOperation.UPDATE, retry));

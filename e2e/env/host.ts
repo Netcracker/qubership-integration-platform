@@ -1,3 +1,4 @@
+import { platformFetch as fetch } from "./platform-http.js";
 /**
  * Helpers both targets and their provisioners share: the checkout root, polling, long commands, and
  * file and HTTP probes. It imports no adapter, so either target can load it without the other.

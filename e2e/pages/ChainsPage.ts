@@ -71,10 +71,23 @@ export class ChainsPage {
   }
 
   /** Picks an item from a row's actions menu, whose button shows only while the row is hovered. */
-  async rowAction(name: string, action: string): Promise<void> {
+  async rowAction(name: string, action: string): Promise<Locator> {
     const row = this.row(name);
     await row.hover();
     await row.getByTestId("chains-row-actions").click();
-    await this.page.getByRole("menuitem", { name: action, exact: true }).click();
+    const item = this.page.getByRole("menuitem", { name: action, exact: true });
+    const menu = this.page.getByRole("menu").filter({ has: item });
+    // Ant Design animates the menu wrapper. During the animation a click can open Chain Details.
+    const popup = await menu.locator("..").elementHandle();
+    try {
+      await this.page.waitForFunction((element) =>
+        getComputedStyle(element).opacity === "1" &&
+        element.getAnimations().every((animation) => animation.playState === "finished"),
+      popup, { timeout: 5_000 });
+    } finally {
+      await popup.dispose();
+    }
+    await item.click();
+    return menu;
   }
 }

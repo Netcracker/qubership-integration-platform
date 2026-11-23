@@ -74,4 +74,5 @@ QIP_BOM_MODULES=(
     testing-service
     ui
     vscode-extension
+    e2e
 )

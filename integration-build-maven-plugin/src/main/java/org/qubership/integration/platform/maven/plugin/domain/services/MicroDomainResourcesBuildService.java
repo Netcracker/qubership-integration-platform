@@ -13,12 +13,14 @@ import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
+import org.qubership.integration.platform.maven.plugin.domain.util.GeneratedFiles;
 import org.qubership.integration.platform.maven.plugin.domain.util.SkippableFailableOperationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -115,11 +117,16 @@ public class MicroDomainResourcesBuildService {
                 snapshots, resourceBuildOptions, parameters.getBuildTimestamp());
         buildContext.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS, parameters);
         String resourceText = resourceBuildService.buildResources(buildContext);
-        resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText, file ->
+        resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText, file -> {
+            try {
+                GeneratedFiles.record(file.toPath(), taskContext.getProject().getArtifactId());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             taskContext.getProjectHelper()
                 .attachArtifact(taskContext.getProject(), YAML_ARTIFACT_TYPE,
-                    StringUtils.removeEnd(file.getName(), ".yaml"), file)
-        );
+                    StringUtils.removeEnd(file.getName(), ".yaml"), file);
+        });
     }
 
     private Collection<ImportChain> readChains(

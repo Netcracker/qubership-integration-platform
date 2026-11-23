@@ -60,7 +60,7 @@ class MicroDomainResourcesBuildServiceTest {
     private final ResourceWriteService resourceWriteService = mock(ResourceWriteService.class);
     private final MicroDomainResourceBuildContextFactory buildContextFactory =
         mock(MicroDomainResourceBuildContextFactory.class);
-    private final MavenProject project = mock(MavenProject.class);
+    private final MavenProject project = mockProject();
     private final MavenProjectHelper projectHelper = mock(MavenProjectHelper.class);
 
     // Real, not a mock: these tests assert on the services the load leaves in the catalog.
@@ -117,9 +117,25 @@ class MicroDomainResourcesBuildServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Consumer<File>> onWrite = ArgumentCaptor.forClass(Consumer.class);
         verify(resourceWriteService).writeResources(any(), any(), onWrite.capture());
+        Files.createDirectories(outputDirectory());
         File written = outputDirectory().resolve("Service-cip-engine-orders-domain.yaml").toFile();
         onWrite.getValue().accept(written);
         verify(projectHelper).attachArtifact(project, "yaml", "Service-cip-engine-orders-domain", written);
+    }
+
+    @Test
+    void recordsEachWrittenResourceForClean() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", "orders-domain");
+
+        buildService.buildResources(taskContext());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<File>> onWrite = ArgumentCaptor.forClass(Consumer.class);
+        verify(resourceWriteService).writeResources(any(), any(), onWrite.capture());
+        Files.createDirectories(outputDirectory());
+        onWrite.getValue().accept(outputDirectory().resolve("Service-cip-engine-orders-domain.yaml").toFile());
+        assertEquals(List.of("Service-cip-engine-orders-domain.yaml"),
+            Files.readAllLines(outputDirectory().resolve(".cip-generated-orders-app")));
     }
 
     @Test
@@ -340,5 +356,11 @@ class MicroDomainResourcesBuildServiceTest {
             .projectHelper(projectHelper)
             .taskParameters(parameters)
             .build();
+    }
+
+    private static MavenProject mockProject() {
+        MavenProject mock = mock(MavenProject.class);
+        when(mock.getArtifactId()).thenReturn("orders-app");
+        return mock;
     }
 }
