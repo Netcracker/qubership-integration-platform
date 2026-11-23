@@ -57,7 +57,7 @@ The image `CMD` runs G1 with the heap at 50% of the pod memory limit (runtime-ca
 1280Mi), caps Metaspace at 256m and direct memory at 128m, and exits on `OutOfMemoryError`. It starts no debug
 agent: to debug a domain, set
 `JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005` in the runtime catalog's
-`MICRO_DOMAIN_ENVIRONMENT`.
+`MICRO_ENGINE_ENVIRONMENT`.
 
 ### Failures and restarts
 
