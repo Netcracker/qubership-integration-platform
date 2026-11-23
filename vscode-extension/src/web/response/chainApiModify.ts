@@ -1486,7 +1486,8 @@ export async function duplicateChain(
     content.reuseSwimlaneId = newId(content.reuseSwimlaneId as string);
   }
   delete content.deployments;
-  delete content.deployAction;
+  // A missing deployAction makes the catalog import snapshot the chain; NONE skips it.
+  content.deployAction = "NONE";
 
   const takenNames: string[] = [];
   await fileApi.findAndBuildChainsRecursively(

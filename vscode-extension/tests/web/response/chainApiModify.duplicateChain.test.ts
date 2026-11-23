@@ -87,7 +87,7 @@ describe("duplicateChain", () => {
     expect(copy.id).not.toBe("orders");
     expect(copy.metaInfo.group).toBe("billing");
     expect(copy.content.deployments).toBeUndefined();
-    expect(copy.content.deployAction).toBeUndefined();
+    expect(copy.content.deployAction).toBe("NONE");
 
     const [lane, trigger, script, group] = copy.content.elements;
     const [reuse, reference] = group.children;
