@@ -321,7 +321,7 @@ suite("Duplicate command", function () {
       const copy = await readYaml(workspaceUri(`chains/${copyId}/${copyId}.chain.cip.yaml`));
       assert.strictEqual(copy.id, copyId);
       assert.strictEqual(copy.name, `${source.name} (1)`);
-      assert.strictEqual(copy.content.deployAction, undefined);
+      assert.strictEqual(copy.content.deployAction, "NONE");
 
       const [script, trigger] = copy.content.elements;
       const sourceIds = source.content.elements.map((element: any) => element.id);
