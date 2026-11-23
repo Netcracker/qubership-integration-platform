@@ -71,7 +71,10 @@ func (p *publisher) revalidate(ctx context.Context, mergeSHA string) (Current, e
 	if state.Decision == "no_change" && (state.Status == "completed" || state.CloseAttempted || state.ProjectDoneAttempted ||
 		(state.Status == "completing" && state.InitialIssueState == "closed")) {
 		current, err := revalidate(ctx, p.client, p.plan, p.plan.BaseSHA)
-		if err == nil && current.IssueState != "closed" {
+		if current.IssueState != "" && current.IssueState != "closed" {
+			if state.CloseAttempted {
+				return current, publicationFailed(PublicationFailedIssueClose, fmt.Errorf("issue was reopened or a prior close is unresolved"))
+			}
 			return current, fmt.Errorf("issue was reopened or a prior close is unresolved")
 		}
 		return current, err
@@ -84,7 +87,10 @@ func (p *publisher) complete(ctx context.Context, mergeSHA string) error {
 		return e
 	}
 	if current.IssueState != "closed" {
-		if p.state.InitialIssueState == "closed" || p.state.CloseAttempted {
+		if p.state.CloseAttempted {
+			return publicationFailed(PublicationFailedIssueClose, fmt.Errorf("issue was reopened or a prior close is unresolved"))
+		}
+		if p.state.InitialIssueState == "closed" {
 			return fmt.Errorf("issue was reopened or a prior close is unresolved")
 		}
 		state := p.state
@@ -93,41 +99,55 @@ func (p *publisher) complete(ctx context.Context, mergeSHA string) error {
 		if e = p.saveState(ctx, state); e != nil {
 			return e
 		}
+		if mergeSHA == "" {
+			if e = p.revalidateBeforePublicationWrite(ctx); e != nil {
+				state.CloseAttempted = false
+				return errors.Join(e, p.saveState(ctx, state))
+			}
+		}
 		requestErr := p.client.Request(ctx, "PATCH", fmt.Sprintf("/issues/%d", p.plan.IssueNumber), map[string]string{"state": "closed", "state_reason": "completed"}, nil)
 		current, e = p.revalidate(ctx, mergeSHA)
 		if current.IssueState != "closed" && fixer.GitHubWriteRejected(requestErr) {
 			state.CloseAttempted = false
-			return errors.Join(fmt.Errorf("issue close was rejected: %w", requestErr), e, p.saveState(ctx, state))
+			return publicationFailed(PublicationFailedIssueClose, errors.Join(fmt.Errorf("issue close was rejected: %w", requestErr), e, p.saveState(ctx, state)))
 		}
 		if e != nil {
-			return e
+			return publicationFailed(PublicationFailedIssueClose, e)
 		}
 		if current.IssueState != "closed" {
-			return fmt.Errorf("issue close result is unresolved: %v", requestErr)
+			return publicationFailed(PublicationFailedIssueClose, fmt.Errorf("issue close result is unresolved: %v", requestErr))
 		}
 	}
 	if current.ProjectStatus != p.plan.Project.DoneOptionID {
 		if p.state.ProjectDoneAttempted {
-			return fmt.Errorf("prior project completion is unresolved or was moved back")
+			return publicationFailed(PublicationFailedProjectDone, fmt.Errorf("prior project completion is unresolved or was moved back"))
 		}
 		state := p.state
+		priorStatus := state.Status
 		state.ProjectDoneAttempted = true
 		state.Status = "completing"
 		if e = p.saveState(ctx, state); e != nil {
 			return e
+		}
+		if mergeSHA == "" && !state.CloseAttempted && priorStatus == "publishing" {
+			if e = p.revalidateBeforePublicationWrite(ctx); e != nil {
+				state.Status = priorStatus
+				state.ProjectDoneAttempted = false
+				return errors.Join(e, p.saveState(ctx, state))
+			}
 		}
 		query := `mutation($project:ID!,$item:ID!,$field:ID!,$option:String!){updateProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$option}}){projectV2Item{id}}}`
 		requestErr := p.client.GraphQL(ctx, query, map[string]any{"project": p.plan.Project.ID, "item": p.plan.Project.ItemID, "field": p.plan.Project.StatusFieldID, "option": p.plan.Project.DoneOptionID}, nil)
 		current, e = p.revalidate(ctx, mergeSHA)
 		if current.ProjectStatus != p.plan.Project.DoneOptionID && fixer.GitHubWriteRejected(requestErr) {
 			state.ProjectDoneAttempted = false
-			return errors.Join(fmt.Errorf("project completion was rejected: %w", requestErr), e, p.saveState(ctx, state))
+			return publicationFailed(PublicationFailedProjectDone, errors.Join(fmt.Errorf("project completion was rejected: %w", requestErr), e, p.saveState(ctx, state)))
 		}
 		if e != nil {
-			return e
+			return publicationFailed(PublicationFailedProjectDone, e)
 		}
 		if current.ProjectStatus != p.plan.Project.DoneOptionID {
-			return fmt.Errorf("project completion result is unresolved: %v", requestErr)
+			return publicationFailed(PublicationFailedProjectDone, fmt.Errorf("project completion result is unresolved: %v", requestErr))
 		}
 	} else if !p.state.ProjectDoneAttempted && !p.state.CloseAttempted && p.state.Status != "completed" {
 		return fmt.Errorf("project completion was not requested by this task")
@@ -166,6 +186,9 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 	if !found {
 		return p.state, fmt.Errorf("no documentation publication exists for this plan")
 	}
+	if p.state.Status == "superseded" {
+		return p.state, nil
+	}
 	if merge != nil && (p.state.PRNumber != merge.pr.Number || !p.state.Applied ||
 		p.state.Decision != "needed" || p.state.CommitSHA != merge.publication.CommitSHA ||
 		p.state.CandidateDigest != merge.publication.CandidateDigest) {
@@ -173,7 +196,7 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 	}
 	if p.state.PRNumber == 0 {
 		if p.state.Decision != "no_change" {
-			return p.state, fmt.Errorf("documentation PR publication is incomplete; recover the validated work artifacts")
+			return p.recoverInterruptedPR(ctx, apply)
 		}
 		if p.state.Status == "completed" {
 			current, err := p.revalidate(ctx, "")
@@ -185,14 +208,23 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 			}
 			return p.state, nil
 		}
-		if !apply {
-			return p.state, nil
+		current, err := p.revalidate(ctx, "")
+		if errors.Is(err, errStaleBase) {
+			return p.retireStalePublication(ctx, current, apply)
 		}
-		e = p.complete(ctx, "")
-		return p.state, e
+		if err != nil || !apply {
+			return p.state, err
+		}
+		err = p.complete(ctx, "")
+		return p.state, err
 	}
+	return p.reconcilePR(ctx, apply, merge)
+}
+
+func (p *publisher) reconcilePR(ctx context.Context, apply bool, merge *documentationMerge) (Publication, error) {
+	c, plan := p.client, p.plan
 	var pr pullRequest
-	if e = c.Request(ctx, "GET", fmt.Sprintf("/pulls/%d", p.state.PRNumber), nil, &pr); e != nil {
+	if e := c.Request(ctx, "GET", fmt.Sprintf("/pulls/%d", p.state.PRNumber), nil, &pr); e != nil {
 		return p.state, e
 	}
 	if pr.Number != p.state.PRNumber || pr.Head.Ref != p.state.Branch || pr.Base.Ref != plan.DefaultBranch || pr.Head.Repo.FullName != plan.Repository || pr.Base.Repo.FullName != plan.Repository || !strings.Contains(pr.Body, marker(plan)) {
@@ -202,7 +234,7 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 		!strings.EqualFold(pr.User.Login, merge.pr.User.Login)) {
 		return p.state, fmt.Errorf("documentation merge changed after admission")
 	}
-	if e = verifyDocumentationHead(ctx, c, pr, p.state.CommitSHA); e != nil {
+	if e := verifyDocumentationHead(ctx, c, pr, p.state.CommitSHA); e != nil {
 		return p.state, e
 	}
 	adjusted := pr.Head.SHA != p.state.CommitSHA
@@ -210,9 +242,10 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 		return p.state, fmt.Errorf("documentation PR head differs from the recorded merged head")
 	}
 	if !pr.Merged {
-		if _, e = Revalidate(ctx, c, plan); e != nil {
+		if _, e := revalidate(ctx, c, plan, plan.BaseSHA); e != nil {
 			return p.state, e
 		}
+		var e error
 		if pr.State == "closed" {
 			state := p.state
 			state.Status = "needs-human"
@@ -263,6 +296,46 @@ func reconcile(ctx context.Context, c *Client, plan Plan, apply bool, merge *doc
 	return p.state, e
 }
 
+func (p *publisher) recoverInterruptedPR(ctx context.Context, apply bool) (Publication, error) {
+	number, err := p.findDocumentationPR(ctx)
+	if err != nil {
+		return p.state, err
+	}
+	if number == 0 {
+		current, err := Revalidate(ctx, p.client, p.plan)
+		if errors.Is(err, errStaleBase) {
+			return p.retireStale(ctx, current, apply)
+		}
+		if err != nil {
+			return p.state, err
+		}
+		return p.state, fmt.Errorf("documentation PR publication is incomplete; recover the validated work artifacts")
+	}
+	identity, err := p.client.ActorIdentity(ctx)
+	if err != nil {
+		return p.state, err
+	}
+	pr, publication, err := readDocumentationPR(ctx, p.client, number, identity.Login)
+	if err != nil {
+		return p.state, err
+	}
+	if publication.PlanID != p.plan.ID || publication.CommitSHA != p.state.CommitSHA || publication.CandidateDigest != p.state.CandidateDigest {
+		return p.state, fmt.Errorf("documentation PR does not match the interrupted publication")
+	}
+	if err = verifyDocumentationHead(ctx, p.client, pr, p.state.CommitSHA); err != nil {
+		return p.state, err
+	}
+	state := awaitingMerge(p.state, pr)
+	if apply {
+		if err = p.saveState(ctx, state); err != nil {
+			return p.state, err
+		}
+	} else {
+		p.state = state
+	}
+	return p.reconcilePR(ctx, apply, nil)
+}
+
 var ErrNoPublication = errors.New("no documentation publication found")
 
 func RecoverPlan(ctx context.Context, c *Client, issue int) (Plan, error) {
@@ -299,7 +372,7 @@ func RecoverPlan(ctx context.Context, c *Client, issue int) (Plan, error) {
 		if plan.Repository != c.Repository || plan.IssueNumber != issue || state.PlanID != plan.ID || !strings.HasPrefix(comment.Body, marker(plan)+"\n") {
 			return Plan{}, fmt.Errorf("owned documentation state has another identity")
 		}
-		if state.Status != "completed" {
+		if !state.terminal() {
 			active = append(active, plan)
 		}
 		if comment.ID > latestID {

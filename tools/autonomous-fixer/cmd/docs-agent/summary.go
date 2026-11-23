@@ -76,7 +76,10 @@ func writeWorkSummary(prepared, run, output, outcome, checkIDs string) error {
 	}
 	work := filepath.Join(run, "work")
 	report := readDiagnostic[workcycle.Report](run, "work/report.json")
-	route := readDiagnostic[doctriage.Routing](run, "work/routing.json")
+	route := readDiagnostic[doctriage.Routing](run, "routing.json")
+	if recognizedRoute(route.Route) == nil {
+		route = readDiagnostic[doctriage.Routing](run, "work/routing.json")
+	}
 	classifier := readDiagnostic[classifierDiagnostics](run, "jev-report.json")
 	provider := readDiagnostic[authorDiagnostics](run, "work/"+openrouterusage.Filename)
 	diagnostics := collectWorkDiagnostics(report, route, classifier, provider, required, outcome)
@@ -174,25 +177,30 @@ func explainRoute(selected *string, routing doctriage.Routing, classifier classi
 	if selected == nil {
 		return ""
 	}
-	if *selected == "docs-assess" && classifier.Mode == "preflight" && classifier.Attempted != nil && !*classifier.Attempted {
-		return "Issue evidence was incomplete, so the workflow selected assessment."
-	}
 	if routing.Route != *selected {
+		if routing.Route == "" && *selected == "docs-assess" && classifier.Mode == "preflight" && classifier.Attempted != nil && !*classifier.Attempted {
+			return "Issue evidence was incomplete, so the workflow selected assessment."
+		}
 		return ""
 	}
-	if *selected == "docs-assess" {
-		for _, note := range routing.Notes {
-			switch note {
-			case "Classifier request failed; use the assessor.":
-				return "The Jev request failed, so the workflow selected assessment."
-			case "The reason or change attribution is uncertain.", "The selected action has no clear lead.",
-				"No-change probability or margin is below the configured threshold.",
-				"Required-change probability or margin is below the configured threshold.":
-				return "The Jev recommendation fell below the routing policy thresholds."
-			case "This no-change reason requires an assessor.":
-				return "The routing policy requires assessment for this no-change reason."
-			}
-		}
+	switch routing.DecisionReason() {
+	case doctriage.RouteIncompleteEvidence:
+		return "Issue evidence was incomplete, so the workflow selected assessment."
+	case doctriage.RouteClassifierFailed:
+		return "The Jev request failed, so the workflow selected assessment."
+	case doctriage.RouteAnswersConflict:
+		return "Jev returned conflicting answers, so the workflow selected assessment."
+	case doctriage.RouteMissingHelpEvidence:
+		return "The workflow selected assessment because the recommendation required current help evidence."
+	case doctriage.RouteUncertainClassification, doctriage.RouteBelowThreshold:
+		return "The Jev recommendation fell below the routing policy thresholds."
+	case doctriage.RouteNoActionLead:
+		return "The workflow selected assessment because no Jev action had a clear lead."
+	case doctriage.RouteAssessmentRequired:
+		return "The routing policy requires assessment for this no-change reason."
+	case doctriage.RouteInvestigation, doctriage.RouteRecommendationAccepted:
+	default:
+		return ""
 	}
 	switch routing.Recommendation.Reason {
 	case "missing_guidance":

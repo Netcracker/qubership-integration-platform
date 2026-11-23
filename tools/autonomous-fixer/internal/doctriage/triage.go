@@ -181,7 +181,7 @@ func Evaluate(ctx context.Context, packet Packet, model string, c Classifier) (R
 		return r, err
 	}
 	r.Response = &response
-	r.Recommendation, r.AssessmentNotes = normalize(packet, response)
+	r.Recommendation, r.AssessmentNotes, _ = normalize(packet, response)
 	routing, err := SelectRoute(packet, r, DefaultRoutingPolicy())
 	if err != nil {
 		return r, err
@@ -191,27 +191,34 @@ func Evaluate(ctx context.Context, packet Packet, model string, c Classifier) (R
 	return r, nil
 }
 
-func normalize(packet Packet, response jev.Response) (Recommendation, []string) {
+func normalize(packet Packet, response jev.Response) (Recommendation, []string, RoutingReason) {
 	notes := []string{}
+	var reason RoutingReason
+	record := func(code RoutingReason, note string) {
+		if reason == "" {
+			reason = code
+		}
+		notes = append(notes, note)
+	}
 	recommendation := Recommendation{Action: response.Answers["documentation_action"].Choice, Reason: response.Answers["documentation_reason"].Choice, Attribution: response.Answers["change_attribution"].Choice}
 	rec := recommendation
 	if err := docdecision.Validate(rec.Action, rec.Reason); err != nil {
-		notes = append(notes, err.Error())
+		record(RouteAnswersConflict, err.Error())
 	}
 	attributionOK := rec.Action == "needed" && rec.Attribution == "change_related" ||
 		rec.Action == "no_change" && (rec.Reason == "preexisting_only" && rec.Attribution == "preexisting_independent" || rec.Reason != "preexisting_only" && rec.Attribution == "unchanged") ||
 		rec.Action == "investigate" && rec.Attribution == "unclear"
 	if !attributionOK {
-		notes = append(notes, "The action, reason, and change attribution conflict.")
+		record(RouteAnswersConflict, answersConflictNote)
 	}
 	if !packet.Complete || strings.TrimSpace(packet.Diff) == "" {
-		notes = append(notes, "The issue evidence is incomplete.")
+		record(RouteIncompleteEvidence, incompleteEvidenceNote)
 	}
 	if len(packet.Documentation) == 0 && (rec.Action == "needed" || rec.Reason == "already_covered" || rec.Reason == "restored_behavior" || rec.Reason == "preexisting_only" || rec.Reason == "no_explanation_needed") {
-		notes = append(notes, "The recommendation requires current help evidence.")
+		record(RouteMissingHelpEvidence, missingHelpEvidenceNote)
 	}
 	if len(notes) > 0 {
 		recommendation = Recommendation{Action: "investigate", Reason: "insufficient_evidence", Attribution: "unclear"}
 	}
-	return recommendation, notes
+	return recommendation, notes, reason
 }

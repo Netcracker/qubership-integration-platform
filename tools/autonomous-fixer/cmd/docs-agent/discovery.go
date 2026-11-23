@@ -97,10 +97,21 @@ func schedulerAttempt(plan docgithub.Plan) (docgithub.ScheduledAttempt, error) {
 		os.Getenv("GITHUB_WORKFLOW_REF") != workflow {
 		return docgithub.ScheduledAttempt{}, fmt.Errorf("the default-branch documentation scheduler is required")
 	}
+	attempt := workflowAttempt(plan.Repository)
+	if attempt.RunID == 0 {
+		return attempt, fmt.Errorf("scheduled documentation run identity is invalid")
+	}
+	return attempt, nil
+}
+
+func workflowAttempt(repository string) docgithub.ScheduledAttempt {
+	if os.Getenv("GITHUB_ACTIONS") != "true" || os.Getenv("GITHUB_REPOSITORY") != repository {
+		return docgithub.ScheduledAttempt{}
+	}
 	run, runErr := strconv.ParseInt(os.Getenv("GITHUB_RUN_ID"), 10, 64)
 	attempt, attemptErr := strconv.Atoi(os.Getenv("GITHUB_RUN_ATTEMPT"))
 	if runErr != nil || attemptErr != nil || run <= 0 || attempt <= 0 {
-		return docgithub.ScheduledAttempt{}, fmt.Errorf("scheduled documentation run identity is invalid")
+		return docgithub.ScheduledAttempt{}
 	}
-	return docgithub.ScheduledAttempt{RunID: run, Attempt: attempt}, nil
+	return docgithub.ScheduledAttempt{RunID: run, Attempt: attempt}
 }

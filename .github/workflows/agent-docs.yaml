@@ -342,6 +342,9 @@ jobs:
     concurrency:
       group: qip-docs-publish-${{ inputs.issue }}
       cancel-in-progress: false
+    outputs:
+      failure: ${{ steps.publish.outputs.publication_failure }}
+      attempt: ${{ steps.publish.outputs.attempt }}
     steps:
       - name: Download the documentation agent
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
@@ -393,12 +396,14 @@ jobs:
           permission-pull-requests: ${{ inputs.apply && 'write' || 'read' }}
           permission-organization-projects: ${{ inputs.apply && 'write' || 'read' }}
       - name: Publish the documentation result
+        id: publish
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || (!inputs.apply && secrets.AGENT_DOCS_READ_TOKEN) || secrets.AGENT_DOCS_GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
           APPLY: ${{ inputs.apply }}
         run: |
           set -o pipefail
+          printf 'attempt=%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           test -n "$GITHUB_TOKEN" || { echo 'A GitHub publication token is required'; exit 1; }
           args=()
           if [[ "$APPLY" == true ]]; then args+=(--apply); fi
@@ -520,6 +525,8 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: read
           permission-issues: write
+          permission-pull-requests: read
+          permission-organization-projects: read
       - name: Update the documentation claim
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
@@ -529,15 +536,19 @@ jobs:
           WORK_RESULT: ${{ needs.work.result }}
           PUBLISHABLE: ${{ needs.work.outputs.publishable }}
           WORK_STOP: ${{ needs.work.outputs.stop_reason }}
+          PUBLISH_FAILURE: ${{ needs.publish.outputs.failure }}
+          PUBLISH_ATTEMPT: ${{ needs.publish.outputs.attempt }}
           SIGNATURE: ${{ needs.work.outputs.signature }}
         run: |
+          args=()
           reason=$WORK_STOP
           if [[ "$WORK_RESULT" == success && "$PUBLISHABLE" == true ]]; then
             reason=publish-stopped
+            if [[ -n "$PUBLISH_FAILURE" ]]; then args+=(--publication-failure "$PUBLISH_FAILURE"); fi
+            if [[ -n "$PUBLISH_ATTEMPT" ]]; then args+=(--publication-attempt "$PUBLISH_ATTEMPT"); fi
           elif [[ -z "$reason" ]]; then
             reason=work-stopped
           fi
-          args=()
           if [[ -n "$SIGNATURE" ]]; then args+=(--signature "$SIGNATURE"); fi
           "$RUNNER_TEMP/docs-agent" record-stop --prepared "$RUNNER_TEMP/prepared" --issue "$ISSUE" \
             --basis "$BASIS" --actor "$ACTOR" --reason "$reason" "${args[@]}" --apply

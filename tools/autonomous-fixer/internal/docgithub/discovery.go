@@ -282,6 +282,12 @@ func scheduleIssueBlock(ctx context.Context, c *Client, actions *fixer.GitHubCli
 				publication.PlanID != publication.Plan.ID || !strings.HasPrefix(comment.Body, marker(*publication.Plan)+"\n") {
 				return "", false, fmt.Errorf("invalid owned documentation publication state")
 			}
+			if publication.Status == "superseded" {
+				if publication.Plan.BaseSHA == plan.BaseSHA && scheduleBasis(*publication.Plan) == basis {
+					return "basis-already-attempted", false, nil
+				}
+				continue
+			}
 			if publication.PRNumber > 0 && (publication.Status != "completed" || scheduleBasis(*publication.Plan) == basis) {
 				return "existing-docs-pr", false, nil
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,7 +60,21 @@ func workStopReason(report workcycle.Report) string {
 	}
 }
 
-func recordScheduleStop(ctx context.Context, prepared string, issue int, basis, actor, reason, signature string) error {
+func reportPublicationFailure(err error) error {
+	path := os.Getenv("GITHUB_OUTPUT")
+	failure := docgithub.PublicationFailureOf(err)
+	if path == "" || failure == "" {
+		return err
+	}
+	output, openErr := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if openErr != nil {
+		return errors.Join(err, openErr)
+	}
+	_, writeErr := fmt.Fprintf(output, "publication_failure=%s\n", failure)
+	return errors.Join(err, writeErr, output.Close())
+}
+
+func recordScheduleStop(ctx context.Context, prepared string, issue int, stop docgithub.ScheduleStop, signature string) error {
 	if !filepath.IsAbs(prepared) || issue <= 0 {
 		return fmt.Errorf("record-stop requires an absolute prepared directory and a positive issue number")
 	}
@@ -74,7 +89,7 @@ func recordScheduleStop(ctx context.Context, prepared string, issue int, basis, 
 	if err != nil {
 		return err
 	}
-	stop := docgithub.ScheduleStop{Actor: actor, Basis: basis, Current: attempt, Reason: reason}
+	stop.Current = attempt
 	if err = json.Unmarshal([]byte(signature), &stop.Signature); err != nil {
 		return fmt.Errorf("invalid documentation usage signature")
 	}
@@ -82,7 +97,7 @@ func recordScheduleStop(ctx context.Context, prepared string, issue int, basis, 
 	if err != nil {
 		return err
 	}
-	if err = validateActor(ctx, client, actor); err != nil {
+	if err = validateActor(ctx, client, stop.Actor); err != nil {
 		return err
 	}
 	updated, err := docgithub.RecordScheduleStop(ctx, client, plan, stop)

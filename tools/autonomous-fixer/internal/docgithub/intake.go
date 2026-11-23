@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	errStaleBase        = errors.New("default branch changed; refresh documentation assessment")
 	errNoImplementation = errors.New("no unambiguous merged implementing pull request found")
 	errNotInDocReview   = errors.New("issue is not in In doc review")
 	errOutsideProject   = errors.New("issue is outside the configured documentation project")
@@ -347,7 +348,7 @@ func revalidate(ctx context.Context, c *Client, p Plan, ancestorSHA string) (Cur
 	current.BaseSHA = sha
 	if ancestorSHA == "" {
 		if sha != p.BaseSHA {
-			return current, fmt.Errorf("default branch changed; refresh documentation assessment")
+			return current, errStaleBase
 		}
 	} else {
 		var compare struct {

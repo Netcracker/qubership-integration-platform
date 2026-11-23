@@ -62,18 +62,18 @@ The command uses the same eligibility, concurrency, and duplicate checks as the 
 
 ## Model execution and evidence
 
-Keep Codex subscription authentication on your local machine. Hosted work uses the separately billed OpenRouter key. The work job uses a read-only workflow token for checkout and artifact download. The GitHub App key and personal access tokens stay in the preparation, publication, and reconciliation jobs.
+Keep Codex subscription authentication on your local machine. Hosted work uses the separately billed OpenRouter key. The work job uses a read-only workflow token for checkout and artifact download. The work job receives no publication credentials. The queue, publisher, reconciler, and stop notification use the configured GitHub credentials for their own operations.
 
 A queue run builds `docs-agent` once from the trusted workflow commit. Later jobs in that run download the binary by artifact ID. A standalone run builds its own binary during preparation.
 
 - `docs-prepared-*` contains the frozen plan and context packet. `docs-prepare-log-*` contains the preparation log.
 - `docs-result-*` contains the completed result, the candidate files, the evidence bound to the completion receipt, and the feedback record. Runtime homes, authentication files, and transcripts stay on the work runner.
-- `docs-work-diagnostics-*` records the status, route, observed stages, and reported usage when available. The work job summary explains the route, lists the models used, and shows the outcome and reported costs. Use the artifact to inspect a failed or unresolved work job.
+- `docs-work-diagnostics-*` records the status, route, observed stages, and reported usage when available. The controller records the route and its reason before creating the worktree. The work job summary explains whether Jev recommended the route or the controller selected it, lists the models used, and shows the outcome and reported costs. Use the artifact to inspect a failed or unresolved work job.
 - `docs-publish-*` and `docs-reconcile-*` contain publication and reconciliation logs. Applied publication also records its GitHub operations in a journal.
 
-If GitHub rejects the issue close or the project update, restore access and retry reconciliation. The publisher checks the issue and project before repeating a write. If the original write may have succeeded, inspect both before changing either.
+If publication stops, the issue comment identifies the failed operation and links to the attempt that failed. For an issue close, check the issue state and repository permissions. For a move to **Done**, check the project item and project permissions. Reconciliation reads both states before repeating a write.
 
-Keep the workflow artifacts until publication finishes. To retry a failed publication, rerun its failed job in the same workflow run so it can use the original artifacts.
+Keep the workflow artifacts until publication finishes. For a transient publication error, use **Re-run failed jobs** in the same run to reuse the verified result. If the default branch has moved, follow the recovery instructions in the issue comment. When GitHub confirms that the old plan has no outstanding writes, the publisher can mark it **superseded**. A fresh assessment then uses the current default branch.
 
 ## Local operation and feedback
 

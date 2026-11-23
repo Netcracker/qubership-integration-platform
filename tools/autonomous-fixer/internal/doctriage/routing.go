@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
@@ -41,6 +42,7 @@ func DefaultRoutingPolicy() RoutingPolicy {
 type Routing struct {
 	Version                string         `json:"version"`
 	Route                  string         `json:"route"`
+	ReasonCode             RoutingReason  `json:"reason_code,omitempty"`
 	Notes                  []string       `json:"notes"`
 	Policy                 RoutingPolicy  `json:"policy"`
 	Recommendation         Recommendation `json:"recommendation"`
@@ -48,6 +50,87 @@ type Routing struct {
 	Margin                 float64        `json:"margin"`
 	ReasonProbability      float64        `json:"reason_probability"`
 	AttributionProbability float64        `json:"attribution_probability"`
+}
+
+const (
+	legacyRoutingVersion = "docs-routing-v1"
+	routingVersion       = "docs-routing-v2"
+)
+
+type RoutingReason string
+
+const (
+	RouteIncompleteEvidence      RoutingReason = "incomplete_evidence"
+	RouteClassifierFailed        RoutingReason = "classifier_failed"
+	RouteAnswersConflict         RoutingReason = "answers_conflict"
+	RouteMissingHelpEvidence     RoutingReason = "missing_help_evidence"
+	RouteInvestigation           RoutingReason = "investigation_recommended"
+	RouteUncertainClassification RoutingReason = "uncertain_classification"
+	RouteNoActionLead            RoutingReason = "no_action_lead"
+	RouteAssessmentRequired      RoutingReason = "assessment_required"
+	RouteBelowThreshold          RoutingReason = "below_threshold"
+	RouteRecommendationAccepted  RoutingReason = "recommendation_accepted"
+)
+
+const (
+	classifierFailedNote    = "Classifier request failed; use the assessor."
+	answersConflictNote     = "The action, reason, and change attribution conflict."
+	incompleteEvidenceNote  = "The issue evidence is incomplete."
+	missingHelpEvidenceNote = "The recommendation requires current help evidence."
+	investigationNote       = "The classification requires investigation."
+	uncertainNote           = "The reason or change attribution is uncertain."
+	noLeadNote              = "The selected action has no clear lead."
+	assessmentRequiredNote  = "This no-change reason requires an assessor."
+	negativeThresholdNote   = "No-change probability or margin is below the configured threshold."
+	positiveThresholdNote   = "Required-change probability or margin is below the configured threshold."
+)
+
+func (r Routing) DecisionReason() RoutingReason {
+	if r.Version != legacyRoutingVersion {
+		return r.ReasonCode
+	}
+	for _, note := range r.Notes {
+		switch note {
+		case IncompleteSkipReason, incompleteEvidenceNote:
+			return RouteIncompleteEvidence
+		case classifierFailedNote:
+			return RouteClassifierFailed
+		case answersConflictNote:
+			return RouteAnswersConflict
+		case missingHelpEvidenceNote:
+			return RouteMissingHelpEvidence
+		case uncertainNote:
+			return RouteUncertainClassification
+		case noLeadNote:
+			return RouteNoActionLead
+		case assessmentRequiredNote:
+			return RouteAssessmentRequired
+		case negativeThresholdNote, positiveThresholdNote:
+			return RouteBelowThreshold
+		case investigationNote:
+			return RouteInvestigation
+		default:
+			if strings.HasPrefix(note, "inconsistent documentation decision ") {
+				return RouteAnswersConflict
+			}
+		}
+	}
+	if r.Route == "docs-no-change" || r.Route == "docs-write" {
+		return RouteRecommendationAccepted
+	}
+	return ""
+}
+
+func ReplayRoute(packet Packet, report Report, policy RoutingPolicy, version string) (Routing, error) {
+	if version != legacyRoutingVersion && version != routingVersion {
+		return Routing{}, fmt.Errorf("unsupported documentation routing version %q", version)
+	}
+	routing, err := SelectRoute(packet, report, policy)
+	if version == legacyRoutingVersion {
+		routing.Version = legacyRoutingVersion
+		routing.ReasonCode = ""
+	}
+	return routing, err
 }
 
 func ValidateReport(packet Packet, report Report) error {
@@ -89,7 +172,7 @@ func ValidateReport(packet Packet, report Report) error {
 	return jev.ValidateResponse(req, *report.Response)
 }
 func SelectRoute(packet Packet, report Report, policy RoutingPolicy) (Routing, error) {
-	r := Routing{Version: "docs-routing-v1", Route: "docs-assess", Notes: []string{}, Policy: policy, Recommendation: Recommendation{Action: "investigate", Reason: "insufficient_evidence", Attribution: "unclear"}}
+	r := Routing{Version: routingVersion, Route: "docs-assess", Notes: []string{}, Policy: policy, Recommendation: Recommendation{Action: "investigate", Reason: "insufficient_evidence", Attribution: "unclear"}}
 	for _, v := range []float64{policy.NegativeProbability, policy.PositiveProbability, policy.NegativeMargin, policy.PositiveMargin, policy.ReasonProbability, policy.AttributionProbability} {
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 1 {
 			return r, fmt.Errorf("routing thresholds must be finite probabilities")
@@ -104,16 +187,21 @@ func SelectRoute(packet Packet, report Report, policy RoutingPolicy) (Routing, e
 		return r, err
 	}
 	if IsPreflightSkip(report) {
+		r.ReasonCode = RouteIncompleteEvidence
 		r.Notes = append(r.Notes, IncompleteSkipReason)
 		return r, nil
 	}
 	if report.Error != "" || report.Response == nil {
-		r.Notes = append(r.Notes, "Classifier request failed; use the assessor.")
+		r.ReasonCode = RouteClassifierFailed
+		r.Notes = append(r.Notes, classifierFailedNote)
 		return r, nil
 	}
-	r.Recommendation, r.Notes = normalize(packet, *report.Response)
+	r.Recommendation, r.Notes, r.ReasonCode = normalize(packet, *report.Response)
 	if r.Recommendation.Action == "investigate" {
-		r.Notes = append(r.Notes, "The classification requires investigation.")
+		if r.ReasonCode == "" {
+			r.ReasonCode = RouteInvestigation
+		}
+		r.Notes = append(r.Notes, investigationNote)
 		return r, nil
 	}
 	a := report.Response.Answers["documentation_action"]
@@ -130,30 +218,36 @@ func SelectRoute(packet Packet, report Report, policy RoutingPolicy) (Routing, e
 	r.ReasonProbability = reason.Probabilities[reason.Choice]
 	r.AttributionProbability = attribution.Probabilities[attribution.Choice]
 	if r.ReasonProbability < policy.ReasonProbability || r.AttributionProbability < policy.AttributionProbability {
-		r.Notes = append(r.Notes, "The reason or change attribution is uncertain.")
+		r.ReasonCode = RouteUncertainClassification
+		r.Notes = append(r.Notes, uncertainNote)
 		return r, nil
 	}
 	if r.Margin <= 0 {
-		r.Notes = append(r.Notes, "The selected action has no clear lead.")
+		r.ReasonCode = RouteNoActionLead
+		r.Notes = append(r.Notes, noLeadNote)
 		return r, nil
 	}
 	switch r.Recommendation.Action {
 	case "no_change":
 		if !slices.Contains(policy.AutoNoChangeReasons, r.Recommendation.Reason) {
-			r.Notes = append(r.Notes, "This no-change reason requires an assessor.")
+			r.ReasonCode = RouteAssessmentRequired
+			r.Notes = append(r.Notes, assessmentRequiredNote)
 			return r, nil
 		}
 		if r.ActionProbability < policy.NegativeProbability || r.Margin < policy.NegativeMargin {
-			r.Notes = append(r.Notes, "No-change probability or margin is below the configured threshold.")
+			r.ReasonCode = RouteBelowThreshold
+			r.Notes = append(r.Notes, negativeThresholdNote)
 			return r, nil
 		}
 		r.Route = "docs-no-change"
 	case "needed":
 		if r.ActionProbability < policy.PositiveProbability || r.Margin < policy.PositiveMargin {
-			r.Notes = append(r.Notes, "Required-change probability or margin is below the configured threshold.")
+			r.ReasonCode = RouteBelowThreshold
+			r.Notes = append(r.Notes, positiveThresholdNote)
 			return r, nil
 		}
 		r.Route = "docs-write"
 	}
+	r.ReasonCode = RouteRecommendationAccepted
 	return r, nil
 }

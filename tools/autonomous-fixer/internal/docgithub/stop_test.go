@@ -1,6 +1,7 @@
 package docgithub
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -64,18 +65,39 @@ func TestScheduleStopKeepsTheClaimAndDedupe(t *testing.T) {
 }
 
 func TestScheduleStopPreservesPartialPublicationAndAllowsRetry(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		failure PublicationFailure
+		close   int
+		project string
+		message string
+	}{
+		{"close issue", PublicationFailedIssueClose, http.StatusForbidden, "", "while closing the issue"},
+		{"set project Done", PublicationFailedProjectDone, 0, projectPermissionDenied, "while moving the project item to **Done**"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testScheduleStopPreservesPartialPublicationAndAllowsRetry(t, tc.failure, tc.close, tc.project, tc.message)
+		})
+	}
+}
+
+func testScheduleStopPreservesPartialPublicationAndAllowsRetry(t *testing.T, failure PublicationFailure, closeFailure int, projectFailure, message string) {
+	t.Helper()
 	ctx := t.Context()
 	plan, run, source := publicationFixture(t, false)
 	plan.RequestID, plan.ID = "500:1", ""
+	plan.IssueState = "open"
 	plan.ID = Digest(plan)
 	c, a := apiFixture(t, plan)
 	basis := scheduleBasis(plan)
 	claimAttempt := ScheduledAttempt{RunID: 500, Attempt: 1}
 	a.comments = []issueComment{{ID: 5, User: fixer.GitHubUser{ID: 99}, Body: scheduleReceipt(basis, claimAttempt) + "\nDocumentation review started."}}
-	a.projectFailure = projectPermissionDenied
+	a.state, a.closeFailure, a.projectFailure = "open", closeFailure, projectFailure
 	options := PublishOptions{Actor: "alice", Apply: true, SourcePath: source}
-	if _, err := Publish(ctx, c, plan, run, options); err == nil {
-		t.Fatal("expected publication to stop")
+	_, err := Publish(ctx, c, plan, run, options)
+	gotFailure := PublicationFailureOf(err)
+	if gotFailure != failure {
+		t.Fatalf("got publication failure %q, want %q (error %v)", gotFailure, failure, err)
 	}
 	before := a.comments[0].Body
 	state, err := decodePublicationState(before)
@@ -83,7 +105,9 @@ func TestScheduleStopPreservesPartialPublicationAndAllowsRetry(t *testing.T) {
 		t.Fatalf("state=%+v, err=%v", state, err)
 	}
 
-	stop := ScheduleStop{Actor: "alice", Basis: basis, Current: ScheduledAttempt{RunID: 500, Attempt: 2}, Reason: "publish-stopped"}
+	failedAttempt := ScheduledAttempt{RunID: 500, Attempt: 2}
+	stop := ScheduleStop{Actor: "alice", Basis: basis, Current: ScheduledAttempt{RunID: 500, Attempt: 3}, Reason: "publish-stopped",
+		PublicationFailure: gotFailure, PublicationAttempt: failedAttempt.Attempt}
 	for _, wantUpdate := range []bool{true, false} {
 		if updated, err := RecordScheduleStop(ctx, c, plan, stop); err != nil || updated != wantUpdate {
 			t.Fatalf("updated=%v, err=%v, want updated=%v", updated, err, wantUpdate)
@@ -91,16 +115,20 @@ func TestScheduleStopPreservesPartialPublicationAndAllowsRetry(t *testing.T) {
 	}
 	after := a.comments[0].Body
 	want := before[strings.LastIndex(before, "<!-- qip-docs-state:"):]
-	if !strings.Contains(after, "Re-run failed jobs") || !strings.Contains(after, "`reconcile`") || !strings.HasSuffix(after, want) {
-		t.Fatal("the notice changed the stored publication state")
+	if !strings.Contains(after, "Re-run failed jobs") || !strings.Contains(after, "`reconcile`") || !strings.HasSuffix(after, want) ||
+		!strings.Contains(after, message) || !strings.Contains(after, failedAttempt.url(plan.Repository)) ||
+		strings.Contains(after, claimAttempt.url(plan.Repository)) || strings.Contains(after, stop.Current.url(plan.Repository)) {
+		t.Fatalf("unexpected partial publication notice: %s", after)
 	}
 	if recovered, err := RecoverPlan(ctx, c, plan.IssueNumber); err != nil || recovered.ID != plan.ID {
 		t.Fatalf("recovered=%+v, err=%v", recovered, err)
 	}
-	a.projectFailure = ""
+	a.closeFailure, a.projectFailure = 0, ""
+	options.Attempt = stop.Current
 	result, err := Publish(ctx, c, plan, run, options)
 	if err != nil || result.Status != "completed" || result.CommentID != 5 || a.commentCreates != 0 ||
-		strings.Contains(a.comments[0].Body, "Re-run failed jobs") {
+		result.WorkflowAttempt != stop.Current.Attempt || !strings.Contains(a.comments[0].Body, stop.Current.url(plan.Repository)) ||
+		strings.Contains(a.comments[0].Body, "Re-run failed jobs") || strings.Contains(a.comments[0].Body, failedAttempt.url(plan.Repository)) {
 		t.Fatalf("retry result=%+v, err=%v, comments=%+v", result, err, a.comments)
 	}
 	if updated, err := RecordScheduleStop(ctx, c, plan, stop); err != nil || updated {

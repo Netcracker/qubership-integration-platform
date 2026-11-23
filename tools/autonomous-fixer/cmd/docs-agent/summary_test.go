@@ -40,7 +40,7 @@ func TestWorkSummaryOutputs(t *testing.T) {
 			outcome: "success",
 			report: workcycle.Report{Status: "docs-no-change",
 				Request: workcycle.Request{DocumentationEntry: &workcycle.DocumentationEntry{Route: noChange}}},
-			routing: doctriage.Routing{Route: noChange, Recommendation: doctriage.Recommendation{Reason: "outside_help_scope"}},
+			routing: doctriage.Routing{Version: "docs-routing-v1", Route: noChange, Recommendation: doctriage.Recommendation{Reason: "outside_help_scope"}},
 			classifier: classifierDiagnostics{Attempted: &attempted, RequestedModel: "typesafe/jev-1.14",
 				Response: &jev.Response{Model: "typesafe/jev-1.14-20261014", Usage: &jev.Usage{Cost: &jevCost}}},
 			want: []string{"Result** `docs-no-change`", "outside the scope of product help",
@@ -63,7 +63,8 @@ func TestWorkSummaryOutputs(t *testing.T) {
 			name:    "documented change with partial usage",
 			outcome: "success",
 			report:  workcycle.Report{Status: "docs-ready-for-pr"},
-			routing: doctriage.Routing{Route: write, Recommendation: doctriage.Recommendation{Reason: "stale_guidance"}},
+			routing: doctriage.Routing{Version: "docs-routing-v2", Route: write, ReasonCode: doctriage.RouteRecommendationAccepted,
+				Recommendation: doctriage.Recommendation{Reason: "stale_guidance"}},
 			classifier: classifierDiagnostics{Attempted: &attempted,
 				Response: &jev.Response{Model: "typesafe/jev-1.14-20261014", Usage: &jev.Usage{Cost: &jevCost}}},
 			provider: authorDiagnostics{Attempts: &attempts, ReportedPortion: &authorCost,
@@ -94,6 +95,49 @@ func TestWorkSummaryOutputs(t *testing.T) {
 				t.Errorf("summary exposed untrusted content:\n%s", got)
 			}
 		})
+	}
+}
+
+func TestRouteSummaryUsesReasonCodeAndAttributesAssessment(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		code   doctriage.RoutingReason
+		reason string
+		want   string
+	}{
+		{"controller rejected conflicting answers", doctriage.RouteAnswersConflict, "insufficient_evidence", "Jev returned conflicting answers, so the workflow selected assessment."},
+		{"controller required current help", doctriage.RouteMissingHelpEvidence, "insufficient_evidence", "The workflow selected assessment because the recommendation required current help evidence."},
+		{"Jev reported unclear scope", doctriage.RouteInvestigation, "scope_unclear", "Jev could not determine the scope of the help update."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			routing := doctriage.Routing{Version: "docs-routing-v2", Route: "docs-assess", ReasonCode: tc.code,
+				Recommendation: doctriage.Recommendation{Action: "investigate", Reason: tc.reason},
+				Notes:          []string{"Classifier request failed; use the assessor."}}
+			if got := explainRoute(&routing.Route, routing, classifierDiagnostics{}); got != tc.want {
+				t.Fatalf("route explanation = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorkSummaryReadsLegacyWorkRouting(t *testing.T) {
+	run := t.TempDir()
+	out := t.TempDir()
+	writeFixtureFile(t, filepath.Join(run, "work", "routing.json"), `{
+		"version": "docs-routing-v1",
+		"route": "docs-assess",
+		"notes": ["No-change probability or margin is below the configured threshold."],
+		"recommendation": {"action": "no_change", "reason": "outside_help_scope", "attribution": "unchanged"}
+	}`, 0600)
+	if err := writeWorkSummary("", run, out, "failure", ""); err != nil {
+		t.Fatal(err)
+	}
+	var summary workDiagnostics
+	if err := read(filepath.Join(out, "summary.json"), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if summary.Route == nil || *summary.Route != "docs-assess" || summary.RoutingReason != "The Jev recommendation fell below the routing policy thresholds." {
+		t.Fatalf("legacy route summary = %+v", summary)
 	}
 }
 

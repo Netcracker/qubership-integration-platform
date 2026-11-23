@@ -103,6 +103,8 @@ func run(ctx context.Context, args []string) error {
 	basis := f.String("basis", "", "documentation basis selected by discovery")
 	planID := f.String("plan-id", "", "documentation plan admitted for merge reconciliation")
 	reason := f.String("reason", "", "documentation skip or stop reason")
+	publicationFailure := f.String("publication-failure", "", "operation where documentation publication stopped")
+	publicationAttempt := f.Int("publication-attempt", 0, "workflow attempt that ran publication")
 	signature := f.String("signature", "{}", "observed documentation run usage as JSON")
 	apply := f.Bool("apply", false, "apply reviewed GitHub publication effects")
 	if e := f.Parse(args[1:]); e != nil {
@@ -127,7 +129,10 @@ func run(ctx context.Context, args []string) error {
 		if !*apply {
 			return fmt.Errorf("record-stop requires --apply")
 		}
-		return recordScheduleStop(ctx, *prepared, *number, *basis, *actor, *reason, *signature)
+		return recordScheduleStop(ctx, *prepared, *number, docgithub.ScheduleStop{
+			Actor: *actor, Basis: *basis, Reason: *reason,
+			PublicationFailure: docgithub.PublicationFailure(*publicationFailure), PublicationAttempt: *publicationAttempt,
+		}, *signature)
 	case "verify-pr":
 		c, e := github(*repo)
 		if e != nil {
@@ -272,6 +277,9 @@ func run(ctx context.Context, args []string) error {
 		if e != nil {
 			return e
 		}
+		if e = save(filepath.Join(*output, "routing.json"), routing); e != nil {
+			return e
+		}
 		if *runtimeConfig != "" {
 			if e = read(*runtimeConfig, &cfg); e != nil {
 				return e
@@ -366,9 +374,10 @@ func run(ctx context.Context, args []string) error {
 		}
 		opts := docgithub.PublishOptions{Actor: *actor, Apply: *apply, SourcePath: *source}
 		if args[0] == "publish" {
+			opts.Attempt = workflowAttempt(plan.Repository)
 			result, e := docgithub.Publish(ctx, client, plan, *runDir, opts)
 			if e != nil {
-				return e
+				return reportPublicationFailure(e)
 			}
 			return json.NewEncoder(os.Stdout).Encode(result)
 		}

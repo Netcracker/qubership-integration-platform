@@ -99,7 +99,20 @@ func (d *Driver) prepareDocumentationTriage() error {
 	if cfg.Policy != nil {
 		policy = *cfg.Policy
 	}
-	routing, err := doctriage.SelectRoute(packet, report, policy)
+	var routing doctriage.Routing
+	if d.Config.ResumeFrom == "" {
+		routing, err = doctriage.SelectRoute(packet, report, policy)
+	} else {
+		data, readErr := os.ReadFile(filepath.Join(filepath.Dir(d.Config.ResumeFrom), "routing.json"))
+		if readErr != nil {
+			return readErr
+		}
+		var previous doctriage.Routing
+		if err := Decode(bytes.NewReader(data), &previous); err != nil {
+			return err
+		}
+		routing, err = doctriage.ReplayRoute(packet, report, policy, previous.Version)
+	}
 	if err != nil {
 		return err
 	}
