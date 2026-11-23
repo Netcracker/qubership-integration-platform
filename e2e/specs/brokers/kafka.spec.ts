@@ -84,7 +84,7 @@ test.describe("kafka", { tag: ["@engine", "@sessions", "@kafka"] }, () => {
       expect(fresh.sort()).toEqual([first.id, second.id].sort());
     });
 
-    test("legacy Kafka headers reach the chain and legacy sender keys publish once", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "the case deploys its own broker chains, and a deploy into the shared micro domain rolls its pod" } }, async ({ catalog, sessions, run }) => {
+    test("legacy Kafka headers and sender keys remain supported", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "the case deploys its own broker chains, and a deploy into the shared micro domain rolls its pod" } }, async ({ catalog, sessions, run }) => {
       const sourceTopic = tokenized(run, "kafka-legacy-header-source");
       const outputTopic = tokenized(run, "kafka-legacy-header-output");
       const cases = [
