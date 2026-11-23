@@ -50,7 +50,15 @@ variable unset.
 
 The queue uses the same repository and project permissions as manual documentation work. The GitHub Actions actor and triggering actor must both be in `AGENT_ALLOWED_ACTORS`. For a cron run, GitHub chooses the actor associated with the schedule. Check that login in a scheduled preview before enabling application.
 
-The queue skips issues outside **In doc review**, issues without a merged implementing PR, and issues with active documentation runs. An open help-only PR that explicitly closes the issue also takes precedence. A past mention in a merged help PR leaves the issue eligible. The queue processes selected issues one at a time. A scheduled attempt claims the issue and its implementing changes after preparation. Manual and scheduled jobs share the same concurrency group for an issue. The progress comment links to the run. The publisher edits that comment when it has a decision. If work or publication stops, a final job updates the same comment with the reason and recovery instructions. If GitHub cancels that job too, the original run link remains available.
+The queue skips issues outside **In doc review**, issues without a merged implementing PR, and issues with
+active documentation runs. An open help-only PR that explicitly closes the issue also takes precedence. A past
+mention in a merged help PR leaves the issue eligible. The queue processes selected issues one at a time. A
+scheduled attempt claims the issue and its implementing changes after preparation. Manual and scheduled jobs
+share the same concurrency group for an issue.
+
+The progress comment links to the run. The publisher edits that comment when it has a decision. If work or
+publication stops, a final job updates the same comment with the reason and recovery instructions. If GitHub
+cancels that job too, the original run link remains available.
 
 If the claimed run stops before the documentation work step starts, a later queue run can try again. Once that step starts, the queue skips the same issue and implementing changes on later runs. Use the manual `run` operation to retry after inspecting the scheduled run. To return the queue to preview, unset `AGENT_DOCS_SCHEDULE_APPLY`.
 
