@@ -35,6 +35,7 @@ import { tokenized } from "../../support/run.js";
 import { tokenizedChain } from "../../support/deployable.js";
 import { entryNames, entryText, zipOf } from "../../support/zip.js";
 import { chainEntry, chainExists, importChains } from "../../support/chain-import.js";
+import type { ImportResult } from "../../support/catalog.js";
 import { readSpecificationFixture } from "../../fixtures/templating.js";
 
 /** The `metaInfo.group` line of an exported chain, which is the folder path and the only copy of it. */
@@ -172,6 +173,33 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
     expect(imported.status).toBe(200);
     expect(imported.body.chains).toEqual([]);
     expect(await chainExists(catalog, chain.id)).toBe(false);
+  });
+
+  // An empty list used to mean the same as no list, and imported every chain (#1282). The second import
+  // is the control: an import that silently imports nothing also reports an empty result.
+  // Shown failing: on a catalog that reads [] as "every chain", the first result holds both chains.
+  test("chainCommitRequests imports only the chains it names", { tag: ["@v1"] }, async ({ catalog, folder, run }) => {
+    const named = await tokenizedChain(catalog, run, { prefix: "export", what: "list-named", parentId: folder.id });
+    const other = await tokenizedChain(catalog, run, { prefix: "export", what: "list-other", parentId: folder.id });
+    const archive = await catalog.exportChains([named.id, other.id]);
+    await catalog.deleteChain(named.id);
+    await catalog.deleteChain(other.id);
+
+    await test.step("an empty list imports no chain", async () => {
+      const response = await catalog.importChains(archive, "chains.zip", { chainCommitRequests: [] });
+      expect(response.status()).toBe(200);
+      expect(((await response.json()) as ImportResult).chains).toEqual([]);
+      expect(await chainExists(catalog, named.id)).toBe(false);
+      expect(await chainExists(catalog, other.id)).toBe(false);
+    });
+
+    await test.step("a list naming one chain imports that chain", async () => {
+      const response = await catalog.importChains(archive, "chains.zip", { chainCommitRequests: [{ id: named.id }] });
+      expect(response.status()).toBe(200);
+      expect(((await response.json()) as ImportResult).chains.map((each) => each.id)).toEqual([named.id]);
+      expect(await chainExists(catalog, named.id)).toBe(true);
+      expect(await chainExists(catalog, other.id)).toBe(false);
+    });
   });
 
   test("single-chain and multi-chain exports carry the same bytes", async ({ catalog, folder, run }) => {

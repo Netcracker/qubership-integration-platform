@@ -345,7 +345,9 @@ public class ImportService {
                 logImportAction(file.getOriginalFilename());
                 ImportChainResult importChainDTO = restoreChainFromYaml(getFileContent(file), null,
                         null, technicalLabels);
-                response.setChains(makeDeployActions(importChainDTO, commitRequests, technicalLabels));
+                // The file holds one chain and restoreChainFromYaml saves it whatever the list selects
+                response.setChains(makeDeployActions(importChainDTO,
+                        CollectionUtils.isEmpty(commitRequests) ? null : commitRequests, technicalLabels));
             } catch (Exception e) {
                 log.warn("Exception while chain import: ", e);
                 response.setErrorMessage("Exception while chain import: " + e.getMessage());
@@ -380,7 +382,7 @@ public class ImportService {
             }
 
             ChainCommitRequest request = null;
-            if (!CollectionUtils.isEmpty(commitRequests)) {
+            if (commitRequests != null) {
                 request = commitRequests.stream()
                         .filter(creq -> creq.getId().equals(chainDTO.getId())).findAny().orElse(null);
                 if (request == null || request.getDeployAction() == ChainCommitRequestAction.NONE) {
@@ -455,7 +457,7 @@ public class ImportService {
             String migratedYaml = migrateToActualFileVersion(yaml);
             basicChainInfo = getYamlBasicChainInfo(migratedYaml);
             ChainCompareDTO finalBasicChainInfo = basicChainInfo;
-            if (CollectionUtils.isEmpty(commitRequests)
+            if (commitRequests == null
                     || commitRequests.stream()
                             .anyMatch(request -> request.getId().equals(finalBasicChainInfo.getId()))) {
 

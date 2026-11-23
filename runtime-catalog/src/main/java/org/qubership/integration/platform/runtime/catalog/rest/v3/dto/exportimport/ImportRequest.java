@@ -25,7 +25,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.VariablesCommitRequest;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -34,8 +33,8 @@ import java.util.List;
 @NoArgsConstructor
 public class ImportRequest {
 
-    @Builder.Default
-    private List<ChainCommitRequest> chainCommitRequests = new ArrayList<>();
+    // Null imports every chain in the archive; an empty list imports none
+    private List<ChainCommitRequest> chainCommitRequests;
     @Builder.Default
     private SystemsCommitRequest systemsCommitRequest = new SystemsCommitRequest();
     @Builder.Default
