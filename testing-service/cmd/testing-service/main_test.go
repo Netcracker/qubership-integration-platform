@@ -20,6 +20,7 @@ import (
 	fiberswagger "github.com/gofiber/swagger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/db"
 )
@@ -36,6 +37,8 @@ postgres:
   password: "from_file_password"
   schema: "from_file"
   maxconnections: 7
+dbaas:
+  enabled: true
 catalog:
   address: "http://catalog-from-file:8080"
 engine:
@@ -76,6 +79,7 @@ func TestLoadConfigReadsEveryKeyFromTheFile(t *testing.T) {
 	assert.Equal(t, "from_file_password", cfg.Postgres.Password)
 	assert.Equal(t, "from_file", cfg.Postgres.Schema)
 	assert.Equal(t, 7, cfg.Postgres.MaxConnections)
+	assert.True(t, cfg.DbaaS.Enabled)
 	assert.Equal(t, "http://catalog-from-file:8080", cfg.Catalog.Address)
 	assert.Equal(t, "http://engine-from-file:8080", cfg.Engine.Address)
 	assert.Equal(t, 55, cfg.Pagination.Limit)
@@ -124,6 +128,7 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 	t.Setenv("CIP_TESTING_EXECUTION_INTERVAL", "45s")
 	t.Setenv("CIP_TESTING_EXECUTION_WORKERS", "9")
 	t.Setenv("CIP_TESTING_PPROF_ENABLED", "false")
+	t.Setenv("CIP_TESTING_DBAAS_ENABLED", "false")
 
 	cfg, err := loadConfig(writeConfig(t, sampleConfig))
 	require.NoError(t, err)
@@ -133,6 +138,7 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 	assert.Equal(t, 45*time.Second, cfg.Execution.Interval)
 	assert.Equal(t, 9, cfg.Execution.Workers)
 	assert.False(t, cfg.Pprof.Enabled)
+	assert.False(t, cfg.DbaaS.Enabled)
 	// Keys the environment left alone keep the value from the file.
 	assert.Equal(t, ":9090", cfg.Server.Bind)
 	assert.Equal(t, "from_file", cfg.Postgres.Schema)
@@ -182,7 +188,28 @@ func TestTheEnvironmentCarriesCredentialsThatNeedNoEncoding(t *testing.T) {
 func TestEnvKey(t *testing.T) {
 	assert.Equal(t, "postgres.user", envKey("CIP_TESTING_POSTGRES_USER"))
 	assert.Equal(t, "postgres.dsn", envKey("CIP_TESTING_POSTGRES_DSN"))
+	assert.Equal(t, "dbaas.enabled", envKey("CIP_TESTING_DBAAS_ENABLED"))
 	assert.Equal(t, "execution.workers", envKey("CIP_TESTING_EXECUTION_WORKERS"))
+}
+
+func TestOpenDatabaseRequiresDsnOnlyOutsideDbaaSMode(t *testing.T) {
+	cfg := defaultAppConfig()
+
+	_, _, err := openDatabase(cfg)
+	require.EqualError(t, err, "postgres.dsn is not set")
+
+	t.Setenv("MICROSERVICE_NAME", "")
+	t.Setenv("MICROSERVICE_NAMESPACE", "")
+	cfg.DbaaS.Enabled = true
+	_, _, err = openDatabase(cfg)
+	require.EqualError(t, err, "DBaaS requires environment variables: MICROSERVICE_NAME, MICROSERVICE_NAMESPACE")
+
+	t.Setenv("MICROSERVICE_NAME", serviceName)
+	t.Setenv("MICROSERVICE_NAMESPACE", "test")
+	database, closeDatabase, err := openDatabase(cfg)
+	require.NoError(t, err)
+	assert.NotNil(t, database)
+	require.NoError(t, closeDatabase())
 }
 
 // The installation-wide flag, which every service of the platform reads rather
@@ -269,6 +296,7 @@ func TestTheShippedConfigurationIsUsable(t *testing.T) {
 	// The DSN carries a password, so the image ships none and run refuses to
 	// start until an installation supplies one.
 	assert.Empty(t, cfg.Postgres.DSN)
+	assert.False(t, cfg.DbaaS.Enabled, "DBaaS stays opt-in for standalone installations")
 	assert.Nil(t, cfg.Production, "the shipped file names no mode")
 	assert.True(t, cfg.serviceSettings().ProductionMode(), "and an unnamed mode is production")
 }
@@ -337,6 +365,26 @@ func TestHealthBoundsTheDatabaseRoundTrip(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusOK, status)
 	assert.True(t, deadlineSet, "the ping must not outlive the healthcheck")
+}
+
+type resolvingDB struct {
+	calls int
+	err   error
+}
+
+func (d *resolvingDB) GetBunDb(context.Context) (*bun.DB, error) {
+	d.calls++
+	return nil, d.err
+}
+
+func TestDatabasePingResolvesTheHandleForEveryCheck(t *testing.T) {
+	resolveErr := errors.New("credentials are being refreshed")
+	database := &resolvingDB{err: resolveErr}
+	ping := databasePing(database)
+
+	require.ErrorIs(t, ping(context.Background()), resolveErr)
+	require.ErrorIs(t, ping(context.Background()), resolveErr)
+	assert.Equal(t, 2, database.calls)
 }
 
 // swaggerRequest mounts the swagger route the way run does and asks for one path

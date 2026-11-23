@@ -1,6 +1,6 @@
 # GOTOOLCHAIN=local keeps the build on the image's own Go, so a dependency that
 # asks for a newer toolchain fails here rather than silently raising the ceiling.
-FROM golang:1.22-alpine AS build
+FROM golang:1.23-alpine AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local
 WORKDIR /src
 
