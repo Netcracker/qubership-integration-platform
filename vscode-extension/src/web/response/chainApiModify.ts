@@ -1420,7 +1420,7 @@ export async function duplicateChain(
   const chain = await getMainChain(chainFileUri);
   const content = chain.content;
   const chainId = crypto.randomUUID();
-  const root = fileApi.getRootDirectory();
+  const root = fileApi.getRootDirectory(chainFileUri);
   const sourceDirectory = Uri.joinPath(chainFileUri, "..");
   const targetDirectory =
     sourceDirectory.path === root.path
@@ -1440,8 +1440,18 @@ export async function duplicateChain(
     return newIds.get(id)!;
   };
 
-  for (const element of getElementChildren(content.elements as ElementSchema[])) {
+  // The reads, the deprecated mapper check that writeElementProperties also makes, and the name scan
+  // run before the first write, so a failure in any of them leaves no partial copy behind.
+  const elements = getElementChildren(content.elements as ElementSchema[]);
+  for (const element of elements) {
     await loadElementProperties(chainFileUri, element);
+    const { before, after } = (element.properties ?? {}) as any;
+    if (
+      (element.type as unknown as string) === "service-call" &&
+      [before, ...(Array.isArray(after) ? after : [])].some((block) => block?.type === "mapper")
+    ) {
+      throw Error("Deprecated Mapper element is not supported");
+    }
     element.id = newId(element.id);
     if (element.parentElementId) {
       element.parentElementId = newId(element.parentElementId as string);
@@ -1460,7 +1470,6 @@ export async function duplicateChain(
     if (libraryElement) {
       resetPropertiesToDefault(chainId, element, libraryElement);
     }
-    await writeElementProperties(uri, element);
   }
 
   (content.dependencies as Dependency[] | undefined)?.forEach((dependency) => {
@@ -1493,6 +1502,9 @@ export async function duplicateChain(
   chain.id = chainId;
   chain.name = `${chain.name} (${copyNumber})`;
 
+  for (const element of elements) {
+    await writeElementProperties(uri, element);
+  }
   await fileApi.writeFile(uri, new TextEncoder().encode(yaml.stringify(chain)));
   return { name: chain.name, uri };
 }

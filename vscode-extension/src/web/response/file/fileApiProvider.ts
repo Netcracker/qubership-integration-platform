@@ -98,7 +98,7 @@ export function setFileApi(api: FileApi) {
 
 // Delegating facade so existing imports can keep using `fileApi`
 export const fileApi: FileApi = {
-  getRootDirectory: () => current.getRootDirectory(),
+  getRootDirectory: (uri?: Uri) => current.getRootDirectory(uri),
   getMainChain: async (parameters: any): Promise<ChainSchema> =>
     current.getMainChain(parameters),
   findFileByNavigationPath: async (path: string): Promise<Uri> =>

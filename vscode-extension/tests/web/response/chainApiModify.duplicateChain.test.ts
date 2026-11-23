@@ -4,6 +4,7 @@ import { parse } from "yaml";
 import {
   resetWorkspace,
   seedWorkspace,
+  workspace,
   workspaceTree,
   workspaceUri,
 } from "../../fake-vscode";
@@ -115,5 +116,60 @@ describe("duplicateChain", () => {
 
     const copy = parse(workspaceTree()[result.uri.path.replace("/workspace/", "")]);
     expect(result.uri.path).toBe(`/workspace/${copy.id}/${copy.id}.chain.cip.yaml`);
+  });
+
+  test("puts the copy of a chain stored in the root of a second workspace folder under that folder", async () => {
+    workspace.workspaceFolders = [
+      { uri: workspaceUri("first") as any, name: "first", index: 0 },
+      { uri: workspaceUri("second") as any, name: "second", index: 1 },
+    ];
+    seedWorkspace({ "second/root.chain.cip.yaml": "id: root\nname: Root\ncontent: {}\n" });
+
+    const result = await duplicateChain(workspaceUri("second/root.chain.cip.yaml"));
+
+    const copy = parse(workspaceTree()[result.uri.path.replace("/workspace/", "")]);
+    expect(result.uri.path).toBe(`/workspace/second/${copy.id}/${copy.id}.chain.cip.yaml`);
+  });
+
+  test("writes nothing when another chain in the workspace cannot be parsed", async () => {
+    seedWorkspace({ "chains/broken/broken.chain.cip.yaml": "id: [broken" });
+    const before = workspaceTree();
+
+    await expect(duplicateChain(workspaceUri(SOURCE))).rejects.toThrow();
+
+    expect(workspaceTree()).toEqual(before);
+  });
+
+  test("writes nothing when a service call has a deprecated mapper handler", async () => {
+    seedWorkspace({
+      "chains/legacy/legacy.chain.cip.yaml": `id: legacy
+name: Legacy
+content:
+  elements:
+    - id: script
+      name: Script
+      type: script
+      properties:
+        exportFileExtension: groovy
+        propertiesFilename: script.groovy
+        propertiesToExportInSeparateFile: script
+    - id: call
+      name: Service Call
+      type: service-call
+      properties:
+        before:
+          type: mapper
+          propertiesFilename: before.json
+`,
+      "chains/legacy/resources/script.groovy": "log.info('hi')",
+      "chains/legacy/resources/before.json": '{"mapping": {}, "source": {}, "target": {}}',
+    });
+    const before = workspaceTree();
+
+    await expect(
+      duplicateChain(workspaceUri("chains/legacy/legacy.chain.cip.yaml")),
+    ).rejects.toThrow("Deprecated Mapper element is not supported");
+
+    expect(workspaceTree()).toEqual(before);
   });
 });

@@ -36,12 +36,13 @@ export class VSCodeFileApi implements FileApi {
     this.context = context;
   }
 
-  getRootDirectory(): Uri {
+  getRootDirectory(uri?: Uri): Uri {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       throw new Error("No workspace folder is open");
     }
-    return workspaceFolders[0].uri;
+    const folder = uri && vscode.workspace.getWorkspaceFolder(uri);
+    return (folder || workspaceFolders[0]).uri;
   }
 
   async findFileByNavigationPath(path: string): Promise<Uri> {
@@ -870,7 +871,7 @@ export class VSCodeFileApi implements FileApi {
       const haveResourceFolder =
         cipFileType === CipFileType.CHAIN ||
         cipFileType === CipFileType.SERVICE;
-      return directory.fsPath === this.getRootDirectory().fsPath
+      return directory.fsPath === this.getRootDirectory(fileUri).fsPath
         ? []
         : [
             ...(haveResourceFolder
