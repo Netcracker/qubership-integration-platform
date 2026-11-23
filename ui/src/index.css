@@ -147,12 +147,13 @@ h1 {
           }
 
           > .ant-table-body .ant-table-body-inner,
-          > .ant-table-body table {
+          > .ant-table-body > table {
             height: auto !important;
           }
 
-          /* An empty table stretches so its placeholder fills the body. */
-          > .ant-table-body table:has(.ant-table-placeholder) {
+          /* An empty table stretches so its placeholder fills the body. Child
+             combinators keep an empty table in an expanded row from stretching this one. */
+          > .ant-table-body > table:has(> tbody > .ant-table-placeholder) {
             height: 100% !important;
 
             .ant-table-cell {
@@ -164,7 +165,7 @@ h1 {
             height: 100%;
           }
 
-          > .ant-table-content table:has(.ant-table-placeholder) {
+          > .ant-table-content > table:has(> tbody > .ant-table-placeholder) {
             height: 100% !important;
 
             .ant-table-cell {

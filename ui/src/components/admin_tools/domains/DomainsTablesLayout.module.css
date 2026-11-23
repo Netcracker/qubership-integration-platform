@@ -41,5 +41,38 @@
 .nestedTable {
   width: 100%;
   min-width: 0;
-  background: var(--vscode-editor-background);
+}
+
+/* Ant Design starts a nested table after the parent's expand column. These
+   tables have none, so the nested table starts at the parent's name column. */
+.nestedTable :global(.ant-table) {
+  margin-inline-start: calc(
+    var(--ant-table-cell-padding-inline-sm) * -1
+  ) !important;
+}
+
+/* Each nesting level indents the first column by the width of the expand
+   button and its margin (17px), so it lines up with the parent's name. */
+.nestedTable :is(thead > tr > th, :global(.ant-table-row) > td):first-child {
+  padding-inline-start: calc(
+    var(--ant-table-cell-padding-inline-sm) + 17px
+  ) !important;
+}
+
+.nestedTable
+  .nestedTable
+  :is(thead > tr > th, :global(.ant-table-row) > td):first-child {
+  padding-inline-start: calc(
+    var(--ant-table-cell-padding-inline-sm) + 34px
+  ) !important;
+}
+
+.deleteButton {
+  visibility: collapse;
+}
+
+tr:hover {
+  .deleteButton {
+    visibility: visible;
+  }
 }

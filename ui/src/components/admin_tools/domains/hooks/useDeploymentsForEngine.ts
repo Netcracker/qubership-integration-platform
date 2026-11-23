@@ -13,6 +13,7 @@ import { useEventContext } from "../../../notifications/contexts/EventContext.ts
 export const useDeploymentsForEngine = (
   domainName: string | null,
   host: string | null,
+  reloadKey = 0,
 ) => {
   const [deployments, setDeployments] = useState<ChainDeployment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +42,7 @@ export const useDeploymentsForEngine = (
 
   useEffect(() => {
     void fetchDeployments();
-  }, [fetchDeployments]);
+  }, [fetchDeployments, reloadKey]);
 
   useEffect(() => {
     if (!domainName || !host) {

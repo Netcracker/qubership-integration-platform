@@ -9,7 +9,7 @@ import { useError, type ErrorState } from "./useError";
 import { useEventContext } from "../../../notifications/contexts/EventContext.tsx";
 import { ObjectType, EventActionType } from "../../../../api/apiTypes.ts";
 
-export const useEngines = (domainName: string | null) => {
+export const useEngines = (domainName: string | null, reloadKey = 0) => {
   const [engines, setEngines] = useState<Engine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { error, setError, clearError } = useError();
@@ -60,7 +60,7 @@ export const useEngines = (domainName: string | null) => {
     return () => {
       unsubscribe();
     };
-  }, [domainName, fetchEngines, clearError, subscribe]);
+  }, [domainName, reloadKey, fetchEngines, clearError, subscribe]);
 
   const retry = useCallback(async () => {
     if (domainName) {

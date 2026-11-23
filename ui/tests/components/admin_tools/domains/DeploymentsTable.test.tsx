@@ -74,13 +74,10 @@ const sampleDeployment: ChainDeployment = {
 };
 
 describe("DeploymentsTable", () => {
-  test("uses nested layout classes for host and table", () => {
+  test("uses the nested table layout class", () => {
     const { container } = render(
       <DeploymentsTable deployments={[sampleDeployment]} isLoading={false} />,
     );
-
-    const host = container.querySelector(`.${layoutStyles.nestedTableHost}`);
-    expect(host).toBeInTheDocument();
 
     const tableRoot = container.querySelector(`.${layoutStyles.nestedTable}`);
     expect(tableRoot).toBeInTheDocument();

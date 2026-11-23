@@ -80,7 +80,7 @@ const sampleEngine: Engine = {
 };
 
 describe("EngineTable", () => {
-  test("uses nested layout classes and wraps deployments with nestedExpandWrap when expanded", () => {
+  test("uses the nested table layout class and renders deployments when expanded", () => {
     const { container } = render(
       <EngineTable
         engines={[sampleEngine]}
@@ -89,9 +89,6 @@ describe("EngineTable", () => {
       />,
     );
 
-    const host = container.querySelector(`.${layoutStyles.nestedTableHost}`);
-    expect(host).toBeInTheDocument();
-
     const tableRoot = container.querySelector(`.${layoutStyles.nestedTable}`);
     expect(tableRoot).toBeInTheDocument();
 
@@ -99,8 +96,6 @@ describe("EngineTable", () => {
       container.querySelector("tbody tr td button[type='button']")!,
     );
 
-    const wrap = document.querySelector(`.${layoutStyles.nestedExpandWrap}`);
-    expect(wrap).toBeInTheDocument();
-    expect(wrap).toContainElement(screen.getByTestId("deployments-table-stub"));
+    expect(screen.getByTestId("deployments-table-stub")).toBeInTheDocument();
   });
 });

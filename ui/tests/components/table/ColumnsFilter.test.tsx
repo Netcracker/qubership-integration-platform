@@ -113,6 +113,19 @@ describe("ColumnsFilter", () => {
     expect(screen.getByRole("checkbox", { name: /locked col/i })).toBeDisabled();
   });
 
+  it("uses labelsByKey for a visibility-locked key", () => {
+    render(
+      <ColumnsFilter
+        allColumns={["name*", "version"]}
+        defaultColumns={["name*", "version"]}
+        storageKey={STORAGE_KEY}
+        onChange={jest.fn()}
+        labelsByKey={{ name: "Domain", version: "Version" }}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: "Domain" })).toBeDisabled();
+  });
+
   it("keeps Action Time checked and not toggleable when visibility-locked (Audit)", () => {
     const onChange = jest.fn();
     render(
@@ -121,7 +134,7 @@ describe("ColumnsFilter", () => {
         defaultColumns={["actionTime*", "username", "operation"]}
         storageKey={STORAGE_KEY}
         onChange={onChange}
-        labelsByKey={{ "actionTime*": "Action Time" }}
+        labelsByKey={{ actionTime: "Action Time" }}
       />,
     );
     const actionTime = screen.getByRole("checkbox", { name: /action time/i });
@@ -194,7 +207,7 @@ describe("ColumnsFilter", () => {
         storageKey={STORAGE_KEY}
         onChange={onChange}
         orderLockedKeys={["actionTime*"]}
-        labelsByKey={{ "actionTime*": "Action Time" }}
+        labelsByKey={{ actionTime: "Action Time" }}
       />,
     );
     fireEvent.click(screen.getByTestId("simulate-picker-reorder"));
