@@ -448,7 +448,7 @@ func ClaimSchedule(ctx context.Context, c *Client, actions *fixer.GitHubClient, 
 	}
 	path := fmt.Sprintf("/issues/%d/comments", plan.IssueNumber)
 	marker := scheduleReceipt(basis, attempt)
-	body := fmt.Sprintf("%s\n\nChecking whether the product help needs an update. [View workflow run](%s)", marker, attempt.url(plan.Repository))
+	body := fmt.Sprintf("%s\n\nDocumentation review started. [View workflow run](%s)", marker, attempt.url(plan.Repository))
 	requestErr := c.Request(ctx, "POST", path, map[string]string{"body": body}, nil)
 	reason, ownClaim, err = scheduleIssueBlock(ctx, c, actions, plan, publisher.ID, attempt)
 	if err == nil && reason == "" && ownClaim {
