@@ -124,3 +124,21 @@ func TestScheduleStopRequiresTheOwnedClaim(t *testing.T) {
 		t.Fatal("updated a foreign comment", a.comments)
 	}
 }
+
+func TestStoppedPublicationRequiresFreshAssessmentAfterBaseChanges(t *testing.T) {
+	c, a, plan := scheduleFixture(t)
+	plan.RequestID, plan.ID = "500:1", ""
+	plan.ID = Digest(plan)
+	attempt := ScheduledAttempt{RunID: 500, Attempt: 1}
+	basis := scheduleBasis(plan)
+	a.comments = []issueComment{{ID: 5, User: fixer.GitHubUser{ID: 99}, Body: scheduleReceipt(basis, attempt) + "\nDocumentation review started."}}
+	a.head = strings.Repeat("a", 40)
+	if a.head == plan.BaseSHA {
+		a.head = strings.Repeat("d", 40)
+	}
+	stop := ScheduleStop{Actor: "alice", Basis: basis, Current: attempt, Reason: "publish-stopped"}
+	updated, err := RecordScheduleStop(t.Context(), c, plan, stop)
+	if err != nil || !updated || !strings.Contains(a.comments[0].Body, "Start a fresh assessment") || strings.Contains(a.comments[0].Body, "Re-run failed jobs") {
+		t.Fatal(updated, err, a.comments)
+	}
+}

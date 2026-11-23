@@ -305,7 +305,12 @@ jobs:
           agent="$RUNNER_TEMP/docs-agent"
           if [[ ! -x "$agent" ]]; then
             printf '## Documentation work\n\nThe documentation agent was unavailable.\n' >> "$GITHUB_STEP_SUMMARY"
-            jq -n --arg outcome "$WORK_OUTCOME" '{work_step_outcome: $outcome}' > "$diagnostics/summary.json"
+            jq -n --arg outcome "$WORK_OUTCOME" '{
+              work_step_outcome: $outcome, status: null, route: null, stages: [],
+              required_check_results: [], missing_required_checks: [], additional_check_count: 0,
+              native_openrouter_attempts: null, native_openrouter_cost_usd: null,
+              jev_request_attempted: null, jev_cost_usd: null, rejected_diff_saved: false
+            }' > "$diagnostics/summary.json"
             exit 0
           fi
           report="$RUNNER_TEMP/docs-result/work/report.json"
@@ -513,6 +518,7 @@ jobs:
           private-key: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+          permission-contents: read
           permission-issues: write
       - name: Update the documentation claim
         env:

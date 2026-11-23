@@ -61,6 +61,12 @@ func RecordScheduleStop(ctx context.Context, c *Client, plan Plan, stop Schedule
 			body = comment.Body[:stateStart] + notice + comment.Body[stateStart:]
 		}
 	} else if comment.ID > 0 {
+		if stop.Reason == "publish-stopped" {
+			head, err := c.head(ctx, plan.DefaultBranch)
+			if err == nil && head != plan.BaseSHA {
+				message = "The default branch changed after documentation review. Start a fresh assessment with **QIP documentation agent** for this issue, with `operation` set to `run` and `apply` enabled."
+			}
+		}
 		body = stop.Signature.Append(fmt.Sprintf("%s\n\n%s\n\n[View the workflow run](%s)",
 			scheduleReceipt(stop.Basis, claimAttempt), message, stop.Current.url(plan.Repository)))
 	}
