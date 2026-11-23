@@ -68,7 +68,7 @@
     <google-auth.version>1.50.0</google-auth.version>
     <google-guava.version>33.7.2-jre</google-guava.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
-    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
+    <groovy-apache-bom.version>5.0.8</groovy-apache-bom.version>
     <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
     <grpc.version>1.75.0</grpc.version>
     <handlebars.version>4.3.1</handlebars.version>
