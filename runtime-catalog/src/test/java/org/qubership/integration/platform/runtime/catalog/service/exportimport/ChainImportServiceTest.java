@@ -49,6 +49,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SnapshotServic
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -712,6 +713,18 @@ class ChainImportServiceTest {
     // A request with no list used to arrive as [], and each overridden chain added itself to it, so a chain read
     // after the first one was neither saved nor reported. No list now arrives as null, which the old code rejected,
     // so this case guards the fixed path only. Two overridden chains cover any directory order.
+    @Test
+    void hashValidationReportsNoChainTheRequestLeavesOut(@TempDir Path importDirectory) throws Exception {
+        writeDeployedChainFile(importDirectory, "c1");
+        String hash = ChainUtils.getChainFilesHash(importDirectory.resolve("chains").resolve("c1").toFile(), "test");
+        lenient().when(chainService.getChainHash("c1")).thenReturn(hash);
+
+        ImportChainsAndInstructionsResult result = archiveImportService(noInstructions())
+                .importChains(importDirectory.toFile(), List.of(), "import-1", Set.of(), true);
+
+        assertEquals(List.of(), importedIds(result));
+    }
+
     @Test
     void overriddenChainsWithNullCommitRequestsAreAllImportedAsSnapshots(@TempDir Path importDirectory) throws Exception {
         writeDeployedChainFile(importDirectory, "c1");

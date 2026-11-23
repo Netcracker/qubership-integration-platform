@@ -324,7 +324,10 @@ public class ChainImportService {
         int counter = 0;
         for (Map.Entry<File, ChainExternalEntity> chain : chains.entrySet()) {
             String chainId = chain.getValue().getId();
-            if (chainIdsToCommit.contains(chainId) && !chainsToImport.containsKey(chainId)) {
+            if (!chainIdsToCommit.contains(chainId)) {
+                continue;
+            }
+            if (!chainsToImport.containsKey(chainId)) {
                 importChainResults.add(ImportChainResult.builder()
                         .id(chainId)
                         .status(ImportEntityStatus.IGNORED)
@@ -344,12 +347,8 @@ public class ChainImportService {
                     importId, total, counter, ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD);
             counter++;
 
-            ImportChainResult chainResult = restoreOneChainFromDir(
-                    chain.getKey(), chain.getValue(), commitRequests, technicalLabels, overridesPair, validateByHash);
-
-            if (chainResult != null) {
-                importChainResults.add(chainResult);
-            }
+            importChainResults.add(restoreOneChainFromDir(
+                    chain.getKey(), chain.getValue(), technicalLabels, overridesPair, validateByHash));
         }
 
         return new RestoredChains(importChainResults, chainsIgnoreOverrideResult);
@@ -363,45 +362,40 @@ public class ChainImportService {
     private ImportChainResult restoreOneChainFromDir(
             File chainFilesDir,
             ChainExternalEntity chainExternalEntity,
-            List<ChainCommitRequest> commitRequests,
             Set<String> technicalLabels,
             Pair<String, String> overridesPair,
             boolean validateByHash
     ) {
-        ImportChainResult importChainResult = null;
         try {
             String chainId = chainExternalEntity.getId();
             String externalHash = ChainUtils.getChainFilesHash(chainFilesDir, artifactDescriptorVersion);
 
             if (validateByHash && isSameHash(chainId, externalHash)) {
                 log.info(CHAINS_HASH_MATCHED_LOG_MESSAGE, chainId);
-                importChainResult = new ImportChainResult();
+                ImportChainResult importChainResult = new ImportChainResult();
                 importChainResult.setId(chainId);
                 importChainResult.setName(chainExternalEntity.getName());
                 importChainResult.setStatus(ImportEntityStatus.SKIPPED);
                 return importChainResult;
             }
 
-            if (shouldCommitChain(commitRequests, chainId)) {
-                if (overridesPair != null) {
-                    technicalLabels = technicalLabels != null ? new HashSet<>(technicalLabels) : new HashSet<>();
-                    if (chainId.equals(overridesPair.getKey())) {
-                        chainExternalEntity.getContent().setOverridesChainId(overridesPair.getValue());
-                        technicalLabels.add(OVERRIDES_LABEL_NAME);
-                    }
-                    if (chainId.equals(overridesPair.getValue())) {
-                        chainExternalEntity.getContent().setOverridden(true);
-                        chainExternalEntity.getContent().setOverriddenByChainId(overridesPair.getKey());
-                        technicalLabels.add(OVERRIDDEN_LABEL_NAME);
-                    }
+            if (overridesPair != null) {
+                technicalLabels = technicalLabels != null ? new HashSet<>(technicalLabels) : new HashSet<>();
+                if (chainId.equals(overridesPair.getKey())) {
+                    chainExternalEntity.getContent().setOverridesChainId(overridesPair.getValue());
+                    technicalLabels.add(OVERRIDES_LABEL_NAME);
                 }
-                chainExternalEntity.getContent().setLastImportHash(externalHash);
-                importChainResult = saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
+                if (chainId.equals(overridesPair.getValue())) {
+                    chainExternalEntity.getContent().setOverridden(true);
+                    chainExternalEntity.getContent().setOverriddenByChainId(overridesPair.getKey());
+                    technicalLabels.add(OVERRIDDEN_LABEL_NAME);
+                }
             }
+            chainExternalEntity.getContent().setLastImportHash(externalHash);
+            return saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
         } catch (Exception e) {
-            importChainResult = chainErrorResult(e, chainExternalEntity);
+            return chainErrorResult(e, chainExternalEntity);
         }
-        return importChainResult;
     }
 
     private static ImportChainResult chainErrorResult(Exception e, ChainExternalEntity chainExternalEntity) {
