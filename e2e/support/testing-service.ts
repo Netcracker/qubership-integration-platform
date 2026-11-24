@@ -317,7 +317,7 @@ export class TestingService {
 
   private async send(method: string, path: string, options: FetchOptions = {}): Promise<APIResponse> {
     const url = `${this.base}${path}`;
-    noteReached("testing-service", method, url);
+    noteReached("testing-service", method, path);
     const response = await this.api.fetch(url, { method: method.toUpperCase(), ...options });
     if (!this.ownedMocks) return response;
     const endpoint = "/api/v1/endpoint-mocks";

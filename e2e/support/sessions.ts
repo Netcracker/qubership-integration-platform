@@ -472,7 +472,7 @@ export class Sessions {
     options: Omit<NonNullable<Parameters<APIRequestContext["fetch"]>[1]>, "method"> = {},
   ): Promise<APIResponse> {
     const url = `${this.base}${path}`;
-    noteReached("sessions-management", method, url);
+    noteReached("sessions-management", method, path);
     return await this.api.fetch(url, { method: method.toUpperCase(), ...options });
   }
 

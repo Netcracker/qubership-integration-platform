@@ -19,8 +19,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tree every `SCHEMA_BASE_URL` id resolves into, as `<id path>.schema.yaml`. */
 export const QIP_MODEL_DIR = path.resolve(
-  HERE,
-  "../../schemas/src/main/resources/conf-model",
+  process.env.CIP_REPO_ROOT ?? path.resolve(HERE, "../.."),
+  "schemas/src/main/resources/conf-model",
 );
 
 /** The canonical element schemas. A caller may point the extractor somewhere else. */

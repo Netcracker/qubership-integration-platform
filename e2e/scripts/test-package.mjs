@@ -97,9 +97,14 @@ registerFolderTests(test);
   assert(Object.keys(suite.files).every((file) => !file.endsWith(".java") && !file.startsWith(".git") && !file.includes("node_modules")));
   const cli = path.join(nodeModules, "@playwright/test/cli.js");
   await verifyExternal(cli, nodeModules);
+  await verifyExternalDefault(cli);
   await verifyWorkspaceFailure();
   if (process.argv.includes("--browser")) await verifyBrowserAuth(cli);
-  if (!process.argv.includes("--host-smoke")) await verifySharedWorkspace(cli, installFile, playwrightVersion);
+  if (!process.argv.includes("--host-smoke")) {
+    await verifySharedWorkspace(cli, installFile, playwrightVersion);
+    await verifyExternalReference(cli);
+    await verifyExternalBrokers(cli);
+  }
   const passed = await run(process.execPath, [cli, "test", "--reporter=line"]);
   process.stdout.write(passed.stdout);
   server.assertClean();
@@ -156,6 +161,289 @@ async function verifyRelocation() {
   }
 }
 
+async function verifyExternalDefault(cli) {
+  await writeFile(path.join(consumer, "external-default.config.ts"), `
+import { createExternalSuiteConfig } from "@netcracker/qip-e2e/external";
+const base = process.env.QIP_PACKAGE_TEST_URL;
+export default await createExternalSuiteConfig({
+  services: { engine: base + "/engine" },
+  workspaceDir: "./default-workspace",
+  target: process.env.CIP_TARGET === "k8s" ? "k8s" : "compose",
+  sourceRoot: process.env.QIP_PACKAGE_SOURCE_ROOT,
+  auth: "./default-auth.ts",
+});
+`);
+  await writeFile(path.join(consumer, "default-auth.ts"), `
+export default { api: { headers: { engine: { Authorization: "Bearer package-test" } } } };
+`);
+  const spec = [cli, "test", "--config=external-default.config.ts"];
+  const listing = JSON.parse((await run(process.execPath, [...spec, "--list", "--reporter=json"])).stdout);
+  assert(listing.config.projects.some(({name}) => name === "runtime"), "The default external config must include runtime.");
+  assert(listing.config.projects.some(({name}) => name === "seed"), "The default external config must include seed.");
+  assert(listing.config.projects.some(({name}) => name === "global"), "The default external config must include global.");
+  const before = server.platformRequests();
+  const healthBefore = server.healthRequests();
+  await assert.rejects(run(process.execPath, spec), /External project "[^"]+" requires sourceRoot/);
+  await assert.rejects(run(process.execPath, [...spec, "--project=API*"]), /requires dedicatedStand/);
+  assert.equal(server.platformRequests(), before);
+  assert.deepEqual(server.healthRequests(), healthBefore);
+  const healthEnvironment = Object.fromEntries(Object.entries(environment).filter(([name]) => name.toLowerCase() !== "path"));
+  healthEnvironment.PATH = path.dirname(process.execPath);
+  healthEnvironment.E2E_RUN = "kept01";
+  const result = await run(process.execPath, [...spec, "--project=Health"], consumer, healthEnvironment);
+  assert.match(result.stdout, /External suite passed/);
+  assert.equal(server.platformRequests(), before);
+  assert.deepEqual(server.healthRequests(), [...healthBefore, "GET /engine/actuator/health"].sort());
+  console.log("The default external graph includes the reference projects and can run health on its own.");
+}
+
+async function verifyExternalBrokers(cli) {
+  const file = "external-brokers.config.ts";
+  await writeFile(path.join(consumer, file), `
+import { createExternalSuiteConfig } from "@netcracker/qip-e2e/external";
+const base = process.env.QIP_PACKAGE_TEST_URL!;
+export default await createExternalSuiteConfig({
+  services: { "runtime-catalog": base + "/catalog", engine: base + "/engine",
+    "sessions-management": base + "/sessions", "testing-service": base + "/testing" },
+  proxy: base, dedicatedStand: true, adapter: "./broker-stand.ts", auth: "./reference-auth.ts",
+  sensitiveArtifacts: process.env.QIP_TEST_BROKER_RESTART === "1",
+  brokers: {
+    kafka: { host: "runner-kafka:9092", engine: "engine-kafka:9092", listeners: { tls13: "engine-kafka:9097" } },
+    rabbitmq: { host: "amqp://runner-rabbitmq:5672/e2e-vhost", engine: "engine-rabbitmq:5672", username: "e2e", password: "package-broker-secret" },
+    pubsub: { host: base, projectId: "e2e-package" },
+    sftp: { host: { host: "runner-sftp", port: 2222 }, engine: "engine-sftp:22", username: "e2e", password: "package-sftp-secret" },
+  },
+  projects: [{ name: "broker-adapter", testDir: "./broker-adapter-tests", metadata: { stack: false } }],
+});
+`);
+  await writeFile(path.join(consumer, "broker-stand.ts"), `
+import type { SuiteExtension } from "@netcracker/qip-e2e/external";
+export default {
+  target: (base) => ({
+    ...base,
+    createEnv(kind, state) {
+      return Object.assign(base.createEnv(kind, state), {
+        async ensureOverlay() { throw new Error("Unexpected infrastructure setup"); },
+        async removeOverlay() { throw new Error("Unexpected infrastructure cleanup"); },
+        async restartOverlay() { throw new Error("Unexpected default restart"); },
+      });
+    },
+  }),
+  kubernetes: { microService: (domain) => "application-engine-" + domain },
+  brokers: process.env.QIP_TEST_BROKER_RESTART ? {
+    async restart(broker) { throw new Error("Consumer restarts " + broker); },
+  } : undefined,
+} satisfies SuiteExtension;
+`);
+  const command = [cli, "test", "--config=" + file];
+  const healthBefore = server.healthRequests();
+  await assert.rejects(run(process.execPath, [...command, "--project=brokers-restart", "--no-deps"]), /requires adapter.brokers.restart/);
+  assert.deepEqual(server.healthRequests(), healthBefore);
+  await mkdir(path.join(consumer, "broker-adapter-tests"));
+  await writeFile(path.join(consumer, "broker-adapter-tests", "fixtures.spec.ts"), String.raw`
+import { test, expect } from "@playwright/test";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
+const root = process.env.QIP_E2E_EXTERNAL_TEST_ROOT!;
+const load = (file: string) => import(pathToFileURL(path.join(root, file)).href);
+test("uses external broker addresses in classic and micro fixtures", async () => {
+  const { configureBrokerFixture, configureBrokerSpecification } = await load("fixtures/external-brokers.ts");
+  const { renderFixture, microCopy, readFixtureDocument, readSpecificationFixture, BROKERS_FIXTURE_DIR } = await load("fixtures/templating.ts");
+  const inline = readSpecificationFixture("async-api-kafka-inline-ref.yaml");
+  expect(configureBrokerSpecification(inline.buffer.toString("utf8"))).toContain("url: engine-kafka:9092");
+  const { brokerServiceTrees, brokerCorpusOf } = await load("support/brokers.ts");
+  const { kafkaHostBrokers, pubsubProjectId, sftpHostConnection } = await load("env/containers.ts");
+  const copy = (name: string, micro = false) => {
+    const tree = renderFixture(BROKERS_FIXTURE_DIR, name, "package");
+    return configureBrokerFixture(name, micro ? microCopy(name, tree) : tree);
+  };
+  const fixture = (name: string, micro = false) => readFixtureDocument(name, copy(name, micro)).source;
+  expect(kafkaHostBrokers()).toBe("runner-kafka:9092");
+  expect(sftpHostConnection()).toMatchObject({ host: "runner-sftp", port: 2222 });
+  expect(pubsubProjectId()).toBe("e2e-package");
+  expect(fixture("kafka-trigger-basic", true)).toContain("engine-kafka:9092");
+  expect(fixture("kafka-trigger-basic", true)).toContain("-micro");
+  expect(fixture("kafka-trigger-tlsv1-2-refused.yaml")).toContain("engine-kafka:9097");
+  expect(fixture("kafka-trigger-security-ssl-tls")).toContain("kafka:29095");
+  expect(fixture("rabbitmq-trigger-basic")).toContain("vhost: e2e-vhost");
+  expect(fixture("pubsub-trigger-basic")).toContain("projectId: e2e-package");
+  expect(fixture("sftp-upload-basic")).toContain("engine-sftp:22/upload/package");
+  const service = brokerServiceTrees("package").find(([name]: [string]) => name === "async-api-amqp");
+  const amqp = [...configureBrokerFixture(...service).values()].join("\n");
+  expect(amqp.match(/engine-rabbitmq:5672/g)).toHaveLength(2);
+  expect(amqp).toContain("vhost: e2e-vhost");
+  const corpus = brokerCorpusOf("package", [["rabbitmq-trigger-basic", copy("rabbitmq-trigger-basic")]], []);
+  expect(JSON.stringify(corpus)).not.toContain("package-broker-secret");
+});
+test("authenticates only the registered engine proxy paths", async () => {
+  const { K8sEnv } = await load("env/k8s.ts");
+  const { gatewayUrl } = await load("support/kube.ts");
+  const { authenticatedRequest } = await load("env/platform-http.ts");
+  const request = authenticatedRequest({
+    get: async (_url: string, options?: { headers?: Record<string, string> }) => options?.headers?.["x-service"],
+  });
+  const engine = new K8sEnv({ engineKind: "micro", microDomain: () => "test-domain" });
+  expect(await request.get(engine.chainUrl("echo"))).toBe("engine");
+  expect(await request.get(gatewayUrl("/routes/echo"))).toBe("engine");
+  const base = process.env.QIP_PACKAGE_TEST_URL;
+  expect(await request.get(base + "/e2e/svc/application-engine-other/routes/echo")).toBeUndefined();
+  expect(await request.get(base + "/e2e/gateway-other/routes/echo")).toBeUndefined();
+});
+test("requires every service to refresh the API inventory", async () => {
+  const { operationServices } = await load("registry/operations.ts");
+  const { externalSettings, setExternalSettings } = await load("env/external-settings.ts");
+  const settings = externalSettings();
+  try {
+    setExternalSettings({ ...settings, services: { engine: settings.services.engine } });
+    expect(operationServices(["engine"]).map(({ service }: { service: string }) => service)).toEqual(["engine"]);
+    expect(() => operationServices()).toThrow('Set services["runtime-catalog"]');
+  } finally {
+    setExternalSettings(settings);
+  }
+});
+test("uses the consumer restart operation and keeps broker instances running", async () => {
+  const { targetSetup } = await load("env/target-setup.ts");
+  const env = targetSetup().createEnv("classic");
+  await env.ensureOverlay("pubsub");
+  await env.removeOverlay("pubsub");
+  await expect(env.restartOverlay("kafka")).rejects.toThrow("Consumer restarts kafka");
+});
+`);
+  await run(process.execPath, [...command, "--project=broker-adapter"], consumer, { ...environment, QIP_TEST_BROKER_RESTART: "1" });
+  console.log("The installed package configures external broker fixtures and checks restart support before setup.");
+}
+
+async function verifyExternalReference(cli) {
+  const events = path.join(consumer, "reference-auth-events.txt");
+  const workspace = path.join(consumer, "reference-workspace");
+  await writeFile(path.join(consumer, "external-reference.config.ts"), `
+import { createExternalSuiteConfig } from "@netcracker/qip-e2e/external";
+const base = process.env.QIP_PACKAGE_TEST_URL!;
+const config = await createExternalSuiteConfig({
+  services: { "runtime-catalog": base + "/catalog", engine: base + "/engine",
+    "sessions-management": base + "/sessions", "testing-service": base + "/testing" },
+  workspaceDir: ${JSON.stringify(workspace)}, proxy: base,
+  dedicatedStand: true, adapter: "./reference-stand.ts", auth: "./reference-auth.ts",
+  projects: [{ name: "reference-application", testDir: "./reference-tests" }],
+  brokers: { pubsub: { host: base + "/unavailable-pubsub", projectId: "e2e-package" } },
+});
+if (process.env.QIP_PACKAGE_BROKER_OUTAGE) {
+  const project = config.projects!.find(({ name }) => name === "brokers-seed")!;
+  Object.assign(project, { testDir: "./broker-outage", dependencies: [], teardown: undefined });
+}
+export default config;
+`);
+  await mkdir(path.join(consumer, "reference-tests"));
+  await writeFile(path.join(consumer, "reference-tests", "folders.spec.ts"), `
+import { loadExternalFixtures } from "@netcracker/qip-e2e/external";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+const { test, expect } = await loadExternalFixtures();
+test("lists folders in the reference application", { tag: ["@catalog"] }, async ({ env, request, run }) => {
+  const response = await request.get(env.url("runtime-catalog") + "/v1/folders");
+  expect(response.ok()).toBe(true);
+  if (process.env.QIP_PACKAGE_RUN_STATE) {
+    const root = process.env.QIP_E2E_EXTERNAL_TEST_ROOT!;
+    const { readCorpusState, writeCorpusState } = await import(pathToFileURL(path.join(root, "support/corpus.ts")).href);
+    if (process.env.QIP_PACKAGE_RUN_STATE === "keep") writeCorpusState({ run, chains: [], services: [] });
+    else expect(readCorpusState().run).toBe("kept01");
+  }
+});
+`);
+  await mkdir(path.join(consumer, "broker-outage"));
+  await writeFile(path.join(consumer, "broker-outage", "broker.setup.ts"), `
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+const root = process.env.QIP_E2E_EXTERNAL_TEST_ROOT!;
+const { test } = await import(pathToFileURL(path.join(root, "support/fixtures.ts")).href);
+test("reports an unavailable broker from its setup project", async ({ env }) => {
+  await env.ensureOverlay("pubsub");
+});
+`);
+  await writeFile(path.join(consumer, "reference-stand.ts"), `
+import type { SuiteExtension } from "@netcracker/qip-e2e/full";
+export default {
+  target: (base) => ({
+    ...base,
+    async provision() { throw new Error("The provisioner ran against an existing deployment."); },
+    observer: {
+      async baseline() { return []; },
+      startSampler() {},
+      async header(about) {
+        return { ...about, startedAt: new Date().toISOString(), commit: { sha: null, branch: null, dirty: null }, services: [] };
+      },
+    },
+  }),
+} satisfies SuiteExtension;
+`);
+  await writeFile(path.join(consumer, "reference-auth.ts"), `
+import { appendFileSync } from "node:fs";
+import type { ExternalAuth } from "@netcracker/qip-e2e/external";
+const names = { "runtime-catalog": "catalog", engine: "engine", "sessions-management": "sessions", "testing-service": "testing" };
+export default {
+  api: { getHeaders({ service, phase }) {
+    appendFileSync(${JSON.stringify(events)}, service + " " + phase + "\\n");
+    return { headers: {
+      Authorization: service === "sessions-management" && phase === "cleanup" ? "Bearer package-sessions" : "Bearer package-test",
+      "x-service": names[service],
+      "x-e2e-phase": phase,
+    } };
+  } },
+} satisfies ExternalAuth;
+`);
+  await run(process.execPath, [
+    cli, "test", "--config=external-reference.config.ts", "--project=api", "--no-deps",
+    "specs/api/health.spec.ts", "--grep", "reports UP and declares both probe groups", "--workers=1",
+  ]);
+  await run(process.execPath, [cli, "test", "--config=external-reference.config.ts", "--project=reference-application"]);
+  await run(process.execPath, [cli, "test", "--config=external-reference.config.ts", "--project=ui-server", "--no-deps"]);
+  const runs = path.join(workspace, "runs");
+  const reports = await Promise.all((await readdir(runs)).map(async (runId) =>
+    JSON.parse(await readFile(path.join(runs, runId, "report.json"), "utf8"))));
+  const results = [], reached = [];
+  for (const report of reports) {
+    assert.equal(report.config.metadata.target, "compose");
+    eachTest(report, (_spec, test) => {
+      results.push(test.status);
+      reached.push(...test.annotations.filter(({ type }) => type === "reached").map(({ description }) => description));
+    });
+  }
+  assert.deepEqual(results, Array(5).fill("expected"));
+  assert(reached.some((operation) => operation.includes("/v1/folders")));
+  assert.match((await readFile(events, "utf8")), /runtime-catalog setup/);
+  assert.match((await readFile(events, "utf8")), /engine test/);
+  assert.match((await readFile(events, "utf8")), /runtime-catalog cleanup/);
+  const config = [cli, "test", "--config=external-reference.config.ts"];
+  const application = [...config, "--project=reference-application"];
+  const before = server.platformRequests();
+  server.setHealth("DOWN");
+  try {
+    await assert.rejects(run(process.execPath, application), /expected status UP/);
+    assert.equal(server.platformRequests(), before);
+  } finally {
+    server.setHealth("UP");
+  }
+
+  const preserved = { ...environment, E2E_RUN: "kept01", E2E_SWEEP: "never", E2E_KEEP: "1" };
+  await run(process.execPath, application, consumer, { ...preserved, QIP_PACKAGE_RUN_STATE: "keep" });
+  await run(process.execPath, [...application, "--no-deps"], consumer, { ...preserved, QIP_PACKAGE_RUN_STATE: "resume" });
+  const recovered = await run(process.execPath, application);
+  assert.match(recovered.stdout, /kept01/);
+  server.assertClean();
+
+  await assert.rejects(run(process.execPath, [...application, "--project=brokers-seed"], consumer, {
+    ...environment, QIP_PACKAGE_BROKER_OUTAGE: "1",
+  }), (error) => {
+    assert.match(error.stderr, /Cannot connect to the external pubsub broker/);
+    return true;
+  });
+  const afterOutage = await Promise.all((await readdir(runs)).map(async (runId) =>
+    JSON.parse(await readFile(path.join(runs, runId, "report.json"), "utf8"))));
+  const partial = afterOutage.find((report) => report.cases.some(({ broker }) => broker));
+  assert(partial?.cases.some(({ title, status }) => title.includes("reference-application") && status === "passed"));
+  console.log("The reference API checks readiness and credentials, recovers kept state, and isolates broker failures.");
+}
+
 async function verifyFullSuite(cli, nodeModules) {
   await run(process.execPath, ["--input-type=module", "-e", `
 import assert from "node:assert/strict";
@@ -174,10 +462,25 @@ assert.equal(await prepareSuite({ sourceRoot: ${JSON.stringify(sourceRoot)} }), 
     environment.CIP_TARGET = target;
     const original = await run(process.execPath, [require.resolve('@playwright/test/cli'), 'test', '--list', '--reporter=json'], root);
     const installed = await run(process.execPath, [cli, 'test', '--config=full.config.ts', '--list', '--reporter=json']);
+    const external = await run(process.execPath, [
+      path.join(nodeModules, "@playwright/test/cli.js"), "test", "--config=external-default.config.ts", "--list", "--reporter=json",
+    ]);
+    const allExternal = JSON.parse(external.stdout);
+    const originalCases = cases(JSON.parse(original.stdout));
     assert.deepEqual(cases(JSON.parse(installed.stdout)), cases(JSON.parse(original.stdout)), `The ${target} package lost or changed suite cases`);
-    console.log(`Full ${target} suite: ${cases(JSON.parse(installed.stdout)).length} cases match the source suite.`);
+    assert.deepEqual(cases(allExternal).filter((entry) => !entry.startsWith("health ")), originalCases);
+    const edges = (report) => report.config.projects.filter(({ name }) => name !== "health").map(({ name, metadata }) =>
+      [name, metadata.dependencies ?? []]);
+    assert.deepEqual(edges(allExternal), edges(JSON.parse(original.stdout)));
+    console.log(`Full ${target} suite: ${originalCases.length} cases and project dependencies match both package modes.`);
   }
   environment.CIP_TARGET = 'compose';
+  const checkedSources = await run(process.execPath, [
+    path.join(nodeModules, "@playwright/test/cli.js"), "test", "--config=external-default.config.ts",
+    "--project=schema", "--project=harness", "--reporter=line",
+  ], consumer, { ...environment, QIP_PACKAGE_SOURCE_ROOT: sourceRoot });
+  assert.match(checkedSources.stdout, /\d+ passed/);
+  console.log("The external profile ran the reference schema and harness projects from the consumer.");
   try {
     await run(process.execPath, [cli, 'test', '--config=full.config.ts', '--project=schema', '--project=harness']);
   } catch {
@@ -521,7 +824,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createExternalSuiteConfig } from "@netcracker/qip-e2e/external";
 
-const options = { services: { engine: "http://localhost:8090" }, workspaceDir: "workspace-failure" };
+const options = { services: { engine: "http://localhost:8090" }, suites: ["health"], workspaceDir: "workspace-failure" };
 const prepareError = Object.assign(new Error("Cannot create a dependency link."), { code: "EACCES" });
 const cleanupError = Object.assign(new Error("Cannot remove the temporary directory."), { code: "EPERM" });
 const { symlinkSync, rmSync } = fs;

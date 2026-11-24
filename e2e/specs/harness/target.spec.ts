@@ -12,7 +12,8 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect, type FullConfig } from "@playwright/test";
+import { expect, type FullConfig } from "@playwright/test";
+import { platformTest as test } from "./platform-test.js";
 import { suiteProjects } from "../../playwright.config.js";
 import { needsStack } from "../../env/provision.js";
 import {

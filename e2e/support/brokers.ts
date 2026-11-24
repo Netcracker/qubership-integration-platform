@@ -27,8 +27,9 @@ import amqp from "amqplib";
 import Client from "ssh2-sftp-client";
 import type { Catalog, LoggingProperties } from "./catalog.js";
 import type { Env, Overlay } from "../env/index.js";
-import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "../env/containers.js";
+import { kafkaHostBrokers, kafkaHostSecurity, pubsubHostUrl, rabbitmqHostUrl, sftpHostConnection } from "../env/containers.js";
 import { BROKERS_MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
+import { runStateFile } from "../env/external-settings.js";
 import { stateFileName } from "../env/target.js";
 import {
   assembleTrees,
@@ -44,6 +45,7 @@ import {
   renderFixture,
   type RenderedTree,
 } from "../fixtures/templating.js";
+import { configureBrokerFixtures } from "../fixtures/external-brokers.js";
 import {
   corpusRequestTimeout,
   deleteService,
@@ -72,7 +74,7 @@ export const BROKERS_DEPLOY_TIMEOUT = 180_000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where the brokers seed leaves what it imported, mirroring `support/corpus.ts`'s `CORPUS_STATE_FILE`. */
-export const BROKERS_CORPUS_STATE_FILE = path.join(HERE, "..", stateFileName(".e2e-brokers-corpus.json"));
+export const BROKERS_CORPUS_STATE_FILE = runStateFile(path.join(HERE, "..", stateFileName(".e2e-brokers-corpus.json")));
 
 /** The same session logging the shared corpus deploys with: `sftp-trigger-2` has no other observable. */
 export const BROKERS_LOGGING: LoggingProperties = {
@@ -92,11 +94,7 @@ export const KAFKA_HOST_BROKERS = kafkaHostBrokers();
 export const PUBSUB_HOST_URL = pubsubHostUrl();
 export const RABBITMQ_HOST_URL = rabbitmqHostUrl();
 /** The SFTP server's one user, host-side. The chains address the same server as `sftp-server:22`. */
-export const SFTP_HOST_CONFIG = {
-  ...sftpHostAddress(),
-  username: "e2e",
-  password: "e2epass",
-};
+export const SFTP_HOST_CONFIG = sftpHostConnection();
 
 function splitNames(value: unknown): string[] {
   if (typeof value !== "string") return [];
@@ -441,7 +439,7 @@ const KAFKA_ADMIN_CLIENT_ID = "e2e-brokers-seed";
 
 /** Connects a Kafka admin client, runs `fn` against it, and disconnects whether `fn` throws or not. */
 async function withKafkaAdmin<T>(fn: (admin: Admin) => Promise<T>): Promise<T> {
-  const admin = new Kafka({ clientId: KAFKA_ADMIN_CLIENT_ID, brokers: [KAFKA_HOST_BROKERS] }).admin();
+  const admin = new Kafka({ clientId: KAFKA_ADMIN_CLIENT_ID, brokers: [KAFKA_HOST_BROKERS], ...kafkaHostSecurity() }).admin();
   await admin.connect();
   try {
     return await fn(admin);
@@ -774,8 +772,17 @@ function describe(fixture: string, document: Record<string, unknown>): BrokerCha
     name: String(document.name),
     contextPath,
     elements: Object.fromEntries(byName),
-    broker: brokerElement?.properties ?? {},
+    broker: brokerState(brokerElement?.properties ?? {}),
   };
+}
+
+function brokerState(properties: Record<string, unknown>): Record<string, unknown> {
+  const { username, password, saslJaasConfig, serviceAccountKey, integrationOperationAsyncProperties, ...state } = properties;
+  if (integrationOperationAsyncProperties && typeof integrationOperationAsyncProperties === "object") {
+    const { username, password, saslJaasConfig, ...asyncState } = integrationOperationAsyncProperties as Record<string, unknown>;
+    state.integrationOperationAsyncProperties = asyncState;
+  }
+  return state;
 }
 
 export interface SeededBrokerCorpus {
@@ -905,8 +912,8 @@ export async function seedBrokers(
   run: string,
   fixtures: readonly string[] = corpusFixtureNames([BROKERS_FIXTURE_DIR]),
 ): Promise<SeededBrokerCorpus> {
-  const trees = brokerTrees(run, fixtures);
-  const services = brokerServiceTrees(run);
+  const trees = configureBrokerFixtures(brokerTrees(run, fixtures));
+  const services = configureBrokerFixtures(brokerServiceTrees(run));
   const corpus = brokerCorpusOf(run, trees, services);
   await importBrokerCopy(catalog, env, corpus, {
     trees,
@@ -933,8 +940,8 @@ export async function seedBrokers(
  * broker outage would then fail every `runtime-micro` case.
  */
 export async function seedMicroBrokers(catalog: Catalog, env: Env, run: string): Promise<MicroBrokerCorpus> {
-  const trees = microBrokerTrees(run);
-  const services = microBrokerServiceTrees(run);
+  const trees = configureBrokerFixtures(microBrokerTrees(run));
+  const services = configureBrokerFixtures(microBrokerServiceTrees(run));
   const target = tokenedDomain(run, "brokers-micro");
   const corpus: MicroBrokerCorpus = { ...brokerCorpusOf(run, trees, services), domain: target.domain };
   await importBrokerCopy(catalog, env, corpus, {

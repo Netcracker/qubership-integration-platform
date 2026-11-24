@@ -19,29 +19,31 @@ import { test, expect } from "../../support/fixtures.js";
 import {
   diffOperations,
   loadCachedOperations,
-  operationServices,
+  SERVICE_DOCUMENTS,
   operationsFromOpenApi,
 } from "../../registry/operations.js";
 import { OPERATION_SERVICE_TAG } from "./constants.js";
+import { serviceUrl } from "../../env/containers.js";
 
 const cache = loadCachedOperations();
 
 test.describe("live API documents", () => {
-  for (const service of operationServices()) {
-    test(`${service.service} serves exactly the operations the cache records`, { tag: [OPERATION_SERVICE_TAG[service.service]] }, async ({ request }) => {
-      const response = await request.get(`${service.baseUrl}${service.docPath}`);
+  for (const [service, role, docPath] of SERVICE_DOCUMENTS) {
+    test(`${service} serves exactly the operations the cache records`, { tag: [OPERATION_SERVICE_TAG[service]] }, async ({ request }) => {
+      const url = `${serviceUrl(role)}${docPath}`;
+      const response = await request.get(url);
       expect(
         response.status(),
-        `${service.baseUrl}${service.docPath} — is the stack up?`,
+        `${url} — is the stack up?`,
       ).toBe(200);
 
       const live = operationsFromOpenApi(await response.json());
       expect(live.length, "the document served no operations at all").toBeGreaterThan(0);
 
-      const diff = diffOperations(cache.services[service.service] ?? [], live);
+      const diff = diffOperations(cache.services[service] ?? [], live);
       expect(
         diff,
-        `${service.service} drifted from registry/operations.cache.json — run npm run refresh-operations, then add or remove the registry rows`,
+        `${service} drifted from registry/operations.cache.json — run npm run refresh-operations, then add or remove the registry rows`,
       ).toEqual({ missing: [], unexpected: [] });
     });
   }

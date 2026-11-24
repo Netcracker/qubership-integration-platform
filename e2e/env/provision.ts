@@ -17,6 +17,9 @@ import { writeStackHeader } from "../support/report.js";
 import { publishedImagesLine } from "../support/run-report.mjs";
 import { reserveBundleBuild } from "../support/ui-server.js";
 import { targetSetup } from "./target-setup.js";
+import { checkExternalRun } from "./external-run.js";
+import { inAuthPhase } from "./external-auth.js";
+import { externalSettings } from "./external-settings.js";
 
 /** `auto` provisions; `never` only checks health, so a stack somebody is debugging is left alone. */
 export type ProvisionMode = "auto" | "never";
@@ -173,16 +176,23 @@ export function selectedProjects(argv: readonly string[]): string[] {
  * The projects a run executes: the ones `--project` selected, or every project when it selected
  * none, together with what they depend on, transitively.
  */
-export function runProjects(config: Pick<FullConfig, "argv" | "projects">): FullProject[] {
+export function runProjects(config: Pick<FullConfig, "argv" | "projects">, includeDependencies = true): FullProject[] {
   const byName = new Map(config.projects.map((project) => [project.name, project]));
   const selected = selectedProjects(config.argv);
-  const pending = selected.length ? [...selected] : [...byName.keys()];
+  const selectors = selected.map((name) => new RegExp(`^${name.split("*").map((part) =>
+    part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i"));
+  const pending = selected.length
+    ? config.projects.filter(({ name }) => selectors.some((pattern) => pattern.test(name))).map(({ name }) => name)
+    : [...byName.keys()];
   const reached = new Map<string, FullProject>();
   while (pending.length) {
     const project = byName.get(pending.pop()!);
     if (!project || reached.has(project.name)) continue;
     reached.set(project.name, project);
-    pending.push(...project.dependencies);
+    if (includeDependencies) {
+      pending.push(...project.dependencies);
+      if (project.teardown) pending.push(project.teardown);
+    }
   }
   return [...reached.values()];
 }
@@ -218,10 +228,14 @@ export function needsStack(config: FullConfig): boolean {
   return !selected.every((name) => stackFree.has(name));
 }
 
-export default async function globalSetup(config: FullConfig): Promise<(() => void) | void> {
+async function prepareRun(config: FullConfig): Promise<(() => void) | void> {
+  const external = externalSettings();
+  const externalReport = external?.full
+    ? await checkExternalRun(runProjects(config, !config.argv.includes("--no-deps")), external)
+    : undefined;
   // Before the run token is minted, because everything downstream of it — the sweep, the run
   // manifest, the header, the sampler — addresses a stack this run has none of.
-  if (!needsStack(config)) {
+  if (external?.full ? !externalReport : !needsStack(config)) {
     console.log(`[provision] skipped: the selected projects need no stack (${selectedProjects(config.argv).join(", ")})`);
     return;
   }
@@ -230,12 +244,16 @@ export default async function globalSetup(config: FullConfig): Promise<(() => vo
   // child processes and this assignment is how they all end up under one token. The manifest entry
   // goes with it: a run that is interrupted before its teardown is one a later run cleans up after,
   // and the token is the only handle on what it created.
+  if (external?.full) {
+    process.env.E2E_RUN = external.full.runToken;
+    process.env.QIP_E2E_EXTERNAL_STARTED = external.run;
+  }
   const run = ensureRunToken();
   recordRun(run);
 
   const setup = targetSetup();
   console.log(`[provision] target=${setup.name}`);
-  const report = await setup.provision(provisionMode(), microProjects(config));
+  const report = externalReport ?? await setup.provision(provisionMode(), microProjects(config));
   console.log(formatReport(report));
   console.log(`[run] token=${run}, entities are named e2e-${run}-…`);
 
@@ -247,7 +265,7 @@ export default async function globalSetup(config: FullConfig): Promise<(() => vo
     // The candidates are read once and handed to the sweep, so the manifest before and after name
     // the same set of runs and the difference between them is what the sweep forgot.
     const candidates = sweepableRuns(run);
-    const swept = await sweepPreviousRuns(new Catalog(api), run, candidates);
+    const swept = await inAuthPhase("cleanup", () => sweepPreviousRuns(new Catalog(api), run, candidates));
     console.log(formatPreviousRunSweep(swept));
     // Driven by the manifest rather than by the sweep's report, because they are not the same list:
     // the report holds only the runs that had residue or a failed delete, so a run forgotten because
@@ -274,4 +292,8 @@ export default async function globalSetup(config: FullConfig): Promise<(() => vo
     console.log("[build-lock] reserved for the UI bundle, which builds before the vscode-server builds");
   }
   return setup.observer.startSampler(run, baseline);
+}
+
+export default function globalSetup(config: FullConfig): Promise<(() => void) | void> {
+  return inAuthPhase("setup", () => prepareRun(config));
 }

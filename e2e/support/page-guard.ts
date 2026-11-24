@@ -84,7 +84,7 @@ async function guardPage(
 
 const guarded = base.extend<{ pageGuard: void }>({
   pageGuard: [
-    external
+    external && !external.full
       ? async ({ page }, use, testInfo) => guardPage(page, use, testInfo)
       : async ({ page, catalog }, use, testInfo) =>
         guardPage(page, use, testInfo, (problems) => withoutDeletedDomains(problems, catalog)),
@@ -96,7 +96,7 @@ export const test: typeof base = external?.auth ? guarded.extend<{}, { qipUiSess
   qipUiSession: [async ({}, use) => { await use(createUiSession()); }, { scope: "worker" }],
   context: async ({ context, browser, qipUiSession }, use, info) => {
     const state = await qipUiSession(() => uiLogin(external.auth!, browser, {
-      run: external.run, baseURL: external.ui!, parallelIndex: info.parallelIndex,
+      run: external.run, baseURL: external.ui ?? external.proxy!, parallelIndex: info.parallelIndex,
     }));
     if (state) await context.setStorageState(state);
     await use(context);

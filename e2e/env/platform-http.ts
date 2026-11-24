@@ -19,6 +19,15 @@ function proxyRole(path: string): ServiceRole | undefined {
     || /^\/api\/[^/]+\/v\d+\//.test(path)) return "runtime-catalog";
 }
 
+const engineProxyEndpoints = new Map<string, URL>();
+
+export function engineProxyEndpoint(base: string): string {
+  if (externalSettings()?.full && !engineProxyEndpoints.has(base)) {
+    engineProxyEndpoints.set(base, new URL(base));
+  }
+  return base;
+}
+
 function externalProxyRole(path: string): ServiceRole | undefined {
   const target = /^\/e2e\/svc\/([^/]+)\//.exec(path)?.[1];
   if (target) return ROLES.find((role) => target === `cip-${role}-v1`);
@@ -48,7 +57,9 @@ const headersFor: HeadersFor = (url) => {
       return externalHeaders(auth, direct.role, direct.base);
     }
 
-    const role = proxied === undefined ? undefined : externalProxyRole(proxied);
+    const engineProxy = settings.full && proxied !== undefined
+      && [...engineProxyEndpoints.values()].some((endpoint) => pathWithin(url, endpoint) !== undefined);
+    const role = engineProxy ? "engine" : proxied === undefined ? undefined : externalProxyRole(proxied);
     if (role) return services[role] ? externalHeaders(auth, role, services[role]) : {};
     if (proxied?.startsWith("/api/") || proxied?.startsWith("/e2e/")) return {};
     return direct ? externalHeaders(auth, direct.role, direct.base) : {};

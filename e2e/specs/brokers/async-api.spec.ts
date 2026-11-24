@@ -51,6 +51,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, waitForDeployed } from "../../support/corpus.js";
 import { createStepsChain, type ChainStep } from "../../support/deployable.js";
+import { configureBrokerSpecification } from "../../fixtures/external-brokers.js";
 import { readSpecificationFixture, substitute } from "../../fixtures/templating.js";
 import {
   BROKERS_LOGGING,
@@ -112,7 +113,8 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
             const system = await catalog.createSystem(name, "EXTERNAL");
             built.services.push({ name: `the service ${name} (${system.id})`, remove: () => catalog.deleteSystem(system.id) });
             const fixture = readSpecificationFixture("async-api-kafka-inline-ref.yaml");
-            const file = { ...fixture, buffer: Buffer.from(substitute(fixture.buffer.toString("utf-8"), run)) };
+            const source = substitute(fixture.buffer.toString("utf-8"), run);
+            const file = { ...fixture, buffer: Buffer.from(configureBrokerSpecification(source)) };
             const imported = await catalog.awaitSpecificationImport(
               await catalog.importSpecificationGroup(system.id, name, file, "kafka"),
             );

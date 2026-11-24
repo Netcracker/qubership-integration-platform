@@ -145,7 +145,8 @@ interface WorkerFixtures {
  * is what makes teardown one call. Diagnostics and the session lookup are per test, because a
  * failure is and because the lookup rides the test's own request context.
  */
-const external = externalSettings();
+const settings = externalSettings();
+const external = settings?.full ? undefined : settings;
 
 const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   // Playwright's own fixture, wrapped so a call it makes on a service's own port records its
@@ -226,18 +227,17 @@ const suiteTest = base.extend<TestFixtures, WorkerFixtures>({
   folder: [
     async ({ catalog, run }, use, workerInfo) => {
       const name = workerFolderName(run, workerInfo.workerIndex);
+      const created = await inAuthPhase("setup", () => catalog.createFolder(name));
       if (external) {
-        const folder = await inAuthPhase("setup", () => catalog.createFolder(name));
-        await ownResource({ kind: "folder", id: folder.id }, () => use(folder), () => catalog.deleteFolder(folder.id));
+        await ownResource({ kind: "folder", id: created.id }, () => use(created), () => catalog.deleteFolder(created.id));
         return;
       }
-      const created = await catalog.createFolder(name);
       await use({ id: created.id, name });
       if (keepEntities()) {
         console.log(`[keep] folder ${name} (${created.id}) left behind by E2E_KEEP=1`);
         return;
       }
-      await catalog.deleteFolder(created.id).catch((cause: unknown) => {
+      await inAuthPhase("cleanup", () => catalog.deleteFolder(created.id)).catch((cause: unknown) => {
         console.error(`[teardown] folder ${name} was not deleted: ${String(cause)}`);
       });
     },
@@ -845,7 +845,8 @@ export function formatPreviousRunSweep(swept: readonly PreviousRunSweep[]): stri
  * and every worker shares it: a sweep inside a worker deletes another worker's entities while that
  * worker is still asserting over them.
  */
-export default async function globalTeardown(): Promise<void> {
+async function teardownRun(): Promise<void> {
+  if (settings?.full && process.env.QIP_E2E_EXTERNAL_STARTED !== settings.run) return;
   const run = process.env.E2E_RUN;
   // A run with no token created nothing and started nothing: `globalSetup` returns before minting
   // one when every selected project declares it needs no stack.
@@ -900,4 +901,8 @@ export default async function globalTeardown(): Promise<void> {
   } finally {
     await api.dispose();
   }
+}
+
+export default function globalTeardown(): Promise<void> {
+  return inAuthPhase("cleanup", teardownRun);
 }

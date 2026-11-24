@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
+import { test } from "@playwright/test";
 import { externalSettings } from "./external-settings.ts";
 import type { ServiceRole } from "./index.ts";
 
@@ -42,6 +43,20 @@ const providers = new Map<string, Promise<ExternalAuth>>();
 
 export function inAuthPhase<T>(value: ApiAuthContext["phase"], action: () => Promise<T>): Promise<T> {
   return phase.run(value, action);
+}
+
+function authPhase(): ApiAuthContext["phase"] {
+  const scoped = phase.getStore();
+  if (scoped) return scoped;
+  if (externalSettings()?.full) {
+    try {
+      const declared = test.info().project.metadata.qipAuthPhase;
+      if (declared === "setup" || declared === "cleanup") return declared;
+    } catch {
+      // No test is running while the reporter and configuration load.
+    }
+  }
+  return "test";
 }
 
 function provider(file: string): Promise<ExternalAuth> {
@@ -87,7 +102,7 @@ export function createHeaderCache(now: () => number = Date.now) {
 const headersFromCache = createHeaderCache();
 
 export async function externalHeaders(file: string, service: ServiceRole, baseURL: string): Promise<Record<string, string>> {
-  const stage = phase.getStore() ?? "test";
+  const stage = authPhase();
   const run = externalSettings()!.run;
   const index = process.env.TEST_PARALLEL_INDEX;
   const parallelIndex = index === undefined ? undefined : Number(index);
@@ -155,6 +170,6 @@ export async function uiLogin(
 
 export function assertExternalAuthorized(status: number, service: ServiceRole): void {
   if (externalSettings() && (status === 401 || status === 403)) {
-    throw new Error(`API authorization failed for ${service} during ${phase.getStore() ?? "test"} (HTTP ${status}).`);
+    throw new Error(`API authorization failed for ${service} during ${authPhase()} (HTTP ${status}).`);
   }
 }

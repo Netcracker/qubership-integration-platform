@@ -1,5 +1,5 @@
 import { suiteExtension } from "./suite-extension.js";
-import { platformFetch as fetch } from "./platform-http.js";
+import { engineProxyEndpoint, platformFetch as fetch } from "./platform-http.js";
 /**
  * The Kubernetes adapter: the suite's install of `infrastructure/helm/cip-dev` in namespace `cip-e2e`.
  *
@@ -21,6 +21,7 @@ import type {
   ServiceRole,
 } from "./index.js";
 import { apiPath, CHAIN_ROUTE_PREFIX } from "./api-routes.js";
+import { runStateFile } from "./external-settings.js";
 import { proxyUrl, serviceUrl } from "./containers.js";
 import { readK8sPeaks } from "./k8s-observer.js";
 import {
@@ -71,7 +72,7 @@ function chainRoute(contextPath: string): string {
 
 /** Where a chain served by the engine behind Service `service` answers, through `/e2e/svc/`. */
 export function proxiedChainUrl(service: string, contextPath: string): string {
-  return proxiedServiceUrl(service, chainRoute(contextPath));
+  return engineProxyEndpoint(proxiedServiceUrl(service, "")) + chainRoute(contextPath);
 }
 
 /**
@@ -89,13 +90,13 @@ export function microChainUrl(domain: string, contextPath: string): string {
 export const K8S_OVERRIDES_FILE = path.resolve(HERE, "..", ".e2e-k8s-overrides.json");
 
 /** Where `seed-micro` records the micro copy of the corpus and the domain it deployed it to. */
-export const MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-corpus.json");
+export const MICRO_CORPUS_STATE_FILE = runStateFile(path.resolve(HERE, "..", ".e2e-k8s-micro-corpus.json"));
 
 /** Where `runtime-micro-redeploy` records the micro domain its current spec file deployed to. */
-export const MICRO_REDEPLOY_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-redeploy.json");
+export const MICRO_REDEPLOY_STATE_FILE = runStateFile(path.resolve(HERE, "..", ".e2e-k8s-micro-redeploy.json"));
 
 /** Where `brokers-micro-seed` records the micro copy of the broker corpus and the domain it deployed it to. */
-export const BROKERS_MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-brokers-micro-corpus.json");
+export const BROKERS_MICRO_CORPUS_STATE_FILE = runStateFile(path.resolve(HERE, "..", ".e2e-k8s-brokers-micro-corpus.json"));
 
 /** The micro domain a micro seed project recorded in `file`. */
 export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): string {
@@ -383,7 +384,7 @@ export class K8sEnv implements Env {
     // The classic engine answers on its own port, as on Compose; a micro domain has no host port.
     return this.engineKind === "classic"
       ? serviceUrl("engine")
-      : proxiedServiceUrl(microServiceOf(this.microDomain()), "");
+      : engineProxyEndpoint(proxiedServiceUrl(microServiceOf(this.microDomain()), ""));
   }
 
   engineMetricsUrl(): string {

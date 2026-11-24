@@ -12,10 +12,10 @@ import {
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
+import { repoRoot } from "../../env/host.js";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = repoRoot();
 const entry = resolve(root, "ai-service/e2e/run.py");
 const python = process.env.E2E_PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 let directory: string, server: ChildProcess, url: string;

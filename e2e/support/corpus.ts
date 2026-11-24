@@ -1,3 +1,4 @@
+import { externalRunStateDir, externalSettings, runStateFile } from "../env/external-settings.js";
 import { platformFetch as fetch } from "../env/platform-http.js";
 /**
  * The shared fixture corpus: imported once, deployed once, read by every runtime spec.
@@ -78,7 +79,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  * `--no-deps`, and a state file the next run deletes makes that impossible. Each target has a file
  * of its own, so a Compose corpus is never read or discarded by a run against the cluster.
  */
-export const CORPUS_STATE_FILE = path.join(HERE, "..", stateFileName(".e2e-corpus.json"));
+export const CORPUS_STATE_FILE = runStateFile(path.join(HERE, "..", stateFileName(".e2e-corpus.json")));
 
 /** Measured over 15 deploys: median 2.165 s, max 3.113 s. The route lags the status by seconds. */
 export const DEPLOY_TIMEOUT = 60_000;
@@ -578,7 +579,12 @@ export function readCorpusState(): SeededCorpus {
  * stay: the sweep leaves a run's topics, queues, and SFTP tree, and the file is their only record.
  */
 export function discardCorpusStateOf(runs: readonly string[]): void {
-  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]) {
+  const files = [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE];
+  const standDir = externalSettings()?.full?.standDir;
+  const sweptFiles = standDir
+    ? runs.flatMap((run) => files.map((file) => path.join(externalRunStateDir(standDir, run), path.basename(file))))
+    : files;
+  for (const file of sweptFiles) {
     const corpus = readStateFile<SeededCorpus>(file);
     if (corpus && runs.includes(corpus.run)) fs.rmSync(file, { force: true });
   }
