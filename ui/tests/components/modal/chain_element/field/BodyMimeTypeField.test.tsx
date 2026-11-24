@@ -39,3 +39,29 @@ it("should suggest multipart MIME types and accept custom types", () => {
     bodyFormData: [{ ...entry, mimeType: "application/vnd.acme+json" }],
   });
 });
+
+it("should let users select a MIME type for a multipart part with no MIME type", () => {
+  const updateContext = jest.fn();
+  const entry = { name: "payload", value: "{}" };
+  render(
+    <BodyMimeTypeField
+      {...({
+        formData: "multipart/form-data",
+        registry: {
+          formContext: { bodyFormData: [entry], updateContext },
+        },
+      } as unknown as FieldProps<string | undefined, RJSFSchema, FormContext>)}
+    />,
+  );
+
+  const mimeType = screen.getByRole("combobox", { name: "MIME Type" });
+  expect(mimeType).toHaveValue("");
+  fireEvent.change(mimeType, { target: { value: "image/p" } });
+  const pngOption = querySelectOption("image/png");
+  expect(pngOption).toBeInTheDocument();
+  fireEvent.click(pngOption!);
+
+  expect(updateContext).toHaveBeenLastCalledWith({
+    bodyFormData: [{ ...entry, mimeType: "image/png" }],
+  });
+});
