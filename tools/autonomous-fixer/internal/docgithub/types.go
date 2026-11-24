@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/docpacket"
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/fixer"
@@ -14,20 +15,35 @@ import (
 type Client struct {
 	API        *fixer.GitHubClient
 	Repository string
+	projectAPI *fixer.GitHubClient
 }
 
-func NewClient(repository, token string) (*Client, error) {
-	api, err := fixer.NewGitHubClient(repository, token, nil, "")
+func NewClient(repository, token, projectToken string, httpClient *http.Client, baseURL string) (*Client, error) {
+	api, err := fixer.NewGitHubClient(repository, token, httpClient, baseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{api, repository}, nil
+	client := &Client{API: api, Repository: repository}
+	if projectToken != "" {
+		client.projectAPI, err = fixer.NewGitHubClient(repository, projectToken, httpClient, baseURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 func (c *Client) Request(ctx context.Context, method, path string, body, target any) error {
 	return c.API.Request(ctx, method, path, body, target)
 }
 func (c *Client) GraphQL(ctx context.Context, query string, variables map[string]any, target any) error {
 	return c.API.GraphQL(ctx, query, variables, target)
+}
+func (c *Client) projectGraphQL(ctx context.Context, query string, variables map[string]any, target any) error {
+	api := c.projectAPI
+	if api == nil {
+		api = c.API
+	}
+	return api.GraphQL(ctx, query, variables, target)
 }
 
 type Project struct {

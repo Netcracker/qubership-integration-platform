@@ -82,7 +82,7 @@ func (c *Client) project(ctx context.Context, node, projectID string, number int
 	}
 	query := `query($owner:String!,$repo:String!,$number:Int!,$node:ID!){repository(owner:$owner,name:$repo){owner{... on ProjectV2Owner{projectV2(number:$number){id fields(first:100){pageInfo{hasNextPage} nodes{... on ProjectV2SingleSelectField{id name options{id name}}}}}}}} node(id:$node){... on Issue{projectItems(first:100){pageInfo{hasNextPage} nodes{id isArchived project{id} fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}}}}}}}`
 	owner, repo, _ := strings.Cut(c.Repository, "/")
-	if err := c.GraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "number": number, "node": node}, &result); err != nil {
+	if err := c.projectGraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "number": number, "node": node}, &result); err != nil {
 		return Project{}, "", err
 	}
 	p := Project{ID: result.Repository.Owner.Project.ID, ReviewStatus: "In doc review", DoneStatus: "Done"}

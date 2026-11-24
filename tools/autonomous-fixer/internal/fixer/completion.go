@@ -7,7 +7,7 @@ import (
 )
 
 func (s *actionSession) completionNotifier() bool {
-	const login = "github-actions[bot]"
+	const login = ActionsBotLogin
 	sender := s.cfg.Payload.Sender
 	return s.cfg.EventName == "workflow_dispatch" && s.cfg.Inputs["operation"] == "reconcile-run" && s.bot.ID > 0 && sender.ID == s.bot.ID && sender.Type == "Bot" && sender.Login == login && s.cfg.Actor == login && s.cfg.TriggeringActor == login
 }

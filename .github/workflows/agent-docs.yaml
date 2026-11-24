@@ -48,6 +48,8 @@ on:
         required: false
       AGENT_DOCS_GITHUB_TOKEN:
         required: false
+      GH_ACCESS_TOKEN:
+        required: false
       OPENROUTER_API_KEY:
         required: false
 
@@ -106,11 +108,11 @@ jobs:
         run: install -m 0500 "$RUNNER_TEMP/docs-tool/docs-agent" "$RUNNER_TEMP/docs-agent"
       - name: Identify the repository for the App token
         id: repository
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
       - name: Create read-only GitHub App token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           # This pinned version reads permission inputs from environment variables.
@@ -127,7 +129,11 @@ jobs:
       - name: Prepare trusted input
         id: prepare
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ISSUE: ${{ inputs.issue }}
           PROJECT_NUMBER: ${{ vars.AGENT_DOCS_PROJECT_NUMBER || '12' }}
           REPOSITORY: ${{ github.repository }}
@@ -166,7 +172,7 @@ jobs:
           if-no-files-found: error
       - name: Create a GitHub App claim token
         id: claim-token
-        if: inputs.scheduled_basis != '' && inputs.apply && steps.prepare.outputs.base_sha != '' && vars.AGENT_DOCS_APP_ID != ''
+        if: inputs.scheduled_basis != '' && inputs.apply && steps.prepare.outputs.base_sha != '' && vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           INPUT_PERMISSION-VARIABLES: read
@@ -183,7 +189,11 @@ jobs:
         id: claim
         if: inputs.scheduled_basis != '' && inputs.apply && steps.prepare.outputs.base_sha != ''
         env:
-          GITHUB_TOKEN: ${{ steps.claim-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.claim-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ACTIONS_READ_TOKEN: ${{ github.token }}
           BASIS: ${{ inputs.scheduled_basis }}
           ACTOR: ${{ github.actor }}
@@ -378,11 +388,11 @@ jobs:
             --source "$GITHUB_WORKSPACE/source" --workspace "$RUNNER_TEMP/docs-candidate"
       - name: Identify the repository for the App token
         id: repository
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
       - name: Create GitHub App publication token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           INPUT_PERMISSION-VARIABLES: read
@@ -398,7 +408,11 @@ jobs:
       - name: Publish the documentation result
         id: publish
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || (!inputs.apply && secrets.AGENT_DOCS_READ_TOKEN) || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || (!inputs.apply && secrets.AGENT_DOCS_READ_TOKEN) || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ACTOR: ${{ github.actor }}
           APPLY: ${{ inputs.apply }}
         run: |
@@ -446,7 +460,7 @@ jobs:
         run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
       - name: Create GitHub App publication token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           # This pinned version reads permission inputs from environment variables.
@@ -462,7 +476,11 @@ jobs:
           permission-organization-projects: write
       - name: Reconcile publication
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           REPOSITORY: ${{ github.repository }}
           ISSUE: ${{ inputs.issue }}
           ACTOR: ${{ github.actor }}
@@ -514,7 +532,7 @@ jobs:
           path: ${{ runner.temp }}/prepared
       - name: Create a GitHub App claim token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           INPUT_PERMISSION-VARIABLES: read
@@ -529,7 +547,11 @@ jobs:
           permission-organization-projects: read
       - name: Update the documentation claim
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ACTOR: ${{ github.actor }}
           ISSUE: ${{ inputs.issue }}
           BASIS: ${{ inputs.scheduled_basis }}

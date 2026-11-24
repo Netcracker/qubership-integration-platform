@@ -140,6 +140,26 @@ func TestAutomaticRevisionUsesTheExistingRevisionWorkflow(t *testing.T) {
 	}
 }
 
+func TestEngineeringWorkerHasNoWriteCredentials(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-work.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, jobs, found := strings.Cut(string(source), "\n  work:\n")
+	worker, _, ended := strings.Cut(jobs, "\n  notify:\n")
+	if !found || !ended {
+		t.Fatal("cannot identify the hosted worker job")
+	}
+	for _, forbidden := range []string{"GH_ACCESS_TOKEN", "AGENT_PUBLICATION_TOKEN", ": write\n"} {
+		if strings.Contains(worker, forbidden) {
+			t.Errorf("worker job has %q", forbidden)
+		}
+	}
+	if !strings.Contains(worker, "AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}") {
+		t.Fatal("worker needs organization bot identity to read admitted receipts")
+	}
+}
+
 func TestRevisionPullRequestPermissions(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-work.yaml"))
 	if err != nil {

@@ -117,6 +117,7 @@ jobs:
       AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
       AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
       AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
       INPUT_OPERATION: ${{ inputs.operation }}
       INPUT_WORKER_RUN: ${{ inputs.worker_run }}
       INPUT_WORKER_ATTEMPT: ${{ inputs.worker_attempt }}
@@ -152,6 +153,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" control'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/agent-checkpoint/checkpoint.json
           AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-checkpoint
@@ -173,6 +175,7 @@ jobs:
     secrets:
       AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
       AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+      GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
 
   observe-revision:
     if: >-
@@ -194,3 +197,4 @@ jobs:
     uses: ./.github/workflows/agent-ci.yaml
     secrets:
       AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+      GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}

@@ -29,6 +29,15 @@ Set the `OPENROUTER_API_KEY` secret for `run`. Jev classifies the prepared packe
 
 Choose one GitHub credential mode.
 
+- **QIP organization account and project PAT.** Set `AGENT_USE_ORG_BOT=true` and
+  `AGENT_DOCS_PUBLISHER_LOGIN=NetcrackerCLPLCI`. The fixer uses the organization secret
+  `GH_ACCESS_TOKEN` to read repository variables, publish PRs and comments, and close issues.
+  It uses `AGENT_DOCS_GITHUB_TOKEN` to find project items, read their status, and move them to
+  **Done**. The project token needs access to the board and its linked issues. A classic PAT
+  needs the `project` scope and its owner needs write access to the board.
+  Before changing the publisher login, finish active documentation runs, reconcile interrupted
+  publications, and merge or close outstanding documentation PRs under the previous identity.
+  Follow the same procedure when switching back. Completed issues keep their original comments.
 - **GitHub App.** Set variable `AGENT_DOCS_APP_ID` to the App ID and secret `AGENT_DOCS_APP_PRIVATE_KEY` to its private key. Install the App in the organization that owns the repository and project. Grant repository Contents, Issues, and Pull requests read and write, repository Variables read, and organization Projects read and write. Preparation and dry-run publication request a read-only token. Applied publication and reconciliation request write access. The App login must match `AGENT_DOCS_PUBLISHER_LOGIN`. If token creation fails, the job stops.
 - **Personal access token.** Leave `AGENT_DOCS_APP_ID` unset. Set secret `AGENT_DOCS_GITHUB_TOKEN` to a dedicated token with access to repository variables and the write permissions needed to create branches and pull requests, post comments, close issues, and update the project. Its account must match `AGENT_DOCS_PUBLISHER_LOGIN`. If you also set `AGENT_DOCS_READ_TOKEN`, preparation and dry-run publication use that token for reads.
 

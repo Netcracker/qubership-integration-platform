@@ -1,11 +1,13 @@
 package docgithub
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -46,13 +48,39 @@ type publicationAPI struct {
 func apiFixture(t *testing.T, p Plan) (*Client, *publicationAPI) {
 	t.Helper()
 	a := &publicationAPI{viewerLogin: "agent-bot", headComparison: "ahead", prFiles: []map[string]string{{"filename": "help/docs/readme.md"}}, plan: p, state: "closed", project: "REVIEW", head: p.BaseSHA}
-	server := httptest.NewServer(http.HandlerFunc(a.serve))
+	return projectClientFixture(t, p.Repository, a.serve), a
+}
+
+func projectClientFixture(t *testing.T, repository string, serve http.HandlerFunc) *Client {
+	t.Helper()
+	const repositoryToken, projectToken = "repository-token", "project-token"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := repositoryToken
+		if r.URL.Path == "/graphql" {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("read GraphQL request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			if bytes.Contains(body, []byte("projectV2(number:")) || bytes.Contains(body, []byte("updateProjectV2ItemFieldValue")) {
+				want = projectToken
+			}
+		}
+		if r.Header.Get("Authorization") != "Bearer "+want {
+			t.Errorf("unexpected credentials for %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		serve(w, r)
+	}))
 	t.Cleanup(server.Close)
-	api, e := fixer.NewGitHubClient(p.Repository, "test", server.Client(), server.URL)
+	client, e := NewClient(repository, repositoryToken, projectToken, server.Client(), server.URL)
 	if e != nil {
 		t.Fatal(e)
 	}
-	return &Client{API: api, Repository: p.Repository}, a
+	return client
 }
 func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

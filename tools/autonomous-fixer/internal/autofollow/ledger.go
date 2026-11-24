@@ -53,7 +53,7 @@ func (c *controller) comments(ctx context.Context) ([]fixer.Comment, error) {
 		if err := json.Unmarshal(item, &comment); err != nil {
 			return nil, fmt.Errorf("invalid pull request comment: %w", err)
 		}
-		if comment.ID > 0 && comment.User == c.bot {
+		if comment.ID > 0 && c.authors.Contains(comment.User) {
 			comments = append(comments, comment)
 		}
 	}
@@ -69,18 +69,18 @@ func (c *controller) ledger(ctx context.Context) (ledger, error) {
 	if err != nil {
 		return ledger{}, err
 	}
-	assignments, err := hostedrevision.Assignments(comments, c.bot, c.repo.ID, c.pr.Number)
+	assignments, err := hostedrevision.Assignments(comments, c.authors, c.repo.ID, c.pr.Number)
 	if err != nil {
 		return ledger{}, err
 	}
 	book := ledger{
 		assignments: assignments,
 		results:     map[int64]string{},
-		published:   hostedrevision.PublishedRevisions(comments, c.bot, c.repo.ID, c.pr.Number),
+		published:   hostedrevision.PublishedRevisions(comments, c.authors, c.repo.ID, c.pr.Number),
 		markers:     map[string]time.Time{},
 	}
 	for id, assignment := range assignments {
-		book.results[id] = hostedrevision.RevisionResultStatus(comments, c.bot, assignment)
+		book.results[id] = hostedrevision.RevisionResultStatus(comments, c.authors, assignment)
 	}
 	for _, comment := range comments {
 		line, _, _ := strings.Cut(comment.Body, "\n")
@@ -114,8 +114,9 @@ func (c *controller) ledger(ctx context.Context) (ledger, error) {
 
 func (c *controller) post(ctx context.Context, body string) (int64, error) {
 	var comment fixer.Comment
-	err := c.client.Request(ctx, "POST", fmt.Sprintf("/issues/%d/comments", c.pr.Number), map[string]string{"body": body}, &comment)
-	if err == nil && comment.ID > 0 && comment.User == c.bot && comment.Body == body {
+	writer := c.authors.Writer()
+	err := c.client.WriteIssue(ctx, writer, "POST", fmt.Sprintf("/issues/%d/comments", c.pr.Number), map[string]string{"body": body}, &comment)
+	if err == nil && comment.ID > 0 && comment.User == writer && comment.Body == body {
 		return comment.ID, nil
 	}
 	comments, readErr := c.comments(ctx)
@@ -215,7 +216,7 @@ func (c *controller) findDispatches(ctx context.Context, earliest time.Time) (ma
 			return nil, fmt.Errorf("invalid revision workflow run: %w", err)
 		}
 		identity, err := run.RevisionIdentity()
-		if !identity.Automatic || identity.PullNumber != c.pr.Number || run.Actor != c.bot {
+		if !identity.Automatic || identity.PullNumber != c.pr.Number || run.Actor != c.authors.Actions {
 			continue
 		}
 		id := identity.RequestID

@@ -44,7 +44,7 @@ on:
         required: false
         type: string
       auto_request:
-        description: GitHub Actions comment ID for an automatic revision
+        description: Engineering agent comment ID for an automatic revision
         required: false
         type: string
 
@@ -96,6 +96,8 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" admit'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
 
   admit-revision:
@@ -140,6 +142,8 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent-revise" admit'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
 
   work:
@@ -205,6 +209,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" work'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
       - id: revision
@@ -212,6 +217,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent-revise" work'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
           AGENT_REVISION_ASSIGNMENT_PATH: ${{ runner.temp }}/qip-hosted/revision.json
@@ -424,7 +430,9 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent-revise" publish'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
-          AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+          AGENT_PUBLICATION_TOKEN: ${{ vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_PUBLICATION_TOKEN || '' }}
           AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-revision-artifact
           REVISION_WORK_RESULT: ${{ needs.work.result }}

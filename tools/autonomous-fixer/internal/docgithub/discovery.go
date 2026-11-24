@@ -96,7 +96,7 @@ func projectReviewIssues(ctx context.Context, c *Client, number int) ([]int, []S
 				}
 			}
 		}
-		if err := c.GraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "project": number, "cursor": cursor}, &data); err != nil {
+		if err := c.projectGraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "project": number, "cursor": cursor}, &data); err != nil {
 			return nil, nil, err
 		}
 		project := data.Repository.Owner.Project

@@ -23,23 +23,23 @@ var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 var digestSHA = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var publishedMarker = regexp.MustCompile(`^` + regexp.QuoteMeta(resultMarker) + `([1-9][0-9]*):([1-9][0-9]*):([1-9][0-9]*):[1-9][0-9]*:1:([0-9a-f]{40}):published:([0-9a-f]{40}) -->$`)
 
-func botOwned(comment fixer.Comment, bot fixer.GitHubUser) bool {
-	return comment.ID > 0 && comment.User == bot && bot.ID > 0 && bot.Login == "github-actions[bot]" && bot.Type == "Bot"
+func botOwned(comment fixer.Comment, authors fixer.EngineeringAuthors) bool {
+	return comment.ID > 0 && authors.Contains(comment.User)
 }
 
-func PublishedCommits(comments []fixer.Comment, bot fixer.GitHubUser, repoID, pullNumber int64) map[string]int64 {
-	return publishedComments(comments, bot, repoID, pullNumber, false)
+func PublishedCommits(comments []fixer.Comment, authors fixer.EngineeringAuthors, repoID, pullNumber int64) map[string]int64 {
+	return publishedComments(comments, authors, repoID, pullNumber, false)
 }
 
-func PublishedRevisions(comments []fixer.Comment, bot fixer.GitHubUser, repoID, pullNumber int64) map[string]int64 {
-	return publishedComments(comments, bot, repoID, pullNumber, true)
+func PublishedRevisions(comments []fixer.Comment, authors fixer.EngineeringAuthors, repoID, pullNumber int64) map[string]int64 {
+	return publishedComments(comments, authors, repoID, pullNumber, true)
 }
 
-func publishedComments(comments []fixer.Comment, bot fixer.GitHubUser, repoID, pullNumber int64, requestID bool) map[string]int64 {
+func publishedComments(comments []fixer.Comment, authors fixer.EngineeringAuthors, repoID, pullNumber int64, requestID bool) map[string]int64 {
 	published := map[string]int64{}
 	repository, pull := strconv.FormatInt(repoID, 10), strconv.FormatInt(pullNumber, 10)
 	for _, comment := range comments {
-		if !botOwned(comment, bot) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -77,7 +77,7 @@ func (c *Controller) botComments(ctx context.Context) ([]fixer.Comment, error) {
 		if err := json.Unmarshal(item, &comment); err != nil {
 			return nil, err
 		}
-		if botOwned(comment, c.bot) {
+		if botOwned(comment, c.authors) {
 			comments = append(comments, comment)
 		}
 	}
@@ -89,13 +89,13 @@ func (c *Controller) receipts(ctx context.Context) (map[int64]Assignment, error)
 	if err != nil {
 		return nil, err
 	}
-	return Assignments(comments, c.bot, c.repo.ID, c.pullNumber)
+	return Assignments(comments, c.authors, c.repo.ID, c.pullNumber)
 }
 
-func Assignments(comments []fixer.Comment, bot fixer.GitHubUser, repoID, pullNumber int64) (map[int64]Assignment, error) {
+func Assignments(comments []fixer.Comment, authors fixer.EngineeringAuthors, repoID, pullNumber int64) (map[int64]Assignment, error) {
 	receipts := map[int64]Assignment{}
 	for _, comment := range comments {
-		if !botOwned(comment, bot) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -116,7 +116,7 @@ func Assignments(comments []fixer.Comment, bot fixer.GitHubUser, repoID, pullNum
 			if !digestSHA.MatchString(a.checkpointSHA) || a.RepositoryID != repoID || a.PullNumber != pullNumber || a.PullID <= 0 ||
 				a.CommentID <= 0 || a.Issue <= 0 || !commitSHA.MatchString(a.Head) || !commitSHA.MatchString(a.WorkflowSHA) ||
 				a.Run.RunID <= 0 || a.Run.RunAttempt != 1 || a.OriginRun.RunID <= 0 || a.OriginRun.RunAttempt <= 0 ||
-				(a.Automatic && (a.Actor != bot || len(a.ReviewIDs)+len(a.FailureKeys) == 0)) {
+				(a.Automatic && (!authors.Contains(a.Actor) || len(a.ReviewIDs)+len(a.FailureKeys) == 0)) {
 				return nil, fmt.Errorf("the revision receipt does not match this pull request")
 			}
 			if _, ok := receipts[a.CommentID]; ok {
@@ -146,8 +146,9 @@ func (a Assignment) ConsumedReviews() []int64 {
 func (c *Controller) post(ctx context.Context, body string) error {
 	var result fixer.Comment
 	path := fmt.Sprintf("/issues/%d/comments", c.pullNumber)
-	postErr := c.cfg.Client.Request(ctx, "POST", path, map[string]string{"body": body}, &result)
-	if postErr == nil && result.ID > 0 && result.User == c.bot && result.Body == body {
+	writer := c.authors.Writer()
+	postErr := c.cfg.Client.WriteIssue(ctx, writer, "POST", path, map[string]string{"body": body}, &result)
+	if postErr == nil && result.ID > 0 && result.User == writer && result.Body == body {
 		return nil
 	}
 	comments, err := c.botComments(ctx)
@@ -189,14 +190,14 @@ func resultPrefix(a Assignment) string {
 	return fmt.Sprintf("%s%d:%d:%d:%d:%d:%s:", resultMarker, a.RepositoryID, a.PullNumber, a.CommentID, a.Run.RunID, a.Run.RunAttempt, a.Head)
 }
 
-func RevisionResultRecorded(comments []fixer.Comment, bot fixer.GitHubUser, a Assignment) bool {
-	return RevisionResultStatus(comments, bot, a) != ""
+func RevisionResultRecorded(comments []fixer.Comment, authors fixer.EngineeringAuthors, a Assignment) bool {
+	return RevisionResultStatus(comments, authors, a) != ""
 }
 
-func RevisionResultStatus(comments []fixer.Comment, bot fixer.GitHubUser, a Assignment) string {
+func RevisionResultStatus(comments []fixer.Comment, authors fixer.EngineeringAuthors, a Assignment) string {
 	prefix := resultPrefix(a)
 	for _, comment := range comments {
-		if !botOwned(comment, bot) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -226,7 +227,7 @@ func (c *Controller) HasResult(ctx context.Context, a Assignment) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	return RevisionResultRecorded(comments, c.bot, a), nil
+	return RevisionResultRecorded(comments, c.authors, a), nil
 }
 
 func (c *Controller) Report(ctx context.Context, a Assignment, result Result) error {

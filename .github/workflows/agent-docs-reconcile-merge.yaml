@@ -72,7 +72,7 @@ jobs:
         run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
       - name: Create a GitHub App reconciliation token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           INPUT_PERMISSION-VARIABLES: read
@@ -88,7 +88,11 @@ jobs:
       - name: Complete the documentation issue
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ISSUE: ${{ needs.route.outputs.issue }}
           PLAN_ID: ${{ needs.route.outputs.plan_id }}
         run: |

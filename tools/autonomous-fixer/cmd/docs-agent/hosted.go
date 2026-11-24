@@ -44,7 +44,7 @@ func validateHostedRuntime(ctx context.Context, cfg localwork.Config) error {
 
 func controllerCredentials() [][]byte {
 	var secrets [][]byte
-	for _, key := range []string{"OPENROUTER_API_KEY", "GITHUB_TOKEN", "GH_TOKEN"} {
+	for _, key := range []string{"OPENROUTER_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GH_ACCESS_TOKEN", "AGENT_PROJECT_TOKEN"} {
 		value := strings.TrimSpace(os.Getenv(key))
 		if value != "" {
 			encoded, _ := json.Marshal(value)

@@ -82,7 +82,7 @@ func ReadAndRecord(ctx context.Context, client *fixer.GitHubClient, config Confi
 	if closure.ID == 0 {
 		return nil, fmt.Errorf("GitHub has not confirmed the pull request closure in its timeline")
 	}
-	bot, err := agentpr.Bot(ctx, client)
+	authors, err := client.EngineeringAuthors(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func ReadAndRecord(ctx context.Context, client *fixer.GitHubClient, config Confi
 	if err != nil {
 		return nil, err
 	}
-	previous, err := findOutcome(comments, bot.ID, pr.Number)
+	previous, err := findOutcome(comments, authors, pr.Number)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func ReadAndRecord(ctx context.Context, client *fixer.GitHubClient, config Confi
 	report.ContentChange = git.contentChange(ctx, report.Published, report.Final)
 	report.CIObservedAt = time.Now().UTC()
 	report.CI = readCI(ctx, client, config, git, hook, report.Final.HeadSHA)
-	report.HumanInvolvement = readProvenance(ctx, client, pr, comments, bot, git, *report)
+	report.HumanInvolvement = readProvenance(ctx, client, pr, comments, authors, git, *report)
 
 	var current agentpr.PullRequest
 	if err := client.ReadPullRequestWithMerge(ctx, pr.Number, &current); err != nil {
@@ -158,7 +158,7 @@ func ReadAndRecord(ctx context.Context, client *fixer.GitHubClient, config Confi
 	if artifactRetry {
 		return report, nil
 	}
-	return report, saveOutcome(ctx, client, bot.ID, previous, *report)
+	return report, saveOutcome(ctx, client, authors, previous, *report)
 }
 
 func validSHA(value string) string {

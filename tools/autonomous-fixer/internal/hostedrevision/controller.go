@@ -30,7 +30,7 @@ type Config struct {
 type Controller struct {
 	cfg        Config
 	repo       fixer.Repository
-	bot        fixer.GitHubUser
+	authors    fixer.EngineeringAuthors
 	pullNumber int64
 	commentID  int64
 	automatic  bool
@@ -76,7 +76,7 @@ func Open(ctx context.Context, cfg Config) (*Controller, error) {
 	case "workflow_dispatch":
 		pull, pullErr := fixer.PositiveID(p.Inputs["auto_pr"])
 		comment, commentErr := fixer.PositiveID(p.Inputs["auto_request"])
-		if pullErr != nil || commentErr != nil || cfg.Actor != "github-actions[bot]" ||
+		if pullErr != nil || commentErr != nil || cfg.Actor != fixer.ActionsBotLogin ||
 			(cfg.Run.RunAttempt == 1 && cfg.TriggerActor != cfg.Actor) {
 			return nil, ErrUnauthorized
 		}
@@ -91,14 +91,14 @@ func Open(ctx context.Context, cfg Config) (*Controller, error) {
 		return nil, ErrUnauthorized
 	}
 	var err error
-	c.bot, err = agentpr.Bot(ctx, cfg.Client)
+	c.authors, err = cfg.Client.EngineeringAuthors(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if c.automatic && p.Sender != c.bot {
+	if c.automatic && p.Sender != c.authors.Actions {
 		return nil, ErrUnauthorized
 	}
-	if c.automatic && cfg.Run.RunAttempt > 1 && cfg.TriggerActor != c.bot.Login {
+	if c.automatic && cfg.Run.RunAttempt > 1 && cfg.TriggerActor != c.authors.Actions.Login {
 		allowed, err := c.allowedActors(ctx)
 		if err != nil {
 			return nil, err
@@ -132,7 +132,7 @@ func (c *Controller) commandCurrent(ctx context.Context) (fixer.Comment, error) 
 	comment := response.Comment
 	if comment.ID != c.commentID || comment.CreatedAt == "" || comment.CreatedAt != comment.UpdatedAt ||
 		response.IssueURL != fmt.Sprintf("https://api.github.com/repos/%s/issues/%d", c.repo.FullName, c.pullNumber) ||
-		(c.automatic && comment.User != c.bot) || (!c.automatic && comment != c.cfg.Payload.Comment) {
+		(c.automatic && !c.authors.Contains(comment.User)) || (!c.automatic && comment != c.cfg.Payload.Comment) {
 		return fixer.Comment{}, ErrUnauthorized
 	}
 	if _, err := time.Parse(time.RFC3339, comment.CreatedAt); err != nil {
@@ -259,7 +259,7 @@ func (c *Controller) OpenRevision(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	seen, err := Assignments(comments, c.bot, c.repo.ID, c.pullNumber)
+	seen, err := Assignments(comments, c.authors, c.repo.ID, c.pullNumber)
 	if err != nil {
 		return false, err
 	}
@@ -301,7 +301,7 @@ func (c *Controller) OpenRevision(ctx context.Context) (bool, error) {
 		return false, ErrStale
 	}
 	for _, existing := range seen {
-		if RevisionResultRecorded(comments, c.bot, existing) {
+		if RevisionResultRecorded(comments, c.authors, existing) {
 			continue
 		}
 		active, err := c.jobCurrent(ctx, existing)
@@ -400,7 +400,7 @@ func (c *Controller) Assignment(ctx context.Context) (Assignment, bool, error) {
 		return Assignment{}, false, nil
 	}
 	if a.Automatic != c.automatic || a.WorkflowSHA != c.cfg.WorkflowSHA ||
-		(c.automatic && a.Actor != c.bot) ||
+		(c.automatic && !c.authors.Contains(a.Actor)) ||
 		(!c.automatic && !a.matchesCommand(c.cfg.Payload.Comment)) {
 		return Assignment{}, false, ErrUnauthorized
 	}

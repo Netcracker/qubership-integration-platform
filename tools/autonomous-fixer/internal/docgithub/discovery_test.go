@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strconv"
@@ -41,13 +40,7 @@ func scheduleFixture(t *testing.T) (*Client, *scheduleAPI, Plan) {
 		},
 		attempts: map[string]fixer.WorkflowRun{}, jobs: map[string][]any{}, enabled: true, apply: true,
 	}
-	server := httptest.NewServer(http.HandlerFunc(a.serve))
-	t.Cleanup(server.Close)
-	api, err := fixer.NewGitHubClient(a.plan.Repository, "test", server.Client(), server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := &Client{API: api, Repository: a.plan.Repository}
+	c := projectClientFixture(t, a.plan.Repository, a.serve)
 	prepared, err := Prepare(t.Context(), c, 1, 12)
 	if err != nil {
 		t.Fatal(err)

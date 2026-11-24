@@ -23,11 +23,11 @@ func handleDocumentationMerge(ctx context.Context, operation, repository, publis
 	if os.Getenv("GITHUB_WORKFLOW_REF") != workflow || os.Getenv("GITHUB_REF") != branch {
 		return fmt.Errorf("documentation merge reconciliation requires the default-branch workflow")
 	}
-	client, err := github(repository)
-	if err != nil {
-		return err
-	}
 	if operation == "route-merge" {
+		client, err := githubRepository(repository)
+		if err != nil {
+			return err
+		}
 		route, err := docgithub.RouteDocumentationMerge(ctx, client, event, publisherLogin)
 		if err != nil {
 			return err
@@ -36,6 +36,10 @@ func handleDocumentationMerge(ctx context.Context, operation, repository, publis
 	}
 	if !apply || issue <= 0 || planID == "" {
 		return fmt.Errorf("reconcile-merge requires the admitted issue, plan ID, and --apply")
+	}
+	client, err := github(repository)
+	if err != nil {
+		return err
 	}
 	result, err := docgithub.ReconcileDocumentationMerge(ctx, client, event, docgithub.DocumentationMergeRoute{Issue: issue, PlanID: planID})
 	if err != nil {

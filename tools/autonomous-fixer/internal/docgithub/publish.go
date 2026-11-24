@@ -95,19 +95,19 @@ func Authorize(ctx context.Context, c *Client, actor string) error {
 	return err
 }
 
-func authorizePublisher(ctx context.Context, c *Client) (string, error) {
+func authorizePublisher(ctx context.Context, c *Client) (fixer.GitHubUser, error) {
 	publisherLogin, err := c.API.RepositoryVariable(ctx, "AGENT_DOCS_PUBLISHER_LOGIN")
 	if err != nil {
-		return "", err
+		return fixer.GitHubUser{}, err
 	}
 	identity, err := c.ActorIdentity(ctx)
 	if err != nil {
-		return "", err
+		return fixer.GitHubUser{}, err
 	}
 	if publisherLogin == "" || !strings.EqualFold(identity.Login, publisherLogin) {
-		return "", fmt.Errorf("authenticated publisher does not match AGENT_DOCS_PUBLISHER_LOGIN")
+		return fixer.GitHubUser{}, fmt.Errorf("authenticated publisher does not match AGENT_DOCS_PUBLISHER_LOGIN")
 	}
-	return publisherLogin, nil
+	return identity, nil
 }
 
 func marker(p Plan) string { return "<!-- qip-docs:" + p.ID + " -->" }

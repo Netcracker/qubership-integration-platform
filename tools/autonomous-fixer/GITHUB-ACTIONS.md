@@ -18,6 +18,7 @@ Install the workflows, controller, product source, and agent skills on the repos
 | `QIP_AGENT_EFFORT` (default) | `high` |
 | `QIP_AGENT_REVIEW_MODEL` (default) | `openrouter/openai/gpt-6-luna` |
 | `QIP_AGENT_REVIEW_EFFORT` (default) | `xhigh` |
+| `AGENT_USE_ORG_BOT` | Set to `true` to publish from the QIP organization account, `NetcrackerCLPLCI`. |
 | `AGENT_AUTO_PUBLISH` | Set to `true` for label-to-draft-PR operation. Leave unset for manual publication of the selected worker run and attempt. |
 
 | Repository secret | Where it is used |
@@ -25,6 +26,14 @@ Install the workflows, controller, product source, and agent skills on the repos
 | `OPENROUTER_API_KEY` | Model calls in the worker. A dedicated key lets you track its usage and revoke it independently. |
 | `AGENT_VARIABLES_READ_TOKEN` | Trusted controller steps. Grant repository Variables read access so the controller can recheck the allowlist and enable flag. |
 | `AGENT_PUBLICATION_TOKEN` | Trusted publication step. Grant Contents and Pull requests write and Issues read on this repository. The publisher creates a branch and draft PR and reads the issue to confirm eligibility. |
+
+With `AGENT_USE_ORG_BOT=true`, trusted jobs use the organization secret `GH_ACCESS_TOKEN`
+for new issue comments, labels, branches, and PRs. Existing GitHub Actions comments keep their
+original author when the fixer edits them. Actions still uses its workflow token to dispatch
+work. Keep a separate read-only `AGENT_VARIABLES_READ_TOKEN` for the worker to recheck
+the allowlist after it leaves the queue. Finish active engineering runs and their PRs
+before turning organization mode off. Model jobs receive neither the organization's publication credential nor the project PAT.
+See [documentation credentials](DOCS-GITHUB.md#repository-setup) before changing the publisher.
 
 If the fork token cannot read the required Maven packages for the first issue, configure `QIP_AGENT_MAVEN_USERNAME` and the `QIP_AGENT_MAVEN_TOKEN` secret with Packages read access. The first issue's environment preparation and the trusted revision cache workflow use these credentials.
 

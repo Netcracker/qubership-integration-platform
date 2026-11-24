@@ -52,6 +52,8 @@ func checkHostedHandoff(t *testing.T, route string, patch, omitCheck bool) {
 	root := t.TempDir()
 	t.Setenv("OPENROUTER_API_KEY", "fixture-openrouter-key")
 	t.Setenv("GITHUB_TOKEN", "fixture-github-token")
+	t.Setenv("GH_ACCESS_TOKEN", "fixture-access-token")
+	t.Setenv("AGENT_PROJECT_TOKEN", "fixture-project-token")
 	source := filepath.Join(root, "source")
 	workspace := filepath.Join(root, "candidate")
 	prepared := filepath.Join(root, "prepared")
@@ -294,6 +296,8 @@ func checkRejectedDiff(t *testing.T, source, workspace, prepared, runDir, base s
 		symlink                      bool
 	}{
 		{"credential", "help/docs/readme.md", "fixture-openrouter-key", "controller credential", false},
+		{"organization bot token", "help/docs/readme.md", "fixture-access-token", "controller credential", false},
+		{"project token", "help/docs/readme.md", "fixture-project-token", "controller credential", false},
 		{"binary file", "help/docs/readme.md", "\x00private data", "requires text files", false},
 		{"outside help", "help/README.md", "Unexpected edit.", "outside the supported help scope", false},
 		{"symlink", "help/docs/readme.md", "../README.md", "requires regular files", true},
@@ -407,6 +411,8 @@ from pathlib import Path
 
 assert 'OPENROUTER_API_KEY' not in os.environ
 assert 'GITHUB_TOKEN' not in os.environ
+assert 'GH_ACCESS_TOKEN' not in os.environ
+assert 'AGENT_PROJECT_TOKEN' not in os.environ
 if sys.argv[1] == '--version':
     print('opencode v2.2.6')
     sys.exit(0)

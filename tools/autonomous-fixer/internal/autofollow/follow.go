@@ -45,7 +45,7 @@ type controller struct {
 	client, variables *fixer.GitHubClient
 	options           Options
 	repo              fixer.Repository
-	bot               fixer.GitHubUser
+	authors           fixer.EngineeringAuthors
 	pr                agentpr.PullRequest
 	state             *fixer.State
 	issue             fixer.Issue
@@ -92,7 +92,7 @@ func Reconcile(ctx context.Context, client, variables *fixer.GitHubClient, optio
 	if err != nil || !ancestor {
 		return report, err
 	}
-	c.bot, err = agentpr.Bot(ctx, client)
+	c.authors, err = client.EngineeringAuthors(ctx)
 	if err != nil {
 		return report, err
 	}

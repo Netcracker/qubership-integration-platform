@@ -15,13 +15,13 @@ import (
 )
 
 func publish(ctx context.Context, client *fixer.GitHubClient, repo fixer.Repository, pr agentpr.PullRequest, report *Report) error {
-	bot, err := agentpr.Bot(ctx, client)
+	authors, err := client.EngineeringAuthors(ctx)
 	if err != nil {
 		return err
 	}
 	marker := fmt.Sprintf("<!-- qip-agent-ci:v1 %d %d -->", repo.ID, pr.Number)
 	path := fmt.Sprintf("/issues/%d/comments", pr.Number)
-	comment, err := findComment(ctx, client, path, marker, bot.ID)
+	comment, err := findComment(ctx, client, path, marker, authors)
 	if err != nil {
 		return err
 	}
@@ -45,12 +45,14 @@ func publish(ctx context.Context, client *fixer.GitHubClient, repo fixer.Reposit
 		report.Disposition = "unchanged"
 		return nil
 	}
+	var owner fixer.GitHubUser
 	method, target := "POST", path
 	if comment != nil {
+		owner = comment.User
 		method, target = "PATCH", fmt.Sprintf("/issues/comments/%d", comment.ID)
 	}
-	requestErr := client.Request(ctx, method, target, map[string]string{"body": body}, nil)
-	confirmed, err := findComment(ctx, client, path, marker, bot.ID)
+	requestErr := client.WriteIssue(ctx, owner, method, target, map[string]string{"body": body}, nil)
+	confirmed, err := findComment(ctx, client, path, marker, authors)
 	if err != nil {
 		return errors.Join(requestErr, err)
 	}
@@ -62,7 +64,7 @@ func publish(ctx context.Context, client *fixer.GitHubClient, repo fixer.Reposit
 	return nil
 }
 
-func findComment(ctx context.Context, client *fixer.GitHubClient, path, marker string, botID int64) (*fixer.Comment, error) {
+func findComment(ctx context.Context, client *fixer.GitHubClient, path, marker string, authors fixer.EngineeringAuthors) (*fixer.Comment, error) {
 	items, err := client.List(ctx, path, "")
 	if err != nil {
 		return nil, err
@@ -73,7 +75,7 @@ func findComment(ctx context.Context, client *fixer.GitHubClient, path, marker s
 		if json.Unmarshal(item, &comment) != nil {
 			return nil, fmt.Errorf("invalid pull request comment")
 		}
-		if comment.User.ID != botID || comment.User.Type != "Bot" || !strings.Contains("\n"+comment.Body+"\n", "\n"+marker+"\n") {
+		if !authors.Contains(comment.User) || !strings.Contains("\n"+comment.Body+"\n", "\n"+marker+"\n") {
 			continue
 		}
 		if found != nil || comment.ID <= 0 {

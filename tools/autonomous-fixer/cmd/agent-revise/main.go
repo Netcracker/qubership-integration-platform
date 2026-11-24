@@ -24,7 +24,7 @@ func controller(ctx context.Context) (*hostedrevision.Controller, error) {
 		return nil, fmt.Errorf("the revision requires GITHUB_TOKEN and AGENT_VARIABLES_READ_TOKEN")
 	}
 	repo := os.Getenv("GITHUB_REPOSITORY")
-	client, err := fixer.NewGitHubClient(repo, token, nil, "")
+	client, err := fixer.NewEngineeringGitHubClient(repo, token, os.Getenv("GH_ACCESS_TOKEN"), os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -190,10 +190,24 @@ func publishCandidate(ctx context.Context, c *hostedrevision.Controller, a hoste
 	if err != nil {
 		return "", err
 	}
+	token := os.Getenv("AGENT_PUBLICATION_TOKEN")
+	if os.Getenv("AGENT_USE_ORG_BOT") == "true" {
+		token = os.Getenv("GH_ACCESS_TOKEN")
+		if token == "" {
+			return "", fmt.Errorf("GH_ACCESS_TOKEN is required when AGENT_USE_ORG_BOT is true")
+		}
+		publisher, err := fixer.NewGitHubClient(checkpoint.Repository, token, nil, "")
+		if err != nil {
+			return "", err
+		}
+		if err := publisher.VerifyOrganizationBot(ctx); err != nil {
+			return "", err
+		}
+	}
 	prepared := false
 	tip, err := hostedcandidate.PublishRevision(ctx, candidate, hostedcandidate.RevisionOptions{
 		Workspace: os.Getenv("GITHUB_WORKSPACE"), Repository: checkpoint.Repository, Branch: a.Branch,
-		Head: a.Head, Token: os.Getenv("AGENT_PUBLICATION_TOKEN"), Pull: a.PullNumber, Comment: a.CommentID,
+		Head: a.Head, Token: token, Pull: a.PullNumber, Comment: a.CommentID,
 		Run: a.Run.RunID, CreatedAt: created, Scope: checkpoint.Contract.ScopePaths,
 		CheckHead: func(ctx context.Context, tip string) (bool, error) {
 			prepared = true

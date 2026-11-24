@@ -30,7 +30,9 @@ on:
       AGENT_VARIABLES_READ_TOKEN:
         required: true
       AGENT_PUBLICATION_TOKEN:
-        required: true
+        required: false
+      GH_ACCESS_TOKEN:
+        required: false
 
 permissions: {}
 
@@ -54,6 +56,7 @@ jobs:
       AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
       AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
       AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
       INPUT_ISSUE: ${{ inputs.issue }}
       INPUT_CANDIDATE_RUN: ${{ inputs.candidate_run }}
       INPUT_CANDIDATE_ATTEMPT: ${{ inputs.candidate_attempt }}
@@ -102,7 +105,8 @@ jobs:
       - name: Publish the selected draft pull request
         if: steps.authorize.outputs.process == 'true'
         env:
-          AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+          AGENT_PUBLICATION_TOKEN: ${{ vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_PUBLICATION_TOKEN || '' }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_RESULT_SIGNATURE: ${{ steps.authorize.outputs.result_signature }}
           BASE_SHA: ${{ steps.authorize.outputs.base_sha }}
           CANDIDATE_SHA256: ${{ steps.authorize.outputs.candidate_sha256 }}
@@ -123,4 +127,5 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" confirm-publish'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}

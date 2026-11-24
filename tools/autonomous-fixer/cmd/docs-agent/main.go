@@ -63,15 +63,35 @@ func preparePRHead(ctx context.Context, client *docgithub.Client, source string,
 	}
 	return head, git(ctx, source, "cat-file", "-e", head.SHA+"^{commit}")
 }
-func github(repo string) (*docgithub.Client, error) {
+func githubToken() (string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
+	if token == "" && os.Getenv("AGENT_USE_ORG_BOT") != "true" {
 		token = os.Getenv("GH_TOKEN")
 	}
 	if token == "" {
-		return nil, fmt.Errorf("GitHub token is required")
+		return "", fmt.Errorf("GitHub token is required")
 	}
-	return docgithub.NewClient(repo, token)
+	return token, nil
+}
+
+func githubRepository(repo string) (*docgithub.Client, error) {
+	token, err := githubToken()
+	if err != nil {
+		return nil, err
+	}
+	return docgithub.NewClient(repo, token, "", nil, "")
+}
+
+func github(repo string) (*docgithub.Client, error) {
+	token, err := githubToken()
+	if err != nil {
+		return nil, err
+	}
+	projectToken := os.Getenv("AGENT_PROJECT_TOKEN")
+	if projectToken == "" && os.Getenv("AGENT_USE_ORG_BOT") == "true" {
+		return nil, fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
+	}
+	return docgithub.NewClient(repo, token, projectToken, nil, "")
 }
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
@@ -134,7 +154,7 @@ func run(ctx context.Context, args []string) error {
 			PublicationFailure: docgithub.PublicationFailure(*publicationFailure), PublicationAttempt: *publicationAttempt,
 		}, *signature)
 	case "verify-pr":
-		c, e := github(*repo)
+		c, e := githubRepository(*repo)
 		if e != nil {
 			return e
 		}

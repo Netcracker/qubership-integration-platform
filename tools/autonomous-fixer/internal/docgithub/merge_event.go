@@ -73,11 +73,11 @@ func ReconcileDocumentationMerge(ctx context.Context, c *Client, event Documenta
 	if err := authorizeDocsEnabled(ctx, c); err != nil {
 		return Publication{}, err
 	}
-	login, err := authorizePublisher(ctx, c)
+	identity, err := authorizePublisher(ctx, c)
 	if err != nil {
 		return Publication{}, err
 	}
-	merge, err := readDocumentationMerge(ctx, c, event, login)
+	merge, err := readDocumentationMerge(ctx, c, event, identity.Login)
 	if err != nil {
 		return Publication{}, err
 	}

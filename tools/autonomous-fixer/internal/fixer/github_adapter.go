@@ -303,18 +303,18 @@ func SyncStopLabels(ctx context.Context, client *GitHubClient, issue int64, stat
 				if status, ok := err.(*HTTPError); !ok || status.Status != 404 {
 					return err
 				}
-				if err := client.Request(ctx, "POST", "/labels", map[string]string{"name": label, "color": "FBCA04", "description": "The agent needs an action from an allowed user."}, nil); err != nil {
+				if err := client.WriteIssue(ctx, GitHubUser{}, "POST", "/labels", map[string]string{"name": label, "color": "FBCA04", "description": "The agent needs an action from an allowed user."}, nil); err != nil {
 					return err
 				}
 			}
-			if err := client.Request(ctx, "POST", fmt.Sprintf("/issues/%d/labels", issue), map[string]any{"labels": []string{label}}, nil); err != nil {
+			if err := client.WriteIssue(ctx, GitHubUser{}, "POST", fmt.Sprintf("/issues/%d/labels", issue), map[string]any{"labels": []string{label}}, nil); err != nil {
 				return err
 			}
 		}
 	}
 	for label := range current {
 		if owned[label] && !desired[label] {
-			if err := client.Request(ctx, "DELETE", fmt.Sprintf("/issues/%d/labels/%s", issue, url.PathEscape(label)), nil, nil); err != nil {
+			if err := client.WriteIssue(ctx, GitHubUser{}, "DELETE", fmt.Sprintf("/issues/%d/labels/%s", issue, url.PathEscape(label)), nil, nil); err != nil {
 				return err
 			}
 		}

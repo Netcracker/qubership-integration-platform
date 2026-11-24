@@ -36,10 +36,12 @@ func GitHubWriteRejected(err error) bool {
 }
 
 type GitHubClient struct {
-	repository, token string
-	apiVersion        string
-	base              *url.URL
-	client            *http.Client
+	repository, token  string
+	organizationToken  string
+	useOrganizationBot bool
+	apiVersion         string
+	base               *url.URL
+	client             *http.Client
 }
 
 type githubResponse struct {
