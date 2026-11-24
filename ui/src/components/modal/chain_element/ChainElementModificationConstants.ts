@@ -1,4 +1,5 @@
 import { UiSchema } from "@rjsf/utils";
+import { MEDIA_TYPE_SUGGESTIONS } from "./mediaTypeSuggestions.ts";
 
 export const INITIAL_UI_SCHEMA: UiSchema = {
   "ui:submitButtonOptions": {
@@ -174,6 +175,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     },
     allowedContentTypes: {
       "ui:widget": "multipleSelectWidget",
+      "ui:options": { suggestions: MEDIA_TYPE_SUGGESTIONS },
     },
     httpMethodRestrict: {
       "ui:widget": "stringAsMultipleSelectWidget",
