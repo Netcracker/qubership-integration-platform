@@ -48,6 +48,11 @@ func save(t *testing.T, path string, v any) string {
 }
 func fixture(t *testing.T) string {
 	t.Helper()
+	return fixtureWithRoute(t, func(*doctriage.Routing) {})
+}
+
+func fixtureWithRoute(t *testing.T, changeRoute func(*doctriage.Routing)) string {
+	t.Helper()
 	root := t.TempDir()
 	task := "o/r#12:documentation"
 	packet := doctriage.Packet{ID: "issue12", Scope: "merged change", Issue: json.RawMessage(`{"number":12}`), Repository: "o/r", BaseSHA: "base", HeadSHA: "head", DocsSHA: "docs", ChangedPaths: []string{"infrastructure/Dockerfile"}, Diff: "build change", Complete: true, Documentation: []doctriage.Document{{Path: "help/docs/readme.md", Content: "help"}}}
@@ -59,6 +64,7 @@ func fixture(t *testing.T) string {
 	if e != nil {
 		t.Fatal(e)
 	}
+	changeRoute(&route)
 	ctx := workcontext.Packet{Kind: "documentation", Text: "frozen context", Files: []workcontext.File{}}
 	b, _ := json.Marshal(ctx)
 	ctx.SHA256 = digest(b)
@@ -75,6 +81,23 @@ func fixture(t *testing.T) string {
 	save(t, filepath.Join(root, "controller-evidence-sha256.json"), map[string]string{proofPath: proofHash})
 	save(t, filepath.Join(root, "receipt.json"), receipt{ReportSHA256: reportHash, ContextSHA256: ctx.SHA256, CandidateID: "candidate", Evidence: map[string]string{proofPath: proofHash}})
 	return root
+}
+
+func TestImportReplaysLegacyRouteAndRejectsIncorrectCurrentReason(t *testing.T) {
+	legacy := fixtureWithRoute(t, func(route *doctriage.Routing) {
+		route.Version = "docs-routing-v1"
+		route.ReasonCode = ""
+	})
+	record, err := Import(legacy, nil)
+	if err != nil || record.Routing.Version != "docs-routing-v1" || record.Routing.ReasonCode != "" {
+		t.Fatalf("legacy routing = %+v, import error = %v", record.Routing, err)
+	}
+	incorrect := fixtureWithRoute(t, func(route *doctriage.Routing) {
+		route.ReasonCode = doctriage.RouteBelowThreshold
+	})
+	if _, err = Import(incorrect, nil); err == nil || !strings.Contains(err.Error(), "recorded route differs") {
+		t.Fatalf("import with incorrect reason error = %v", err)
+	}
 }
 func judgment(kind, actorType string) Adjudication {
 	return Adjudication{Kind: kind, Actor: "reviewer", ActorType: actorType, Basis: "Compared the scoped behavior with its user help.", Evidence: []Reference{{Path: "https://github.com/o/r/issues/12#issuecomment-1"}}, Timestamp: time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC)}

@@ -89,7 +89,10 @@ jobs:
     if: >-
       ${{ vars.AGENT_ENABLED == 'true' && github.event_name != 'pull_request' &&
           inputs.operation != 'check' &&
-          (github.event_name != 'issue_comment' || !github.event.issue.pull_request) &&
+          (github.event_name != 'issue_comment' ||
+           (!github.event.issue.pull_request && github.event.comment.user.type == 'User' &&
+            (contains(fromJSON('["/agent fix","/agent status","/agent stop","/agent resume","/agent retry"]'), github.event.comment.body) ||
+             startsWith(github.event.comment.body, '/agent answer ')))) &&
           (github.event_name != 'workflow_run' ||
             (github.event.workflow_run.event == 'workflow_dispatch' &&
              !startsWith(github.event.workflow_run.display_title, 'qip-agent-auto-revise|'))) &&
@@ -170,3 +173,24 @@ jobs:
     secrets:
       AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
       AGENT_PUBLICATION_TOKEN: ${{ secrets.AGENT_PUBLICATION_TOKEN }}
+
+  observe-revision:
+    if: >-
+      ${{ github.event_name == 'workflow_run' && vars.AGENT_ENABLED == 'true' &&
+          vars.AGENT_MODE == 'hosted' &&
+          github.event.workflow_run.head_repository.full_name == github.repository &&
+          github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+          ((github.event.workflow_run.event == 'issue_comment' &&
+            startsWith(github.event.workflow_run.display_title, 'qip-agent-revise|')) ||
+           (github.event.workflow_run.event == 'workflow_dispatch' &&
+            startsWith(github.event.workflow_run.display_title, 'qip-agent-auto-revise|'))) }}
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      issues: read
+      pull-requests: write
+      actions: write
+    uses: ./.github/workflows/agent-ci.yaml
+    secrets:
+      AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}

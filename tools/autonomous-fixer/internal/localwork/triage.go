@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/doctriage"
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/workcycle"
@@ -78,7 +80,8 @@ func (d *Driver) prepareDocumentationTriage() error {
 		return err
 	}
 	var issue struct {
-		Number int `json:"number"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
 	}
 	if err := json.Unmarshal(packet.Issue, &issue); err != nil || issue.Number <= 0 || packet.Repository == "" {
 		return fmt.Errorf("documentation packet has no repository and issue identity")
@@ -96,7 +99,20 @@ func (d *Driver) prepareDocumentationTriage() error {
 	if cfg.Policy != nil {
 		policy = *cfg.Policy
 	}
-	routing, err := doctriage.SelectRoute(packet, report, policy)
+	var routing doctriage.Routing
+	if d.Config.ResumeFrom == "" {
+		routing, err = doctriage.SelectRoute(packet, report, policy)
+	} else {
+		data, readErr := os.ReadFile(filepath.Join(filepath.Dir(d.Config.ResumeFrom), "routing.json"))
+		if readErr != nil {
+			return readErr
+		}
+		var previous doctriage.Routing
+		if err := Decode(bytes.NewReader(data), &previous); err != nil {
+			return err
+		}
+		routing, err = doctriage.ReplayRoute(packet, report, policy, previous.Version)
+	}
 	if err != nil {
 		return err
 	}
@@ -124,13 +140,25 @@ func (d *Driver) prepareDocumentationTriage() error {
 			"restored_behavior":     "The fix restores behavior already described in the current help.",
 			"no_explanation_needed": "The change does not require an additional explanation for readers of the current help.",
 			"internal_only":         "The merged changes affect internal implementation or developer tooling without changing the documented product workflow.",
-			"outside_help_scope":    "The merged changes concern operations outside the scope of product help.",
+			"outside_help_scope":    "The affected operation falls outside the scope of the product help.",
 		}[routing.Recommendation.Reason]
 		if explanation == "" {
 			return fmt.Errorf("automatic no-change has no supported explanation")
 		}
+		if routing.Recommendation.Reason == "outside_help_scope" || routing.Recommendation.Reason == "internal_only" {
+			workflowsOnly := len(packet.ChangedPaths) > 0
+			for _, path := range packet.ChangedPaths {
+				workflowsOnly = workflowsOnly && strings.HasPrefix(path, ".github/workflows/")
+			}
+			if workflowsOnly {
+				explanation = "Only GitHub Actions workflows changed. Product users follow the same steps."
+			}
+		}
+		comment := "No product help update is needed. " + explanation
+		if title := strings.TrimSpace(issue.Title); title != "" {
+			comment = "No product help update is needed for <em>" + html.EscapeString(title) + "</em>. " + explanation
+		}
 		summary := fmt.Sprintf("Automated documentation triage selected no change for issue #%d. %s", issue.Number, explanation)
-		comment := fmt.Sprintf("No help update is required for this issue. %s\n\nAutomated classification used the merged-change evidence and [help at %s](https://github.com/%s/tree/%s/help/docs).", explanation, packet.DocsSHA, packet.Repository, packet.DocsSHA)
 		entry.Decision = &workcycle.DocumentationDecision{Decision: "no_change", Reason: routing.Recommendation.Reason, Summary: summary, IssueComment: comment, Claims: []workcycle.DocClaim{{ID: "classifier-doc-impact", Behavior: "Documentation impact of the selected implementing changes.", Attribution: "unchanged", NeedsChange: false, SourceEvidence: []string{proof}, DocumentationEvidence: []string{proof}, Action: summary}}}
 	}
 	d.Request.DocumentationEntry = entry

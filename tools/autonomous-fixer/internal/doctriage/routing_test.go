@@ -3,8 +3,9 @@ package doctriage
 import (
 	"context"
 	"encoding/json"
-	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 	"testing"
+
+	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
 
 func classified(t *testing.T, action, reason, attribution string) Report {
@@ -21,7 +22,7 @@ func TestRouteRecomputesRecommendationAndRejectsStaleEvidence(t *testing.T) {
 	r.Recommendation = Recommendation{Action: "needed"}
 	r.SuggestedRoute = "docs-write"
 	route, e := SelectRoute(p, r, DefaultRoutingPolicy())
-	if e != nil || route.Route != "docs-no-change" {
+	if e != nil || route.Route != "docs-no-change" || route.ReasonCode != RouteRecommendationAccepted {
 		t.Fatal(route, e)
 	}
 	p.Documentation[0].Content = "new docs"
@@ -38,10 +39,11 @@ func TestRoutingProbabilityMarginsAndReasonCertainty(t *testing.T) {
 		name string
 		p    map[string]float64
 		want string
+		code RoutingReason
 	}{
-		{"confident", map[string]float64{"needed": .01, "no_change": .98, "investigate": .01}, "docs-no-change"},
-		{"uncertain", map[string]float64{"needed": .2, "no_change": .79, "investigate": .01}, "docs-assess"},
-		{"tie", map[string]float64{"needed": .49, "no_change": .49, "investigate": .02}, "docs-assess"},
+		{"confident", map[string]float64{"needed": .01, "no_change": .98, "investigate": .01}, "docs-no-change", RouteRecommendationAccepted},
+		{"uncertain", map[string]float64{"needed": .2, "no_change": .79, "investigate": .01}, "docs-assess", RouteBelowThreshold},
+		{"tie", map[string]float64{"needed": .49, "no_change": .49, "investigate": .02}, "docs-assess", RouteNoActionLead},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := classified(t, "no_change", "outside_help_scope", "unchanged")
@@ -49,7 +51,7 @@ func TestRoutingProbabilityMarginsAndReasonCertainty(t *testing.T) {
 			a.Probabilities = tc.p
 			r.Response.Answers["documentation_action"] = a
 			route, e := SelectRoute(packet(), r, DefaultRoutingPolicy())
-			if e != nil || route.Route != tc.want {
+			if e != nil || route.Route != tc.want || route.ReasonCode != tc.code {
 				t.Fatal(route, e)
 			}
 		})
@@ -61,7 +63,7 @@ func TestRoutingProbabilityMarginsAndReasonCertainty(t *testing.T) {
 	a.Probabilities["scope_unclear"] = .02
 	r.Response.Answers["documentation_reason"] = a
 	route, e := SelectRoute(packet(), r, DefaultRoutingPolicy())
-	if e != nil || route.Route != "docs-assess" {
+	if e != nil || route.Route != "docs-assess" || route.ReasonCode != RouteUncertainClassification {
 		t.Fatal(route, e)
 	}
 }
@@ -69,7 +71,7 @@ func TestNegativeReasonsAreConfigurableButOldFindingsNeedAssessment(t *testing.T
 	r := classified(t, "no_change", "already_covered", "unchanged")
 	policy := DefaultRoutingPolicy()
 	a, e := SelectRoute(packet(), r, policy)
-	if e != nil || a.Route != "docs-assess" {
+	if e != nil || a.Route != "docs-assess" || a.ReasonCode != RouteAssessmentRequired {
 		t.Fatal(a, e)
 	}
 	policy.AutoNoChangeReasons = append(policy.AutoNoChangeReasons, "already_covered")
@@ -90,8 +92,26 @@ func TestNegativeReasonsAreConfigurableButOldFindingsNeedAssessment(t *testing.T
 func TestInconsistentNeededAnswerCannotReachWriter(t *testing.T) {
 	r := classified(t, "needed", "already_covered", "change_related")
 	a, e := SelectRoute(packet(), r, DefaultRoutingPolicy())
-	if e != nil || a.Route != "docs-assess" || a.Recommendation.Action != "investigate" {
+	if e != nil || a.Route != "docs-assess" || a.Recommendation.Action != "investigate" || a.ReasonCode != RouteAnswersConflict {
 		t.Fatal(a, e)
+	}
+}
+
+func TestRouteDistinguishesClassifierInvestigationFromMissingHelpEvidence(t *testing.T) {
+	p := packet()
+	r := classified(t, "investigate", "scope_unclear", "unclear")
+	selected, err := SelectRoute(p, r, DefaultRoutingPolicy())
+	if err != nil || selected.ReasonCode != RouteInvestigation {
+		t.Fatal(selected, err)
+	}
+	p.Documentation = nil
+	r, err = Evaluate(context.Background(), p, jev.DefaultModel, &fake{action: "needed", reason: "stale_guidance", attribution: "change_related"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err = SelectRoute(p, r, DefaultRoutingPolicy())
+	if err != nil || selected.ReasonCode != RouteMissingHelpEvidence {
+		t.Fatal(selected, err)
 	}
 }
 

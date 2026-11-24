@@ -274,7 +274,7 @@ func Import(directory string, judgment *Adjudication) (Record, error) {
 	if e = doctriage.ValidateReport(p.Packet, p.Report); e != nil {
 		return r, e
 	}
-	calculated, e := doctriage.SelectRoute(p.Packet, p.Report, route.Policy)
+	calculated, e := doctriage.ReplayRoute(p.Packet, p.Report, route.Policy, route.Version)
 	if e != nil {
 		return r, e
 	}

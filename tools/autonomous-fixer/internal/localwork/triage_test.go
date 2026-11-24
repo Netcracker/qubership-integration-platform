@@ -132,6 +132,73 @@ func TestDocumentationTriageNativeRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestDocumentationResumeRetainsLegacyRoutingProof(t *testing.T) {
+	cfg := triageFixture(t, triageClassifier{"needed", "missing_guidance", "change_related", 1})
+	seed, err := Execute(context.Background(), cfg)
+	if err != nil || seed.Status != "docs-ready-for-pr" {
+		t.Fatalf("seed status = %s, error = %v", seed.Status, err)
+	}
+	prior := cfg.OutputDirectory
+	proofPath := filepath.Join(prior, "evidence", "documentation-routing.json")
+	data, err := os.ReadFile(proofPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var proof map[string]json.RawMessage
+	if err = json.Unmarshal(data, &proof); err != nil {
+		t.Fatal(err)
+	}
+	var routing doctriage.Routing
+	if err = json.Unmarshal(proof["routing"], &routing); err != nil {
+		t.Fatal(err)
+	}
+	routing.Version = "docs-routing-v1"
+	routing.ReasonCode = ""
+	if err = writeJSON(filepath.Join(prior, "routing.json"), routing); err != nil {
+		t.Fatal(err)
+	}
+	proof["routing"], err = json.Marshal(routing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = writeJSON(proofPath, proof); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(proofPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofHash := bytesDigest(data)
+	manifests, err := filepath.Glob(filepath.Join(prior, "step-*", "evidence-sha256.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range append(manifests, filepath.Join(prior, "controller-evidence-sha256.json")) {
+		var manifest map[string]string
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = json.Unmarshal(body, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := manifest[proofPath]; ok {
+			manifest[proofPath] = proofHash
+			if err = writeJSON(path, manifest); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	cfg.ResumeFrom = filepath.Join(prior, "report.json")
+	cfg.OutputDirectory = filepath.Join(filepath.Dir(prior), "resume-legacy")
+	resumed, err := Execute(context.Background(), cfg)
+	if err != nil || resumed.Status != "docs-ready-for-pr" || len(resumed.Observations) != len(seed.Observations)+1 {
+		t.Fatalf("resume status = %s, observations = %d, error = %v", resumed.Status, len(resumed.Observations), err)
+	}
+}
+
 func TestDirectWriterCanDismissFalsePositive(t *testing.T) {
 	for _, mutate := range []bool{false, true} {
 		cfg := triageFixture(t, triageClassifier{"needed", "missing_guidance", "change_related", 1})

@@ -256,6 +256,30 @@ func TestScheduledClaimRevalidatesIssueBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestScheduleAllowsANewAssessmentAfterSupersedingStalePublication(t *testing.T) {
+	c, api, oldPlan := scheduleFixture(t)
+	old := &publisher{client: c, plan: oldPlan}
+	if err := old.saveState(t.Context(), Publication{Decision: "no_change", Status: "publishing", InitialIssueState: "closed"}); err != nil {
+		t.Fatal(err)
+	}
+	api.head = strings.Repeat("d", 40)
+	if result, err := Reconcile(t.Context(), c, oldPlan, PublishOptions{Actor: "alice", Apply: true}); err != nil || result.Status != "superseded" {
+		t.Fatalf("retirement: state=%+v, err=%v", result, err)
+	}
+	newPlan := oldPlan
+	newPlan.BaseSHA, newPlan.ID = api.head, ""
+	newPlan.ID = Digest(newPlan)
+	basis := scheduleBasis(newPlan)
+	report, err := Discover(t.Context(), c, c.API, 12, newPlan.IssueNumber)
+	if err != nil || !reflect.DeepEqual(report.Eligible, []ScheduleCandidate{{Issue: newPlan.IssueNumber, Basis: basis}}) || api.commentCreates != 1 {
+		t.Fatalf("new assessment eligibility: report=%+v, comments=%d, err=%v", report, api.commentCreates, err)
+	}
+	claimed, reason, err := ClaimSchedule(t.Context(), c, c.API, newPlan, basis, "alice", ScheduledAttempt{RunID: 500, Attempt: 1}, true)
+	if err != nil || !claimed || reason != "" || api.commentCreates != 2 {
+		t.Fatalf("new assessment claim: claimed=%v, reason=%q, comments=%d, err=%v", claimed, reason, api.commentCreates, err)
+	}
+}
+
 func TestCommandDiscoveryAndClaimUseTheSameChecksWithoutCronOptIn(t *testing.T) {
 	c, a, plan := scheduleFixture(t)
 	a.project = "DONE"

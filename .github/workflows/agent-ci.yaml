@@ -6,7 +6,6 @@ on:
     types: [opened, reopened, synchronize]
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
-      - QIP agent work
       - QIP agent review submitted
       - QIP agent control
       - AI Schema Host Compatibility
@@ -36,6 +35,11 @@ on:
       - Version Invariants
       - Vscode Extension Build
     types: [completed]
+    branches: ['agent/fix/**', 'refs/pull/**', 'pull/**']
+  workflow_call:
+    secrets:
+      AGENT_VARIABLES_READ_TOKEN:
+        required: true
   schedule:
     - cron: '23 4 * * *'
   workflow_dispatch:

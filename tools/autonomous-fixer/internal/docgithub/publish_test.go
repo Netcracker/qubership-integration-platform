@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -35,6 +38,9 @@ type publicationAPI struct {
 	closeFailure                                     int
 	projectFailure                                   string
 	failFirstProjectReadAfterUpdate                  bool
+	branchCreates, branchFailure                     int
+	hidePR                                           bool
+	publicationWrite                                 func(Publication)
 }
 
 func apiFixture(t *testing.T, p Plan) (*Client, *publicationAPI) {
@@ -52,6 +58,14 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	write := func(v any) { _ = json.NewEncoder(w).Encode(v) }
 	fail := func() { w.WriteHeader(http.StatusNotFound); write(map[string]string{"message": "not found"}) }
+	recordPublication := func(body string) {
+		if a.publicationWrite != nil {
+			state, err := decodePublicationState(body)
+			if err == nil {
+				a.publicationWrite(state)
+			}
+		}
+	}
 	if r.URL.Path == "/graphql" {
 		var request struct {
 			Query     string         `json:"query"`
@@ -148,7 +162,7 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 			Body string `json:"body"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		c := issueComment{ID: 5, Body: body.Body}
+		c := issueComment{ID: int64(5 + len(a.comments)), Body: body.Body}
 		c.User.ID = 99
 		c.User.Login = a.viewerLogin
 		if a.foreignComment {
@@ -161,6 +175,7 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.comments = append(a.comments, c)
+		recordPublication(c.Body)
 		if a.uncertainComment {
 			a.uncertainComment = false
 			w.WriteHeader(500)
@@ -168,15 +183,23 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		write(c)
-	case path == "/issues/comments/5" && r.Method == "PATCH":
+	case strings.HasPrefix(path, "/issues/comments/") && r.Method == "PATCH":
 		var body struct {
 			Body string `json:"body"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if !a.ignoreCommentPatch {
-			a.comments[0].Body = body.Body
+		for i := range a.comments {
+			if strconv.FormatInt(a.comments[i].ID, 10) != strings.TrimPrefix(path, "/issues/comments/") {
+				continue
+			}
+			if !a.ignoreCommentPatch {
+				a.comments[i].Body = body.Body
+				recordPublication(body.Body)
+			}
+			write(a.comments[i])
+			return
 		}
-		write(a.comments[0])
+		fail()
 	case path == "/git/ref/heads/main":
 		write(map[string]any{"object": map[string]string{"sha": a.head}})
 	case strings.HasPrefix(path, "/git/ref/heads/agent/docs/"):
@@ -186,6 +209,12 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 			write(map[string]any{"object": map[string]string{"sha": a.branch}})
 		}
 	case path == "/git/refs" && r.Method == "POST":
+		a.branchCreates++
+		if a.branchFailure != 0 {
+			w.WriteHeader(a.branchFailure)
+			write(map[string]string{})
+			return
+		}
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		a.branch = body["sha"]
@@ -213,7 +242,7 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 	case path == "/pulls/2/files":
 		write([]any{map[string]string{"filename": "engine/file.go"}})
 	case path == "/pulls" && r.Method == "GET":
-		if a.pr == nil {
+		if a.pr == nil || a.hidePR {
 			write([]any{})
 		} else {
 			write([]pullRequest{*a.pr})
@@ -279,6 +308,28 @@ func TestPublishNoChangeIsIdempotentForClosedIssue(t *testing.T) {
 		t.Fatalf("reconciliation changed the signed result: %s, %v", result.Status, e)
 	}
 }
+func TestPublishUpdatesScheduledClaim(t *testing.T) {
+	for _, needed := range []bool{false, true} {
+		plan, run, source := publicationFixture(t, needed)
+		plan.RequestID = "42:2"
+		plan.ID = ""
+		plan.ID = Digest(plan)
+		c, a := apiFixture(t, plan)
+		claim := issueComment{ID: 5, User: fixer.GitHubUser{ID: 99}, Body: scheduleReceipt(scheduleBasis(plan), ScheduledAttempt{42, 2}) + "\nChecking documentation."}
+		a.comments = []issueComment{claim}
+		options := PublishOptions{Actor: "alice", Apply: true, SourcePath: source}
+		for i := 0; i < 2; i++ {
+			result, err := Publish(context.Background(), c, plan, run, options)
+			if err != nil || result.CommentID != claim.ID {
+				t.Fatalf("needed=%t: result=%+v, err=%v", needed, result, err)
+			}
+		}
+		if len(a.comments) != 1 || a.commentCreates != 0 || !strings.Contains(a.comments[0].Body, "[View workflow run](https://github.com/org/repo/actions/runs/42/attempts/2)") {
+			t.Fatal("expected the result and run link on the original comment")
+		}
+	}
+}
+
 func TestPublishOpenIssueClosesAfterComment(t *testing.T) {
 	plan, run, _ := publicationFixture(t, false)
 	plan.IssueState = "open"
@@ -449,11 +500,168 @@ func TestReconcileNoChangeRequiresCurrentMainBeforeClose(t *testing.T) {
 		t.Fatalf("expected GitHub to reject the close: state=%s, error=%v", api.state, err)
 	}
 	api.closeFailure, api.head = 0, strings.Repeat("e", 40)
-	if _, err := Reconcile(ctx, c, plan, options); err == nil || !strings.Contains(err.Error(), "default branch changed") {
-		t.Fatalf("expected a fresh documentation assessment: %v", err)
+	if result, err := Reconcile(ctx, c, plan, options); err != nil || result.Status != "superseded" || !strings.Contains(api.comments[0].Body, "Start a fresh assessment") {
+		t.Fatalf("expected a fresh documentation assessment: status=%s, error=%v", result.Status, err)
 	}
 	if api.state != "open" || api.closeCalls != 1 || api.doneCalls != 0 {
 		t.Fatalf("state=%s, close=%d, project updates=%d", api.state, api.closeCalls, api.doneCalls)
+	}
+}
+
+func TestPublishStopsWhenMainAdvancesAfterWritingIntent(t *testing.T) {
+	for _, test := range []struct {
+		name, decision, issueState string
+		at                         func(Publication) bool
+	}{
+		{"publishing", "no_change", "closed", func(state Publication) bool { return state.Status == "publishing" }},
+		{"issue close", "no_change", "open", func(state Publication) bool { return state.CloseAttempted }},
+		{"project completion", "no_change", "closed", func(state Publication) bool { return state.ProjectDoneAttempted }},
+		{"branch creation", "needed", "closed", func(state Publication) bool { return state.BranchWrite == branchAttempted }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			plan, run, _ := publicationFixture(t, test.decision == "needed")
+			plan.IssueState, plan.ID = test.issueState, ""
+			plan.ID = Digest(plan)
+			c, api := apiFixture(t, plan)
+			api.state = test.issueState
+			api.publicationWrite = func(state Publication) {
+				if test.at(state) {
+					api.head = strings.Repeat("e", 40)
+				}
+			}
+			options := PublishOptions{Actor: "alice", Apply: true}
+			for i := 0; i < 2; i++ {
+				result, err := Publish(t.Context(), c, plan, run, options)
+				if !errors.Is(err, errStaleBase) || result.Status != "superseded" || result.CommentID != 5 {
+					t.Fatalf("publication %d: state=%+v, err=%v", i, result, err)
+				}
+			}
+			if api.branchCreates+api.prCreates+api.closeCalls+api.doneCalls != 0 || api.commentCreates != 1 {
+				t.Fatalf("unexpected writes: %+v", api)
+			}
+		})
+	}
+}
+
+func TestPublishFreshAssessmentReplacesStalePublication(t *testing.T) {
+	plan, run, _ := publicationFixture(t, false)
+	c, api := apiFixture(t, plan)
+	oldPlan := plan
+	oldPlan.BaseSHA, oldPlan.ID = strings.Repeat("e", 40), ""
+	oldPlan.ID = Digest(oldPlan)
+	old := &publisher{client: c, plan: oldPlan}
+	if err := old.saveState(t.Context(), Publication{Decision: "no_change", Status: "publishing", InitialIssueState: "closed"}); err != nil {
+		t.Fatal(err)
+	}
+	options := PublishOptions{Actor: "alice", Apply: true}
+	result, err := Publish(t.Context(), c, plan, run, options)
+	if err != nil || result.Status != "completed" || api.commentCreates != 2 || api.doneCalls != 1 {
+		t.Fatalf("fresh publication: state=%+v, writes=%d, err=%v", result, api.doneCalls, err)
+	}
+	oldState, err := decodePublicationState(api.comments[0].Body)
+	if err != nil || oldState.Status != "superseded" || oldState.PlanID != oldPlan.ID {
+		t.Fatalf("old publication: state=%+v, err=%v", oldState, err)
+	}
+	if recovered, err := RecoverPlan(t.Context(), c, plan.IssueNumber); err != nil || recovered.ID != plan.ID {
+		t.Fatalf("recovered plan=%+v, err=%v", recovered, err)
+	}
+}
+
+func TestScheduleStopSupersedesStaleStateWithFailureReason(t *testing.T) {
+	plan, _, _ := publicationFixture(t, false)
+	plan.IssueState, plan.RequestID, plan.ID = "open", "500:1", ""
+	plan.ID = Digest(plan)
+	c, api := apiFixture(t, plan)
+	api.state, api.head = "open", strings.Repeat("e", 40)
+	p := &publisher{client: c, plan: plan}
+	if err := p.saveState(t.Context(), Publication{Decision: "no_change", Status: "completing", InitialIssueState: "open"}); err != nil {
+		t.Fatal(err)
+	}
+	stop := ScheduleStop{Actor: "alice", Basis: scheduleBasis(plan), Current: ScheduledAttempt{RunID: 500, Attempt: 1}, Reason: "publish-stopped", PublicationFailure: PublicationFailedIssueClose}
+	for _, wantUpdate := range []bool{true, false} {
+		if updated, err := RecordScheduleStop(t.Context(), c, plan, stop); err != nil || updated != wantUpdate {
+			t.Fatalf("record stop: updated=%v, want=%v, err=%v", updated, wantUpdate, err)
+		}
+	}
+	state, err := decodePublicationState(api.comments[0].Body)
+	if err != nil || state.Status != "superseded" || !strings.Contains(state.IssueComment, "stopped while closing the issue") || !strings.Contains(state.IssueComment, "Start a fresh assessment") {
+		t.Fatalf("stale publication notice: state=%+v, err=%v", state, err)
+	}
+}
+
+func TestStalePRCreationRecoversByReadback(t *testing.T) {
+	plan, run, _ := publicationFixture(t, true)
+	plan.RequestID, plan.ID = "500:1", ""
+	plan.ID = Digest(plan)
+	c, api := apiFixture(t, plan)
+	api.hidePR, api.uncertainPR = true, true
+	options := PublishOptions{Actor: "alice", Apply: true}
+	if result, err := Publish(t.Context(), c, plan, run, options); err == nil || !result.PRAttempted || result.PRNumber != 0 || api.prCreates != 1 {
+		t.Fatalf("initial publication: state=%+v, PR writes=%d, err=%v", result, api.prCreates, err)
+	}
+	if err := os.Remove(filepath.Join(run, "publication-journal.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Publish(t.Context(), c, plan, run, options); err == nil || api.prCreates != 1 || api.branchCreates != 1 {
+		t.Fatalf("unresolved publication retried without its local journal: PR writes=%d, branch writes=%d, err=%v", api.prCreates, api.branchCreates, err)
+	}
+	api.head = strings.Repeat("e", 40)
+	if result, err := Reconcile(t.Context(), c, plan, options); !errors.Is(err, errPublicationEffects) || result.Status != "publishing" {
+		t.Fatalf("reconciliation of unresolved PR: state=%+v, err=%v", result, err)
+	}
+	api.hidePR = false
+	stop := ScheduleStop{Actor: "alice", Basis: scheduleBasis(plan), Current: ScheduledAttempt{RunID: 500, Attempt: 1}, Reason: "publish-stopped", PublicationFailure: PublicationFailedDraftPR}
+	if updated, err := RecordScheduleStop(t.Context(), c, plan, stop); err != nil || !updated || !strings.Contains(api.comments[0].Body, "Pull request #3") || !strings.Contains(api.comments[0].Body, "`reconcile`") || strings.Contains(api.comments[0].Body, "Re-run failed jobs") {
+		t.Fatalf("stale publication notice: updated=%v, err=%v, body=%s", updated, err, api.comments[0].Body)
+	}
+	result, err := Reconcile(t.Context(), c, plan, options)
+	if err != nil || result.Status != "awaiting-merge" || result.PRNumber != 3 || api.prCreates != 1 || api.branchCreates != 1 || api.doneCalls+api.closeCalls != 0 {
+		t.Fatalf("recovered publication: state=%+v, writes=%d/%d, err=%v", result, api.prCreates, api.branchCreates, err)
+	}
+}
+
+func TestStaleBranchCreationRequiresReadback(t *testing.T) {
+	plan, run, _ := publicationFixture(t, true)
+	c, api := apiFixture(t, plan)
+	api.branchFailure = http.StatusInternalServerError
+	options := PublishOptions{Actor: "alice", Apply: true}
+	if result, err := Publish(t.Context(), c, plan, run, options); err == nil || result.BranchWrite != branchAttempted {
+		t.Fatalf("initial publication: state=%+v, err=%v", result, err)
+	}
+	if err := os.Remove(filepath.Join(run, "publication-journal.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	api.branchFailure = 0
+	if _, err := Publish(t.Context(), c, plan, run, options); err == nil || api.branchCreates != 1 {
+		t.Fatalf("unresolved branch creation retried without its local journal: writes=%d, err=%v", api.branchCreates, err)
+	}
+	api.head = strings.Repeat("e", 40)
+	if result, err := Reconcile(t.Context(), c, plan, options); !errors.Is(err, errPublicationEffects) || result.Status != "publishing" || api.branchCreates != 1 || api.prCreates != 0 {
+		t.Fatalf("stale publication discarded unresolved branch creation: state=%+v, err=%v", result, err)
+	}
+}
+
+func TestStaleBranchCanBeRetiredAfterObservedRemoval(t *testing.T) {
+	for _, branchWrite := range []string{"", branchObserved} {
+		t.Run(branchWrite, func(t *testing.T) {
+			plan, _, _ := publicationFixture(t, true)
+			c, api := apiFixture(t, plan)
+			p := &publisher{client: c, plan: plan}
+			api.branch = strings.Repeat("d", 40)
+			api.head = strings.Repeat("e", 40)
+			state := Publication{Decision: "needed", Status: "publishing", InitialIssueState: "closed", CandidateDigest: "candidate", Branch: p.documentationBranch(), CommitSHA: api.branch, BranchWrite: branchWrite}
+			if err := p.saveState(t.Context(), state); err != nil {
+				t.Fatal(err)
+			}
+			options := PublishOptions{Actor: "alice", Apply: true}
+			if result, err := Reconcile(t.Context(), c, plan, options); !errors.Is(err, errPublicationEffects) || result.Status != "publishing" || !strings.Contains(err.Error(), p.documentationBranch()) {
+				t.Fatalf("expected the branch to block retirement: state=%+v, err=%v", result, err)
+			}
+			api.branch = ""
+			if result, err := Reconcile(t.Context(), c, plan, options); err != nil || result.Status != "superseded" || api.branchCreates+api.prCreates+api.closeCalls+api.doneCalls != 0 {
+				t.Fatalf("expected to retire the removed branch: state=%+v, err=%v", result, err)
+			}
+		})
 	}
 }
 
@@ -666,7 +874,7 @@ func TestReconcileEditsTheSignedNoChangeCommentInPlace(t *testing.T) {
 	}
 	result, e := Reconcile(ctx, c, recovered, PublishOptions{Actor: "alice", Apply: true})
 	body := api.comments[0].Body
-	if e != nil || result.Status != "completed" || api.commentCreates != 1 || !strings.Contains(body, "**completed**") ||
+	if e != nil || result.Status != "completed" || api.commentCreates != 1 || strings.Contains(body, "**publishing**") ||
 		!strings.HasSuffix(body, "\n\n"+signature) || strings.Count(body, "<sub>🤖") != 1 {
 		t.Fatalf("reconciliation lost or duplicated signed totals: %s, %v", body, e)
 	}

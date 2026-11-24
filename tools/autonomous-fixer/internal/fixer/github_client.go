@@ -109,6 +109,28 @@ func (c *GitHubClient) repoPath(path string) (string, error) {
 	return value, nil
 }
 func (c *GitHubClient) send(ctx context.Context, method, path string, body, target any) (githubResponse, error) {
+	result, err := c.sendOnce(ctx, method, path, body, target)
+	if method != http.MethodGet || body != nil {
+		return result, err
+	}
+	switch result.status {
+	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		timer := time.NewTimer(250 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+		case <-timer.C:
+		}
+		if err := ctx.Err(); err != nil {
+			return githubResponse{}, err
+		}
+		return c.sendOnce(ctx, method, path, body, target)
+	default:
+		return result, err
+	}
+}
+
+func (c *GitHubClient) sendOnce(ctx context.Context, method, path string, body, target any) (githubResponse, error) {
 	ref, err := url.Parse(path)
 	if err != nil {
 		return githubResponse{}, fmt.Errorf("invalid API path")

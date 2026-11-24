@@ -33,6 +33,7 @@ jobs:
     outputs:
       authorized: ${{ steps.authorized.outputs.authorized }}
       issue: ${{ steps.authorized.outputs.issue }}
+      binary_id: ${{ steps.binary.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
@@ -51,8 +52,17 @@ jobs:
           AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
           ACTOR: ${{ github.actor }}
         run: |
-          result=$(go run ./cmd/docs-agent authorize-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR")
+          go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+          result=$("$RUNNER_TEMP/docs-agent" authorize-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR")
           jq -r '"authorized=\(.authorized)", "issue=\(.issue)"' <<< "$result" >> "$GITHUB_OUTPUT"
+      - name: Save the documentation agent
+        id: binary
+        if: steps.authorized.outputs.authorized == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-agent-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/docs-agent
+          if-no-files-found: error
 
   discover:
     needs: authorize_command
@@ -68,24 +78,39 @@ jobs:
       actions: read
       contents: read
     outputs:
+      binary_id: ${{ needs.authorize_command.outputs.binary_id || steps.binary.outputs.artifact-id }}
       apply: ${{ steps.discover.outputs.apply }}
       issues: ${{ steps.discover.outputs.issues }}
       has_issues: ${{ steps.discover.outputs.has_issues }}
       skip_reason: ${{ steps.discover.outputs.skip_reason }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        if: github.event_name != 'issue_comment'
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        if: github.event_name != 'issue_comment'
         with:
           go-version-file: tools/autonomous-fixer/go.mod
           cache: false
       - name: Build documentation agent
+        if: github.event_name != 'issue_comment'
         working-directory: tools/autonomous-fixer
         env:
           GOTOOLCHAIN: local
         run: go build -trimpath -o "$RUNNER_TEMP/docs-agent" ./cmd/docs-agent
+      - name: Download the documentation agent
+        if: github.event_name == 'issue_comment'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          artifact-ids: ${{ needs.authorize_command.outputs.binary_id || 'missing' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/docs-tool
+      - name: Install the documentation agent
+        if: github.event_name == 'issue_comment'
+        run: install -m 0500 "$RUNNER_TEMP/docs-tool/docs-agent" "$RUNNER_TEMP/docs-agent"
       - name: Identify the repository for the App token
         id: repository
         if: vars.AGENT_DOCS_APP_ID != ''
@@ -139,6 +164,14 @@ jobs:
             if [[ "$apply" == true ]]; then printf 'Apply mode. Batch size %s.\n\n' "$BATCH_SIZE"; else printf 'Preview mode.\n\n'; fi
             jq -r '"Eligible issues (\(.eligible | length))\n", (.eligible[] | "- #\(.issue)"), "\nSkipped items (\(.skipped | length))\n", (.skipped | group_by(.reason)[] | "- \(.[0].reason) (\(length))"), "\nDownload the discovery artifact for per-item reasons."' "$report"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the documentation agent
+        id: binary
+        if: github.event_name != 'issue_comment' && steps.discover.outputs.apply == 'true' && steps.discover.outputs.has_issues == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: docs-agent-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/docs-agent
+          if-no-files-found: error
       - name: Save the discovery report
         if: steps.discover.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -165,6 +198,7 @@ jobs:
       operation: run
       apply: true
       scheduled_basis: ${{ matrix.candidate.basis }}
+      binary_id: ${{ needs.discover.outputs.binary_id }}
     secrets:
       AGENT_DOCS_APP_PRIVATE_KEY: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
       AGENT_DOCS_READ_TOKEN: ${{ secrets.AGENT_DOCS_READ_TOKEN }}
@@ -182,21 +216,21 @@ jobs:
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Download the documentation agent
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: tools/autonomous-fixer/go.mod
-          cache: false
+          artifact-ids: ${{ needs.authorize_command.outputs.binary_id || 'missing' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/docs-tool
+      - name: Install the documentation agent
+        run: install -m 0500 "$RUNNER_TEMP/docs-tool/docs-agent" "$RUNNER_TEMP/docs-agent"
       - name: Reply to the skipped documentation command
-        working-directory: tools/autonomous-fixer
         env:
-          GOTOOLCHAIN: local
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
           ACTOR: ${{ github.actor }}
           REASON: ${{ needs.discover.outputs.skip_reason || needs.process.outputs.skip_reason }}
-        run: go run ./cmd/docs-agent reply-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR" --reason "$REASON"
+        run: '"$RUNNER_TEMP/docs-agent" reply-command --repository "$GITHUB_REPOSITORY" --actor "$ACTOR" --reason "$REASON"'

@@ -162,7 +162,21 @@ func checkHostedHandoff(t *testing.T, route string, patch, omitCheck bool) {
 		if _, err := os.Lstat(handoff); !os.IsNotExist(err) {
 			t.Fatalf("failed work created a publication handoff: %v", err)
 		}
-		checkRejectedDiff(t, source, workspace, prepared, filepath.Join(output, "work"), sha)
+		workDir := filepath.Join(output, "work")
+		checkRejectedDiff(t, source, workspace, prepared, workDir, sha)
+		var report workcycle.Report
+		if err := read(filepath.Join(workDir, "report.json"), &report); err != nil {
+			t.Fatal(err)
+		}
+		notice := documentationStopNotice(prepared, workDir, report)
+		if notice == nil || notice.Reason != "rejected" || notice.Signature.Line() != "<sub>🤖 openai/gpt-6-luna medium out=40 usd=0.005</sub>" {
+			t.Fatalf("unexpected stop notice: %+v", notice)
+		}
+		t.Setenv("OPENROUTER_API_KEY", "openai/gpt-6-luna")
+		notice = documentationStopNotice(prepared, workDir, report)
+		if notice == nil || notice.Reason != "rejected" || notice.Signature.Line() != "" {
+			t.Fatalf("stop notice exposed a credential: %+v", notice)
+		}
 		return
 	}
 	if workErr != nil {
