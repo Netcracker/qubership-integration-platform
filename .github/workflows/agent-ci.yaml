@@ -105,7 +105,7 @@ jobs:
         id: observe
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
@@ -171,7 +171,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
           GITHUB_TOKEN: ${{ github.token }}
-          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}

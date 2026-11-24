@@ -191,19 +191,9 @@ func publishCandidate(ctx context.Context, c *hostedrevision.Controller, a hoste
 	if err != nil {
 		return "", err
 	}
-	token := os.Getenv("AGENT_PUBLICATION_TOKEN")
-	if os.Getenv("AGENT_USE_ORG_BOT") == "true" {
-		token = os.Getenv("GH_ACCESS_TOKEN")
-		if token == "" {
-			return "", fmt.Errorf("GH_ACCESS_TOKEN is required when AGENT_USE_ORG_BOT is true")
-		}
-		publisher, err := fixer.NewGitHubClient(checkpoint.Repository, token, nil, "")
-		if err != nil {
-			return "", err
-		}
-		if err := publisher.VerifyOrganizationBot(ctx, os.Getenv("AGENT_ORG_BOT_LOGIN")); err != nil {
-			return "", err
-		}
+	token, err := fixer.PublicationToken(ctx, checkpoint.Repository)
+	if err != nil {
+		return "", err
 	}
 	prepared := false
 	tip, err := hostedcandidate.PublishRevision(ctx, candidate, hostedcandidate.RevisionOptions{

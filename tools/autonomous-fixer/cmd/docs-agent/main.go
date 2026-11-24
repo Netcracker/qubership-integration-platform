@@ -69,7 +69,10 @@ func githubToken(useOrgBot bool) (string, error) {
 		token = os.Getenv("GH_TOKEN")
 	}
 	if token == "" {
-		return "", fmt.Errorf("GitHub token is required")
+		if useOrgBot {
+			return "", fmt.Errorf("GITHUB_TOKEN is required in organization account mode")
+		}
+		return "", fmt.Errorf("set GITHUB_TOKEN or GH_TOKEN")
 	}
 	return token, nil
 }

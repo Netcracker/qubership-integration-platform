@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -75,8 +76,27 @@ func (c *GitHubClient) EngineeringAuthors(ctx context.Context) (EngineeringAutho
 	return authors, nil
 }
 
-func (c *GitHubClient) VerifyOrganizationBot(ctx context.Context, login string) error {
-	return c.verifyOrganizationBot(ctx, login, 0)
+// PublicationToken returns the credential for creating a draft PR or pushing a revision.
+func PublicationToken(ctx context.Context, repository string) (string, error) {
+	if os.Getenv("AGENT_USE_ORG_BOT") != "true" {
+		token := os.Getenv("AGENT_PUBLICATION_TOKEN")
+		if token == "" {
+			return "", fmt.Errorf("AGENT_PUBLICATION_TOKEN is required")
+		}
+		return token, nil
+	}
+	token := os.Getenv("GH_ACCESS_TOKEN")
+	if token == "" {
+		return "", fmt.Errorf("GH_ACCESS_TOKEN is required when AGENT_USE_ORG_BOT is true")
+	}
+	publisher, err := NewGitHubClient(repository, token, nil, "")
+	if err != nil {
+		return "", err
+	}
+	if err := publisher.verifyOrganizationBot(ctx, os.Getenv("AGENT_ORG_BOT_LOGIN"), 0); err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func (c *GitHubClient) verifyOrganizationBot(ctx context.Context, login string, id int64) error {

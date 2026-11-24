@@ -105,6 +105,16 @@ packet. A reopened issue invalidates a plan prepared while it was closed.
 
 `docs-agent work` uses the prepared packet. An incomplete packet routes directly to assessment and skips the billable Jev request. Completed output includes an immutable feedback record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish completion.
 
+For a local publication with the organization account, load both credentials into your shell
+from your secret store. The CLI reads the repository token from `GITHUB_TOKEN` and the project
+PAT from `AGENT_PROJECT_TOKEN`. The following command previews a restored candidate. Set
+`PUBLISHER_LOGIN` to the repository's `AGENT_ORG_BOT_LOGIN` and use absolute artifact paths.
+
+```bash
+AGENT_USE_ORG_BOT=true GITHUB_TOKEN="$GH_ACCESS_TOKEN" AGENT_PROJECT_TOKEN="$AGENT_DOCS_GITHUB_TOKEN" \
+  docs-agent publish --prepared "$PREPARED" --run "$RUN" --source "$CANDIDATE" --actor "$PUBLISHER_LOGIN"
+```
+
 To publish a downloaded result locally, check out the plan's base commit and run
 `docs-agent restore --prepared ... --run ... --source ... --workspace ...` to restore the candidate into a
 new worktree. Pass that worktree as `--source` to
