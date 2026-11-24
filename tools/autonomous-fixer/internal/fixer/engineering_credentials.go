@@ -4,11 +4,24 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
 const ActionsBotLogin = "github-actions[bot]"
-const OrganizationBotLogin = "NetcrackerCLPLCI"
+
+var organizationBotLoginPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
+
+func validateOrganizationBotLogin(login string) error {
+	if !organizationBotLoginPattern.MatchString(login) {
+		return fmt.Errorf("AGENT_ORG_BOT_LOGIN must be a GitHub user login when AGENT_USE_ORG_BOT is true")
+	}
+	return nil
+}
+
+func matchesOrganizationBot(user GitHubUser, login string) bool {
+	return user.ID > 0 && user.Type == "User" && strings.EqualFold(user.Login, login)
+}
 
 type EngineeringAuthors struct {
 	Actions, Organization GitHubUser
@@ -25,10 +38,15 @@ func (a EngineeringAuthors) Writer() GitHubUser {
 	return a.Actions
 }
 
-func NewEngineeringGitHubClient(repository, token, orgToken string, orgMode bool, httpClient *http.Client, baseURL string) (*GitHubClient, error) {
+func NewEngineeringGitHubClient(repository, token, orgToken, orgLogin string, orgMode bool, httpClient *http.Client, baseURL string) (*GitHubClient, error) {
+	if orgMode {
+		if err := validateOrganizationBotLogin(orgLogin); err != nil {
+			return nil, err
+		}
+	}
 	client, err := NewGitHubClient(repository, token, httpClient, baseURL)
 	if err == nil && orgMode {
-		client.useOrganizationBot = true
+		client.organizationLogin = orgLogin
 		client.organizationToken = orgToken
 	}
 	return client, err
@@ -44,12 +62,12 @@ func (c *GitHubClient) EngineeringAuthors(ctx context.Context) (EngineeringAutho
 		return authors, fmt.Errorf("invalid GitHub Actions bot identity")
 	}
 	authors.Actions = actions
-	if c.useOrganizationBot {
-		organization, err := c.User(ctx, OrganizationBotLogin)
+	if c.organizationLogin != "" {
+		organization, err := c.User(ctx, c.organizationLogin)
 		if err != nil {
 			return authors, err
 		}
-		if organization.ID <= 0 || organization.ID == actions.ID || organization.Login != OrganizationBotLogin || organization.Type != "User" {
+		if organization.ID == actions.ID || !matchesOrganizationBot(organization, c.organizationLogin) {
 			return authors, fmt.Errorf("invalid organization bot identity")
 		}
 		authors.Organization = organization
@@ -57,13 +75,20 @@ func (c *GitHubClient) EngineeringAuthors(ctx context.Context) (EngineeringAutho
 	return authors, nil
 }
 
-func (c *GitHubClient) VerifyOrganizationBot(ctx context.Context) error {
+func (c *GitHubClient) VerifyOrganizationBot(ctx context.Context, login string) error {
+	return c.verifyOrganizationBot(ctx, login, 0)
+}
+
+func (c *GitHubClient) verifyOrganizationBot(ctx context.Context, login string, id int64) error {
+	if err := validateOrganizationBotLogin(login); err != nil {
+		return err
+	}
 	var user GitHubUser
 	if _, err := c.send(ctx, http.MethodGet, "user", nil, &user); err != nil {
 		return err
 	}
-	if user.ID <= 0 || user.Login != OrganizationBotLogin || user.Type != "User" {
-		return fmt.Errorf("GH_ACCESS_TOKEN must belong to %s", OrganizationBotLogin)
+	if !matchesOrganizationBot(user, login) || (id > 0 && user.ID != id) {
+		return fmt.Errorf("GH_ACCESS_TOKEN must belong to the user configured in AGENT_ORG_BOT_LOGIN")
 	}
 	return nil
 }
@@ -73,10 +98,10 @@ func (c *GitHubClient) WriteIssue(ctx context.Context, author GitHubUser, method
 		(path != "/labels" && !strings.HasPrefix(path, "/issues/")) {
 		return fmt.Errorf("invalid issue write")
 	}
-	if author.Login == ActionsBotLogin || (author == (GitHubUser{}) && !c.useOrganizationBot) {
+	if author.Login == ActionsBotLogin || (author == (GitHubUser{}) && c.organizationLogin == "") {
 		return c.Request(ctx, method, path, input, output)
 	}
-	if !c.useOrganizationBot || (author != (GitHubUser{}) && author.Login != OrganizationBotLogin) {
+	if c.organizationLogin == "" || (author != (GitHubUser{}) && !matchesOrganizationBot(author, c.organizationLogin)) {
 		return fmt.Errorf("invalid issue write author")
 	}
 	if c.organizationToken == "" {
@@ -84,7 +109,7 @@ func (c *GitHubClient) WriteIssue(ctx context.Context, author GitHubUser, method
 	}
 	writer := *c
 	writer.token = c.organizationToken
-	if err := writer.VerifyOrganizationBot(ctx); err != nil {
+	if err := writer.verifyOrganizationBot(ctx, c.organizationLogin, author.ID); err != nil {
 		return err
 	}
 	return writer.Request(ctx, method, path, input, output)

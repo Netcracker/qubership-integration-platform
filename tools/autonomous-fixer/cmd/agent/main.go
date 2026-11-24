@@ -137,7 +137,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	repository := os.Getenv("GITHUB_REPOSITORY")
 	client, err := fixer.NewEngineeringGitHubClient(repository, os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_ACCESS_TOKEN"),
-		os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, githubAPIURL)
+		os.Getenv("AGENT_ORG_BOT_LOGIN"), os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, githubAPIURL)
 	if err != nil {
 		return err
 	}

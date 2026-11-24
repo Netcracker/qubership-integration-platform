@@ -40,7 +40,7 @@ func handleDocumentationCommand(ctx context.Context, repository, actor, reason s
 		if err != nil || run <= 0 {
 			return fmt.Errorf("invalid documentation command run identity")
 		}
-		return docgithub.ReplyToDocumentationCommand(ctx, client, command, reason, run, os.Getenv("AGENT_USE_ORG_BOT") == "true")
+		return docgithub.ReplyToDocumentationCommand(ctx, client, command, reason, run)
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"authorized": command.Issue > 0, "issue": command.Issue})
 }

@@ -95,3 +95,37 @@ func TestDocumentationWorkflowCredentialsStayInTrustedSteps(t *testing.T) {
 		})
 	}
 }
+
+func TestDocumentationPullRequestGatesUseConfiguredPublisher(t *testing.T) {
+	for file, required := range map[string][]string{
+		"agent-docs.yaml": {
+			"AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}",
+			"if [[ \"$AGENT_USE_ORG_BOT\" == true && -z \"$AGENT_ORG_BOT_LOGIN\" ]]; then",
+		},
+		"agent-docs-reconcile-merge.yaml": {
+			"vars.AGENT_USE_ORG_BOT == 'true' && vars.AGENT_ORG_BOT_LOGIN != '' && github.event.pull_request.user.login == vars.AGENT_ORG_BOT_LOGIN",
+			"vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN != '' && github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN",
+			"(vars.AGENT_USE_ORG_BOT == 'true' && vars.AGENT_ORG_BOT_LOGIN) || (vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN) || ''",
+			"--publisher-login \"$PUBLISHER\"",
+		},
+		"pr-linked-issue.yaml": {
+			"(vars.AGENT_USE_ORG_BOT == 'true' && vars.AGENT_ORG_BOT_LOGIN) || (vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN) || ''",
+			"if: vars.AGENT_USE_ORG_BOT == 'true' && env.DOCS_PUBLISHER == '' && startsWith(github.head_ref, 'agent/docs/')",
+			"env.DOCS_PUBLISHER != '' && github.event.pull_request.user.login == env.DOCS_PUBLISHER",
+			"--publisher-login \"$DOCS_PUBLISHER\"",
+		},
+	} {
+		t.Run(file, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := strings.Join(strings.Fields(string(data)), " ")
+			for _, condition := range required {
+				if !strings.Contains(source, condition) {
+					t.Errorf("missing publisher check %q", condition)
+				}
+			}
+		})
+	}
+}

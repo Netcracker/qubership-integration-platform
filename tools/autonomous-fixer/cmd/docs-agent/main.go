@@ -63,9 +63,9 @@ func preparePRHead(ctx context.Context, client *docgithub.Client, source string,
 	}
 	return head, git(ctx, source, "cat-file", "-e", head.SHA+"^{commit}")
 }
-func githubToken() (string, error) {
+func githubToken(useOrgBot bool) (string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" && os.Getenv("AGENT_USE_ORG_BOT") != "true" {
+	if token == "" && !useOrgBot {
 		token = os.Getenv("GH_TOKEN")
 	}
 	if token == "" {
@@ -75,23 +75,25 @@ func githubToken() (string, error) {
 }
 
 func githubRepository(repo string) (*docgithub.Client, error) {
-	token, err := githubToken()
+	useOrgBot := os.Getenv("AGENT_USE_ORG_BOT") == "true"
+	token, err := githubToken(useOrgBot)
 	if err != nil {
 		return nil, err
 	}
-	return docgithub.NewClient(repo, token, "", nil, "")
+	return docgithub.NewClient(repo, token, docgithub.ClientOptions{UseOrgBot: useOrgBot})
 }
 
 func github(repo string) (*docgithub.Client, error) {
-	token, err := githubToken()
+	useOrgBot := os.Getenv("AGENT_USE_ORG_BOT") == "true"
+	token, err := githubToken(useOrgBot)
 	if err != nil {
 		return nil, err
 	}
 	projectToken := os.Getenv("AGENT_PROJECT_TOKEN")
-	if projectToken == "" && os.Getenv("AGENT_USE_ORG_BOT") == "true" {
+	if projectToken == "" && useOrgBot {
 		return nil, fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
 	}
-	return docgithub.NewClient(repo, token, projectToken, nil, "")
+	return docgithub.NewClient(repo, token, docgithub.ClientOptions{ProjectToken: projectToken, UseOrgBot: useOrgBot})
 }
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {

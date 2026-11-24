@@ -362,7 +362,7 @@ func Discover(ctx context.Context, c *Client, actions *fixer.GitHubClient, proje
 			return report, err
 		}
 	}
-	login, err := c.API.RepositoryVariable(ctx, "AGENT_DOCS_PUBLISHER_LOGIN")
+	login, _, err := c.configuredPublisherLogin(ctx)
 	if err != nil {
 		return report, err
 	}

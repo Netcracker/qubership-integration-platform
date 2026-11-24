@@ -10,9 +10,11 @@ permissions: {}
 jobs:
   route:
     if: >-
-      ${{ vars.AGENT_DOCS_ENABLED == 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN != '' &&
-          github.event.pull_request.merged == true &&
-          github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN &&
+      ${{ vars.AGENT_DOCS_ENABLED == 'true' && github.event.pull_request.merged == true &&
+          ((vars.AGENT_USE_ORG_BOT == 'true' && vars.AGENT_ORG_BOT_LOGIN != '' &&
+            github.event.pull_request.user.login == vars.AGENT_ORG_BOT_LOGIN) ||
+           (vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN != '' &&
+            github.event.pull_request.user.login == vars.AGENT_DOCS_PUBLISHER_LOGIN)) &&
           github.event.pull_request.base.ref == github.event.repository.default_branch &&
           github.event.pull_request.base.repo.full_name == github.repository &&
           github.event.pull_request.head.repo.full_name == github.repository &&
@@ -41,7 +43,9 @@ jobs:
         env:
           GOTOOLCHAIN: local
           GITHUB_TOKEN: ${{ github.token }}
-          PUBLISHER: ${{ vars.AGENT_DOCS_PUBLISHER_LOGIN }}
+          PUBLISHER: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && vars.AGENT_ORG_BOT_LOGIN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_PUBLISHER_LOGIN) || '' }}
         run: |
           route=$(go run ./cmd/docs-agent route-merge --repository "$GITHUB_REPOSITORY" --publisher-login "$PUBLISHER")
           jq -r '"issue=\(.issue)", "plan_id=\(.plan_id)"' <<< "$route" >> "$GITHUB_OUTPUT"

@@ -75,7 +75,7 @@ func documentationSkipMessage(reason string) string {
 	}
 }
 
-func ReplyToDocumentationCommand(ctx context.Context, c *Client, command DocumentationCommand, reason string, runID int64, useOrgBot bool) error {
+func ReplyToDocumentationCommand(ctx context.Context, c *Client, command DocumentationCommand, reason string, runID int64) error {
 	message := documentationSkipMessage(reason)
 	if command.Issue <= 0 || command.CommentID <= 0 || message == "" || runID <= 0 {
 		return fmt.Errorf("invalid documentation command reply")
@@ -85,7 +85,7 @@ func ReplyToDocumentationCommand(ctx context.Context, c *Client, command Documen
 		return fmt.Errorf("GitHub Actions comment author is unavailable")
 	}
 	author := bot
-	if useOrgBot {
+	if c.useOrgBot {
 		author, err = authorizePublisher(ctx, c)
 		if err != nil {
 			return err

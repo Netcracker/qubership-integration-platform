@@ -11,7 +11,8 @@ import (
 
 func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 	actions := GitHubUser{ID: 42, Login: ActionsBotLogin, Type: "Bot"}
-	organization := GitHubUser{ID: 43, Login: OrganizationBotLogin, Type: "User"}
+	const configuredLogin = "automation-account"
+	organization := GitHubUser{ID: 43, Login: "Automation-Account", Type: "User"}
 	for _, tc := range []struct {
 		name, orgToken, wantWriter string
 		orgMode                    bool
@@ -23,6 +24,7 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 		{name: "organization owner", orgMode: true, orgToken: "org-token", author: organization, wantWriter: "org-token"},
 		{name: "missing organization token", orgMode: true},
 		{name: "wrong organization token", orgMode: true, orgToken: "other-token"},
+		{name: "wrong organization owner", orgMode: true, orgToken: "changed-owner-token", author: organization},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var writes atomic.Int32
@@ -35,15 +37,18 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 						t.Errorf("read Actions bot with %q", token)
 					}
 					_ = json.NewEncoder(w).Encode(actions)
-				case "GET /users/" + OrganizationBotLogin:
+				case "GET /users/" + configuredLogin:
 					if !tc.orgMode || token != "actions-token" {
 						t.Errorf("read organization bot with %q", token)
 					}
 					_ = json.NewEncoder(w).Encode(organization)
 				case "GET /user":
-					if token == "org-token" {
+					switch token {
+					case "org-token":
 						_ = json.NewEncoder(w).Encode(organization)
-					} else {
+					case "changed-owner-token":
+						_ = json.NewEncoder(w).Encode(GitHubUser{ID: 44, Login: organization.Login, Type: "User"})
+					default:
 						_ = json.NewEncoder(w).Encode(GitHubUser{ID: 44, Login: "other", Type: "User"})
 					}
 				case "PATCH /repos/org/repo/issues/comments/10":
@@ -63,7 +68,7 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			client, err := NewEngineeringGitHubClient("org/repo", "actions-token", tc.orgToken, tc.orgMode, server.Client(), server.URL)
+			client, err := NewEngineeringGitHubClient("org/repo", "actions-token", tc.orgToken, configuredLogin, tc.orgMode, server.Client(), server.URL)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,5 +88,16 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 				t.Fatalf("write error = %v, writes = %d", err, writes.Load())
 			}
 		})
+	}
+}
+
+func TestEngineeringOrganizationModeRequiresConfiguredUserLogin(t *testing.T) {
+	for _, login := range []string{"", "github-actions[bot]", "other/user"} {
+		if _, err := NewEngineeringGitHubClient("org/repo", "actions-token", "org-token", login, true, nil, ""); err == nil {
+			t.Errorf("accepted invalid organization user login %q", login)
+		}
+	}
+	if _, err := NewEngineeringGitHubClient("org/repo", "actions-token", "", "", false, nil, ""); err != nil {
+		t.Fatalf("default mode requires no organization login: %v", err)
 	}
 }

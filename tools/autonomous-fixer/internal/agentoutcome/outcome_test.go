@@ -60,7 +60,7 @@ func newOutcomeFixtureWithWriter(t *testing.T, organization bool) *outcomeFixtur
 	f.bot = fixer.GitHubUser{ID: 42, Login: "github-actions[bot]", Type: "Bot"}
 	f.stateAuthor = f.bot
 	if organization {
-		f.organization = fixer.GitHubUser{ID: 716, Login: "NetcrackerCLPLCI", Type: "User"}
+		f.organization = fixer.GitHubUser{ID: 716, Login: "QipAutomation", Type: "User"}
 	}
 	state, err := fixer.NewState(fixer.Seed{TaskID: "qip-8", Repository: repository.FullName, IssueNumber: 8,
 		BaseSHA: base, TrustedSHA: base, Requirements: "Fix the product defect.", ScopePaths: []string{"ui"}}, "operator")
@@ -79,7 +79,7 @@ func newOutcomeFixtureWithWriter(t *testing.T, organization bool) *outcomeFixtur
 	f.state = state
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
-	f.client, err = fixer.NewEngineeringGitHubClient(repository.FullName, "test-token", "organization-token", organization, server.Client(), server.URL)
+	f.client, err = fixer.NewEngineeringGitHubClient(repository.FullName, "test-token", "organization-token", f.organization.Login, organization, server.Client(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func (f *outcomeFixture) serve(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case path == "":
 			value = f.event.Repository
-		case path == "/users/NetcrackerCLPLCI" || path == "/user" && r.Header.Get("Authorization") == "Bearer organization-token":
+		case path == "/users/"+f.organization.Login || path == "/user" && r.Header.Get("Authorization") == "Bearer organization-token":
 			value = f.organization
 		case path == "/users/github-actions[bot]":
 			value = f.bot

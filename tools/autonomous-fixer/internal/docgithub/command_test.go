@@ -82,15 +82,17 @@ func TestDocumentationCommandReplyIsIdempotentAndLinksRun(t *testing.T) {
 		orgBotID     = 43
 	)
 	for _, test := range []struct {
-		name        string
-		useOrgBot   bool
-		legacyReply bool
-		wrongAuthor bool
+		name         string
+		useOrgBot    bool
+		legacyReply  bool
+		wrongAuthor  bool
+		missingLogin bool
 	}{
 		{name: "Actions bot"},
 		{name: "organization bot", useOrgBot: true},
 		{name: "historical Actions bot reply", useOrgBot: true, legacyReply: true},
-		{name: "unconfigured organization bot", useOrgBot: true, wrongAuthor: true},
+		{name: "wrong organization bot", useOrgBot: true, wrongAuthor: true},
+		{name: "missing organization bot login", useOrgBot: true, missingLogin: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			comments := []issueComment{{ID: 1, Body: marker + "Foreign comment", User: fixer.GitHubUser{ID: 3}}}
@@ -111,6 +113,12 @@ func TestDocumentationCommandReplyIsIdempotentAndLinksRun(t *testing.T) {
 				case r.URL.Path == "/users/github-actions[bot]":
 					_ = json.NewEncoder(w).Encode(fixer.GitHubUser{ID: actionsBotID, Login: "github-actions[bot]"})
 				case r.URL.Path == "/repos/org/repo/actions/variables/AGENT_DOCS_PUBLISHER_LOGIN":
+					_ = json.NewEncoder(w).Encode(map[string]any{"value": viewer})
+				case r.URL.Path == "/repos/org/repo/actions/variables/AGENT_ORG_BOT_LOGIN":
+					if test.missingLogin {
+						http.NotFound(w, r)
+						return
+					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"value": "org-bot"})
 				case r.URL.Path == "/graphql":
 					_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
@@ -129,16 +137,15 @@ func TestDocumentationCommandReplyIsIdempotentAndLinksRun(t *testing.T) {
 				}
 			}))
 			t.Cleanup(server.Close)
-			api, err := fixer.NewGitHubClient("org/repo", "test", server.Client(), server.URL)
+			client, err := NewClient("org/repo", "test", ClientOptions{UseOrgBot: test.useOrgBot, HTTPClient: server.Client(), BaseURL: server.URL})
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := &Client{API: api, Repository: "org/repo"}
 			cmd := DocumentationCommand{Issue: 11, CommentID: 7}
 			for range 2 {
-				err = ReplyToDocumentationCommand(t.Context(), client, cmd, "outside-doc-review", 502, test.useOrgBot)
-				if test.wrongAuthor {
-					if err == nil || !strings.Contains(err.Error(), "AGENT_DOCS_PUBLISHER_LOGIN") || posts != 0 {
+				err = ReplyToDocumentationCommand(t.Context(), client, cmd, "outside-doc-review", 502)
+				if test.wrongAuthor || test.missingLogin {
+					if err == nil || !strings.Contains(err.Error(), "AGENT_ORG_BOT_LOGIN") || posts != 0 {
 						t.Fatal(err, posts)
 					}
 					return

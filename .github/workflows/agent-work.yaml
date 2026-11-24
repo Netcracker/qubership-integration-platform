@@ -97,6 +97,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
 
@@ -143,6 +144,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
 
@@ -210,6 +212,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
       - id: revision
@@ -218,6 +221,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
           AGENT_REVISION_ASSIGNMENT_PATH: ${{ runner.temp }}/qip-hosted/revision.json
@@ -431,6 +435,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_PUBLICATION_TOKEN: ${{ vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_PUBLICATION_TOKEN || '' }}

@@ -80,7 +80,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		if orgMode {
-			if err := api.VerifyOrganizationBot(ctx); err != nil {
+			if err := api.VerifyOrganizationBot(ctx, os.Getenv("AGENT_ORG_BOT_LOGIN")); err != nil {
 				return err
 			}
 		}

@@ -155,7 +155,8 @@ func TestEngineeringWorkerHasNoWriteCredentials(t *testing.T) {
 			t.Errorf("worker job has %q", forbidden)
 		}
 	}
-	if !strings.Contains(worker, "AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}") {
+	if !strings.Contains(worker, "AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}") ||
+		!strings.Contains(worker, "AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}") {
 		t.Fatal("worker needs organization bot identity to read admitted receipts")
 	}
 }

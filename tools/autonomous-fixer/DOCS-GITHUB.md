@@ -20,7 +20,7 @@ Configure these settings in the repository's Actions variables and secrets.
 | --- | --- |
 | `AGENT_DOCS_ENABLED` | Set to `true` to enable the workflow. |
 | `AGENT_DOCS_PROJECT_NUMBER` | The number of the project linked to the issue. Defaults to `12`. |
-| `AGENT_DOCS_PUBLISHER_LOGIN` | The account or App bot that publishes state comments and documentation PRs. The PR gate checks this login. |
+| `AGENT_DOCS_PUBLISHER_LOGIN` | Publisher login for the single-PAT and GitHub App configurations. |
 | `AGENT_ALLOWED_ACTORS` | Comma-separated GitHub logins allowed to run the workflow and publish. |
 | `AGENT_DOCS_MODEL` | OpenRouter model for the documentation author. Defaults to `openrouter/openai/gpt-6-luna`. |
 | `AGENT_DOCS_EFFORT` | Reasoning effort for the documentation author. Defaults to `medium`. |
@@ -30,11 +30,12 @@ Set the `OPENROUTER_API_KEY` secret for `run`. Jev classifies the prepared packe
 Choose one GitHub credential mode.
 
 - **QIP organization account and project PAT.** Set `AGENT_USE_ORG_BOT=true` and
-  `AGENT_DOCS_PUBLISHER_LOGIN=NetcrackerCLPLCI`. The fixer uses the organization secret
-  `GH_ACCESS_TOKEN` to read repository variables, publish PRs and comments, and close issues.
+  `AGENT_ORG_BOT_LOGIN` to the GitHub login that owns `GH_ACCESS_TOKEN` (in QIP, `NetcrackerCLPLCI`).
+  The fixer uses the organization secret `GH_ACCESS_TOKEN` to read repository variables, publish PRs and comments, and close issues.
   It uses `AGENT_DOCS_GITHUB_TOKEN` to find project items, read their status, and move them to
   **Done**. The project token needs access to the board and its linked issues. A classic PAT
-  needs the `project` scope and its owner needs write access to the board.
+  needs the `project` scope and its owner needs write access to the board. The same organization
+  account can own both tokens.
   Before changing the publisher login, finish active documentation runs, reconcile interrupted
   publications, and merge or close outstanding documentation PRs under the previous identity.
   Follow the same procedure when switching back. Completed issues keep their original comments.

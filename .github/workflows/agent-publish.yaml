@@ -57,6 +57,7 @@ jobs:
       AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
       AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
       AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT }}
+      AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
       INPUT_ISSUE: ${{ inputs.issue }}
       INPUT_CANDIDATE_RUN: ${{ inputs.candidate_run }}
       INPUT_CANDIDATE_ATTEMPT: ${{ inputs.candidate_attempt }}

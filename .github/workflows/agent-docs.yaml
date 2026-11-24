@@ -130,6 +130,7 @@ jobs:
         id: prepare
         env:
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GITHUB_TOKEN: >-
             ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
                 (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
@@ -141,6 +142,10 @@ jobs:
           BASIS: ${{ inputs.scheduled_basis }}
         run: |
           set -o pipefail
+          if [[ "$AGENT_USE_ORG_BOT" == true && -z "$AGENT_ORG_BOT_LOGIN" ]]; then
+            echo '::error::Set AGENT_ORG_BOT_LOGIN to run the documentation agent.'
+            exit 1
+          fi
           [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid issue number'; exit 1; }
           [[ "$PROJECT_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid documentation project number'; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo 'A GitHub read token is required'; exit 1; }

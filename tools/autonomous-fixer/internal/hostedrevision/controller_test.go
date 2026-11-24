@@ -101,15 +101,15 @@ func revisionFixtureForOrganizationBot(t *testing.T, useOrganizationBot bool) *f
 		commandPull: 4, runs: make(map[int64]fixer.WorkflowRun),
 	}
 	if useOrganizationBot {
-		f.organization = fixer.GitHubUser{ID: 57, Login: fixer.OrganizationBotLogin, Type: "User"}
+		f.organization = fixer.GitHubUser{ID: 57, Login: "QipAutomation", Type: "User"}
 	}
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
-	client, err := fixer.NewEngineeringGitHubClient(repo.FullName, "token", "org-token", useOrganizationBot, server.Client(), server.URL)
+	client, err := fixer.NewEngineeringGitHubClient(repo.FullName, "token", "org-token", f.organization.Login, useOrganizationBot, server.Client(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.readClient, err = fixer.NewEngineeringGitHubClient(repo.FullName, "token", "", useOrganizationBot, server.Client(), server.URL)
+	f.readClient, err = fixer.NewEngineeringGitHubClient(repo.FullName, "token", "", f.organization.Login, useOrganizationBot, server.Client(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case p == "/users/github-actions[bot]":
 		send(f.bot)
-	case p == "/users/"+fixer.OrganizationBotLogin:
+	case p == "/users/"+f.organization.Login:
 		send(f.organization)
 	case p == "/user" && r.Header.Get("Authorization") == "Bearer org-token":
 		send(f.organization)

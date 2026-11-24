@@ -16,16 +16,24 @@ type Client struct {
 	API        *fixer.GitHubClient
 	Repository string
 	projectAPI *fixer.GitHubClient
+	useOrgBot  bool
 }
 
-func NewClient(repository, token, projectToken string, httpClient *http.Client, baseURL string) (*Client, error) {
-	api, err := fixer.NewGitHubClient(repository, token, httpClient, baseURL)
+type ClientOptions struct {
+	ProjectToken string
+	UseOrgBot    bool
+	HTTPClient   *http.Client
+	BaseURL      string
+}
+
+func NewClient(repository, token string, options ClientOptions) (*Client, error) {
+	api, err := fixer.NewGitHubClient(repository, token, options.HTTPClient, options.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	client := &Client{API: api, Repository: repository}
-	if projectToken != "" {
-		client.projectAPI, err = fixer.NewGitHubClient(repository, projectToken, httpClient, baseURL)
+	client := &Client{API: api, Repository: repository, useOrgBot: options.UseOrgBot}
+	if options.ProjectToken != "" {
+		client.projectAPI, err = fixer.NewGitHubClient(repository, options.ProjectToken, options.HTTPClient, options.BaseURL)
 		if err != nil {
 			return nil, err
 		}

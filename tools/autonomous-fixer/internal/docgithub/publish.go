@@ -95,8 +95,20 @@ func Authorize(ctx context.Context, c *Client, actor string) error {
 	return err
 }
 
+func (c *Client) configuredPublisherLogin(ctx context.Context) (login, variable string, err error) {
+	variable = "AGENT_DOCS_PUBLISHER_LOGIN"
+	if c.useOrgBot {
+		variable = "AGENT_ORG_BOT_LOGIN"
+	}
+	login, err = c.API.RepositoryVariable(ctx, variable)
+	if err == nil && login == "" {
+		err = fmt.Errorf("%s is required", variable)
+	}
+	return login, variable, err
+}
+
 func authorizePublisher(ctx context.Context, c *Client) (fixer.GitHubUser, error) {
-	publisherLogin, err := c.API.RepositoryVariable(ctx, "AGENT_DOCS_PUBLISHER_LOGIN")
+	publisherLogin, variable, err := c.configuredPublisherLogin(ctx)
 	if err != nil {
 		return fixer.GitHubUser{}, err
 	}
@@ -104,8 +116,8 @@ func authorizePublisher(ctx context.Context, c *Client) (fixer.GitHubUser, error
 	if err != nil {
 		return fixer.GitHubUser{}, err
 	}
-	if publisherLogin == "" || !strings.EqualFold(identity.Login, publisherLogin) {
-		return fixer.GitHubUser{}, fmt.Errorf("authenticated publisher does not match AGENT_DOCS_PUBLISHER_LOGIN")
+	if !strings.EqualFold(identity.Login, publisherLogin) {
+		return fixer.GitHubUser{}, fmt.Errorf("authenticated publisher does not match %s", variable)
 	}
 	return identity, nil
 }

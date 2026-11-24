@@ -27,6 +27,7 @@ type publicationAPI struct {
 	headComparison                                   string
 	prFiles                                          []map[string]string
 	viewerLogin                                      string
+	orgBotLogin                                      string
 	dropComment                                      bool
 	ignoreCommentPatch                               bool
 	plan                                             Plan
@@ -76,7 +77,7 @@ func projectClientFixture(t *testing.T, repository string, serve http.HandlerFun
 		serve(w, r)
 	}))
 	t.Cleanup(server.Close)
-	client, e := NewClient(repository, repositoryToken, projectToken, server.Client(), server.URL)
+	client, e := NewClient(repository, repositoryToken, ClientOptions{ProjectToken: projectToken, HTTPClient: server.Client(), BaseURL: server.URL})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -163,6 +164,8 @@ func (a *publicationAPI) serve(w http.ResponseWriter, r *http.Request) {
 		write(map[string]string{"value": value})
 	case path == "/actions/variables/AGENT_DOCS_PUBLISHER_LOGIN":
 		write(map[string]string{"value": "agent-bot"})
+	case path == "/actions/variables/AGENT_ORG_BOT_LOGIN":
+		write(map[string]string{"value": a.orgBotLogin})
 	case path == "/actions/variables/AGENT_ALLOWED_ACTORS":
 		write(map[string]string{"value": "alice"})
 	case path == "/issues/1" && r.Method == "GET":
