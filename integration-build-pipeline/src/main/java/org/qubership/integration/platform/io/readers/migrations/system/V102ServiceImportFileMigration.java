@@ -1,15 +1,16 @@
 package org.qubership.integration.platform.io.readers.migrations.system;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 
 @Slf4j
 @Component
@@ -20,14 +21,14 @@ public class V102ServiceImportFileMigration implements ServiceImportFileMigratio
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying service migration: {}", getVersion());
         ObjectNode result = fileNode.deepCopy();
         result.path("content").path("operations").forEach(operationNode -> {
             if (operationNode instanceof ObjectNode node
                     && StringUtils.isBlank(operationNode.path("name").asText())) {
                 String name = generateOperationName(node);
-                JsonNode nameNode = TextNode.valueOf(name);
+                JsonNode nameNode = StringNode.valueOf(name);
                 node.set("name", nameNode);
                 log.debug("Set name for operation '{}': {}", operationNode.path("id").asText(), name);
             }

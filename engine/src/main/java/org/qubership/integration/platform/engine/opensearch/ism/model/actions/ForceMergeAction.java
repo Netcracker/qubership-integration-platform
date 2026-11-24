@@ -17,15 +17,18 @@
 package org.qubership.integration.platform.engine.opensearch.ism.model.actions;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 import org.qubership.integration.platform.engine.opensearch.ism.deserializers.TimeValueDeserializer;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
 import org.qubership.integration.platform.engine.opensearch.ism.serializers.TimeValueSerializer;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonNaming;
+import tools.jackson.databind.annotation.JsonSerialize;
+
+
+
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -34,7 +37,7 @@ import org.qubership.integration.platform.engine.opensearch.ism.serializers.Time
 @Builder(toBuilder = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class ForceMergeAction extends Action {
     private Integer maxNumSegments;
     private Boolean waitForCompletion;

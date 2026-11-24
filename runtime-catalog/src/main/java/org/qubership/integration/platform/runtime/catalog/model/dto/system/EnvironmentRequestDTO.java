@@ -16,13 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.dto.system;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
+
 
 @Data
 @Schema(description = "Request object for environment modifying")

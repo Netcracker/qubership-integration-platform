@@ -16,14 +16,16 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
 
-import java.io.IOException;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+
+
 
 class CircularReferencesAwareSerializer extends DelegatingSerializerBase {
     private final Set<Object> selfReferencedObjects;
@@ -36,7 +38,7 @@ class CircularReferencesAwareSerializer extends DelegatingSerializerBase {
     }
 
     @Override
-    public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+    public void serialize(Object value, JsonGenerator gen, SerializationContext serializers) throws tools.jackson.core.JacksonException {
         if (selfReferencedObjects.contains(value)) {
             if (idMap.containsKey(value)) {
                 gen.writeString(idMap.get(value).toString());
@@ -44,11 +46,11 @@ class CircularReferencesAwareSerializer extends DelegatingSerializerBase {
                 UUID identifier = UUID.randomUUID();
                 idMap.put(value, identifier);
                 gen.writeRaw("{\"@json-id\":\"" + identifier.toString() + "\",\"reference\":");
-                getSerializer(value).serialize(value, gen, serializers);
+                getSerializer(value, serializers).serialize(value, gen, serializers);
                 gen.writeRaw("}");
             }
         } else {
-            getSerializer(value).serialize(value, gen, serializers);
+            getSerializer(value, serializers).serialize(value, gen, serializers);
         }
     }
 }

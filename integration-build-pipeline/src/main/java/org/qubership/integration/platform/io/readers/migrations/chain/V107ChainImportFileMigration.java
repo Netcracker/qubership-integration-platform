@@ -1,13 +1,14 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Collection;
 import java.util.List;
+
 
 @Slf4j
 @Component

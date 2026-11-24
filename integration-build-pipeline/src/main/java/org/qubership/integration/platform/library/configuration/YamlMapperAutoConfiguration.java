@@ -1,12 +1,13 @@
 package org.qubership.integration.platform.library.configuration;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.snakeyaml.engine.v2.api.LoadSettings;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.yaml.snakeyaml.LoaderOptions;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+
 
 @AutoConfiguration
 public class YamlMapperAutoConfiguration {
@@ -21,8 +22,9 @@ public class YamlMapperAutoConfiguration {
     @Bean("defaultYamlFactory")
     @ConditionalOnMissingBean(name = "defaultYamlFactory")
     public YAMLFactory createCustomYamlFactory() {
-        LoaderOptions loaderOptions = new LoaderOptions();
-        loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
-        return YAMLFactory.builder().loaderOptions(loaderOptions).build();
+        LoadSettings loadSettings = LoadSettings.builder()
+                .setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024)
+                .build();
+        return YAMLFactory.builder().loadSettings(loadSettings).build();
     }
 }

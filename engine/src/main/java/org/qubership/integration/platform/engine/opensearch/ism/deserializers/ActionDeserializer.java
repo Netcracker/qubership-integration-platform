@@ -16,23 +16,22 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.deserializers;
 
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.TreeNode;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.engine.opensearch.ism.model.actions.*;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.TreeNode;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Map;
 
 import static java.util.Objects.isNull;
 
-public class ActionDeserializer extends JsonDeserializer<Action> {
+public class ActionDeserializer extends ValueDeserializer<Action> {
     private static final Map<String, Class<? extends Action>> CLASS_MAP = Map.ofEntries(
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("force_merge", ForceMergeAction.class),
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("read_only", ReadOnlyAction.class),
@@ -51,22 +50,22 @@ public class ActionDeserializer extends JsonDeserializer<Action> {
     );
 
     @Override
-    public Action deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JacksonException {
-        TreeNode node = jsonParser.readValueAsTree();
+    public Action deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws JacksonException {
+        TreeNode node = deserializationContext.readTree(jsonParser);
 
         if (isNull(node)) {
             return null;
         }
 
         if (node instanceof ObjectNode objectNode) {
-            return deserializeAction(jsonParser, objectNode);
+            return deserializeAction(jsonParser, objectNode, deserializationContext);
         } else {
-            String message = String.format("Wrong %s field type", jsonParser.getCurrentName());
+            String message = String.format("Wrong %s field type", jsonParser.currentName());
             throw InvalidFormatException.from(jsonParser, message, node.asToken().asString(), TimeValue.class);
         }
     }
 
-    private Action deserializeAction(JsonParser jsonParser, ObjectNode node) throws IOException, JacksonException {
+    private Action deserializeAction(JsonParser jsonParser, ObjectNode node, DeserializationContext context) throws JacksonException {
         Map.Entry<String, Class<? extends Action>> entry = CLASS_MAP.entrySet().stream()
                 .filter(e -> node.has(e.getKey()))
                 .findFirst()
@@ -77,12 +76,12 @@ public class ActionDeserializer extends JsonDeserializer<Action> {
                         TimeValue.class
                 ));
 
-        Action action = jsonParser.getCodec().treeToValue(node.get(entry.getKey()), entry.getValue());
+        Action action = context.readTreeAsValue(node.get(entry.getKey()), entry.getValue());
 
-        TimeValue timeout = jsonParser.getCodec().treeToValue(node.get("timeout"), TimeValue.class);
+        TimeValue timeout = context.readTreeAsValue(node.get("timeout"), TimeValue.class);
         action.setTimeout(timeout);
 
-        ActionRetry retry = jsonParser.getCodec().treeToValue(node.get("retry"), ActionRetry.class);
+        ActionRetry retry = context.readTreeAsValue(node.get("retry"), ActionRetry.class);
         action.setRetry(retry);
         return action;
     }

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.maven.plugin.domain.adapters;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.chain.impl.ImportEnvironmentImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
@@ -12,6 +11,7 @@ import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.chain.model.ServiceType;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;

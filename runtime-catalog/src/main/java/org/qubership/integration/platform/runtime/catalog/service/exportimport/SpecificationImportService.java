@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -51,6 +49,8 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.sql.Timestamp;
@@ -355,7 +355,7 @@ public class SpecificationImportService {
         try {
             cp.setString(objectMapper.writeValueAsString(dto));
             configParameterService.update(cp);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SpecificationImportException(SET_IMPORT_SESSION_STATUS_MESSAGE, e);
         }
     }
@@ -384,7 +384,7 @@ public class SpecificationImportService {
         ImportSessionStatusDTO status = null;
         try {
             status = objectMapper.readValue(rawStatusData, ImportSessionStatusDTO.class);
-        } catch (JsonProcessingException | RuntimeException ignored) { }
+        } catch (RuntimeException ignored) { }
         if (status == null) {
             throw new SpecificationImportException(IMPORT_SESSION_NOT_FOUND_MESSAGE);
         }

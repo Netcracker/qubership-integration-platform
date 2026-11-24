@@ -16,12 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.debugger.masking;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
@@ -38,6 +32,12 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -53,6 +53,9 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+
+
+
 
 @Slf4j
 @Component
@@ -80,7 +83,7 @@ public class MaskingService {
         ) {
             try {
                 return maskJSON(target, fields);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new LoggingMaskingException(
                     "Invalid JSON document, failed to mask fields in payload", e);
             }
@@ -126,7 +129,7 @@ public class MaskingService {
         }
     }
 
-    public String maskJSON(String target, Set<String> fields) throws JsonProcessingException {
+    public String maskJSON(String target, Set<String> fields) throws JacksonException {
         JsonNode jsonNode = objectMapper.readTree(target);
         modifyJsonTree(jsonNode, fields);
         return objectMapper.writeValueAsString(jsonNode);
@@ -178,14 +181,14 @@ public class MaskingService {
 
     private void modifyJsonTree(JsonNode root, Set<String> maskedFields, boolean maskArray) {
         if (root.isObject()) {
-            Iterator<String> fields = root.fieldNames();
+            Iterator<String> fields = root.propertyNames().iterator();
 
             while (fields.hasNext()) {
                 String fieldName = fields.next();
                 JsonNode fieldValue = root.get(fieldName);
                 boolean fieldMatches = maskedFields.contains(fieldName);
                 if (fieldValue.isValueNode() && fieldMatches) {
-                    ((ObjectNode) root).set(fieldName, new TextNode(CamelConstants.MASKING_TEMPLATE));
+                    ((ObjectNode) root).set(fieldName, new StringNode(CamelConstants.MASKING_TEMPLATE));
                 } else {
                     modifyJsonTree(fieldValue, maskedFields, fieldMatches);
                 }
@@ -195,7 +198,7 @@ public class MaskingService {
             for (int i = 0; i < arrayNode.size(); i++) {
                 JsonNode arrayElement = arrayNode.get(i);
                 if (arrayElement.isValueNode() && maskArray) {
-                    arrayNode.set(i, new TextNode(CamelConstants.MASKING_TEMPLATE));
+                    arrayNode.set(i, new StringNode(CamelConstants.MASKING_TEMPLATE));
                 } else {
                     modifyJsonTree(arrayElement, maskedFields, false);
                 }

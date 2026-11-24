@@ -1,13 +1,14 @@
 package org.qubership.integration.platform.camelk.builders.chain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.DoubleNode;
-import com.fasterxml.jackson.databind.node.LongNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.DoubleNode;
+import tools.jackson.databind.node.LongNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * Recursively rewrites {@link DoubleNode} values that hold whole numbers (as produced by
@@ -23,7 +24,7 @@ public final class IntegralDoubleNormalizer {
     public static void normalizeIntegralDoubles(JsonNode node) {
         if (node instanceof ObjectNode objectNode) {
             List<String> fieldNames = new ArrayList<>();
-            objectNode.fieldNames().forEachRemaining(fieldNames::add);
+            objectNode.propertyNames().iterator().forEachRemaining(fieldNames::add);
             for (String fieldName : fieldNames) {
                 JsonNode value = objectNode.get(fieldName);
                 if (value instanceof DoubleNode doubleNode) {

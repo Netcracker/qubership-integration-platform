@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.io.readers.chain;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;

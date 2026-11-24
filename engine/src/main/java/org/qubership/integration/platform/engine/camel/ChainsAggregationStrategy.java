@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.AggregationStrategy;
 import org.apache.camel.Exchange;
@@ -31,6 +26,11 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,7 +78,7 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
         try {
             ObjectNode oldBody = (ObjectNode) objectMapper.readTree(oldExchange.getMessage().getBody(String.class));
             processPayload(oldExchange, newExchange, oldBody);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error(e.getMessage());
         }
         clearBranchName(oldExchange);
@@ -186,8 +186,8 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
         try {
             JsonNode newBody = objectMapper.readTree(rawExchange);
             oldBody.replace(getBranchName(newExchange), objectMapper.readTree(objectMapper.writeValueAsString(newBody)));
-        } catch (JsonProcessingException | ClassCastException | IllegalArgumentException e) {
-            oldBody.replace(getBranchName(newExchange), new TextNode(rawExchange));
+        } catch (JacksonException | ClassCastException | IllegalArgumentException e) {
+            oldBody.replace(getBranchName(newExchange), new StringNode(rawExchange));
         }
         oldExchange.getIn().setBody(oldBody);
         oldExchange.getIn().setHeader(Headers.CAMEL_HTTP_RESPONSE_CODE, CAMEL_HTTP_RESPONSE_CODE_VALUE);

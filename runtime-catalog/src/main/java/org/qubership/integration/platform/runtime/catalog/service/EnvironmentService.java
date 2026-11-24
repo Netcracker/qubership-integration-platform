@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
@@ -29,8 +28,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+
 
 @Service
 @Slf4j

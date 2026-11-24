@@ -538,10 +538,6 @@
       <artifactId>jetty-reactive-httpclient</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.arakelian</groupId>
       <artifactId>json-filter</artifactId>
     </dependency>

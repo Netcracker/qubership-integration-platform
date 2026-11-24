@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.node.ObjectNode;
+
 
 @Slf4j
 @Component

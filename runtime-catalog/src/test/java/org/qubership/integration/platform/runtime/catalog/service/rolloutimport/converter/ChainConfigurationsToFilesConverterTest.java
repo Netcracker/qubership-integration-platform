@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -31,7 +31,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Empty chainConfigs returns empty map")
-    void emptyChainConfigsReturnsEmptyMap() throws JsonProcessingException {
+    void emptyChainConfigsReturnsEmptyMap() throws JacksonException {
         Map<Path, byte[]> result = converter.convert(Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(result).isEmpty();
@@ -39,7 +39,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Single chain config creates file at {chainId}/{chainId}.chain.cip.yaml")
-    void singleChainConfigCreatesCorrectFilePath() throws JsonProcessingException {
+    void singleChainConfigCreatesCorrectFilePath() throws JacksonException {
         RolloutImportConfigurationItem item = chainItem(CHAIN_ID, objectMapper.createObjectNode());
         Path expectedPath = Path.of(CHAIN_ID).resolve(CHAIN_ID + ".chain." + APP_NAME + ".yaml");
 
@@ -50,7 +50,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Chain content ObjectNode gains 'migrations' field when absent")
-    void chainContentGainsMigrationsFieldWhenAbsent() throws JsonProcessingException {
+    void chainContentGainsMigrationsFieldWhenAbsent() throws JacksonException {
         ObjectNode content = objectMapper.createObjectNode();
         RolloutImportConfigurationItem item = chainItem(CHAIN_ID, content);
 
@@ -62,7 +62,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Existing 'migrations' field in content is not overwritten")
-    void existingMigrationsFieldIsNotOverwritten() throws JsonProcessingException {
+    void existingMigrationsFieldIsNotOverwritten() throws JacksonException {
         ObjectNode content = objectMapper.createObjectNode();
         content.put("migrations", "[v1, v2]");
         RolloutImportConfigurationItem item = chainItem(CHAIN_ID, content);
@@ -74,7 +74,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Chain referencing an existing resource includes resource bytes in result")
-    void chainWithExistingResourceIncludesResourceInResult() throws JsonProcessingException {
+    void chainWithExistingResourceIncludesResourceInResult() throws JacksonException {
         ObjectNode content = objectMapper.createObjectNode();
         String resourceFileName = "script.groovy";
         content.put("propertiesFilename", resourceFileName);
@@ -92,7 +92,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Chain referencing a missing resource is not added to result for that resource")
-    void chainWithMissingResourceDoesNotIncludeResourceEntry() throws JsonProcessingException {
+    void chainWithMissingResourceDoesNotIncludeResourceEntry() throws JacksonException {
         ObjectNode content = objectMapper.createObjectNode();
         content.put("propertiesFilename", "missing-file.groovy");
         RolloutImportConfigurationItem item = chainItem(CHAIN_ID, content);
@@ -108,7 +108,7 @@ class ChainConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Multiple chain configs each produce their own file entry")
-    void multipleChainConfigsProduceMultipleEntries() throws JsonProcessingException {
+    void multipleChainConfigsProduceMultipleEntries() throws JacksonException {
         List<String> chainIds = List.of("chain-1", "chain-2", "chain-3");
         Map<String, RolloutImportConfigurationItem> configs = new java.util.HashMap<>();
         for (String id : chainIds) {

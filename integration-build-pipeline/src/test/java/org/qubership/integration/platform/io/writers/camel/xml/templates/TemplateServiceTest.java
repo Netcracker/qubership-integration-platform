@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +47,7 @@ import org.w3c.dom.Node;
 import org.xmlunit.builder.Input;
 import org.xmlunit.matchers.CompareMatcher;
 import org.xmlunit.xpath.JAXPXPathEngine;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;

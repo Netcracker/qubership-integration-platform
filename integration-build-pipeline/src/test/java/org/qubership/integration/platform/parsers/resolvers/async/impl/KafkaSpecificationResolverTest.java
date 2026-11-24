@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.parsers.resolvers.async.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,6 +11,8 @@ import org.qubership.integration.platform.parsers.model.asyncapi.Channel;
 import org.qubership.integration.platform.parsers.model.asyncapi.Message;
 import org.qubership.integration.platform.parsers.model.asyncapi.OperationObject;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchemaResolver;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -412,7 +412,7 @@ class KafkaSpecificationResolverTest {
 
     static Stream<String> inlinePayloadRefsChannels() throws IOException {
         List<String> channels = new ArrayList<>();
-        new YAMLMapper().readTree(readResource(INLINE_PAYLOAD_REFS_EXPECTED)).fieldNames().forEachRemaining(channels::add);
+        new YAMLMapper().readTree(readResource(INLINE_PAYLOAD_REFS_EXPECTED)).propertyNames().iterator().forEachRemaining(channels::add);
         return channels.stream();
     }
 

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.parsers.model.asyncapi;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -31,6 +32,7 @@ public class Message {
     private List<Map<String, Object>> oneOf;
     private List<Map<String, Object>> allOf;
     private List<Map<String, Object>> anyOf;
+    @JsonProperty("$ref")
     @Getter
     @Setter
     @SuppressWarnings("checkstyle:MemberName")

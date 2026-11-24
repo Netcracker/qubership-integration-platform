@@ -18,6 +18,7 @@ package org.qubership.integration.platform.parsers.model.asyncapi.components;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,6 +31,7 @@ import java.util.Map;
 public class MessageObject {
     private Map<String, Object> headers;
     private Map<String, Object> payload;
+    @JsonProperty("$ref")
     @Getter
     @Setter
     @SuppressWarnings("checkstyle:MemberName")

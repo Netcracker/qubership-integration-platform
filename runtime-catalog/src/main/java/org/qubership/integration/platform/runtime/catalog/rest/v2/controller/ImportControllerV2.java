@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v2.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,9 +39,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.util.*;
+
 
 /**
  * @deprecated 23.4 use {@link ImportControllerV3} instead

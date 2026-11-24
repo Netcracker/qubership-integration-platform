@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +40,8 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.MCPSystemSerializer;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -99,7 +99,7 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export with null ids calls findAll()")
-    void exportWithNullIdsFindAll() throws JsonProcessingException {
+    void exportWithNullIdsFindAll() throws JacksonException {
         MCPSystem system = buildSystem();
         ExportedSystemObject exported = mock(ExportedSystemObject.class);
         when(mcpSystemService.findAll()).thenReturn(List.of(system));
@@ -114,7 +114,7 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export with ids list calls findAllById()")
-    void exportWithIdsCallsFindAllById() throws JsonProcessingException {
+    void exportWithIdsCallsFindAllById() throws JacksonException {
         List<String> ids = List.of(SYSTEM_ID);
         MCPSystem system = buildSystem();
         ExportedSystemObject exported = mock(ExportedSystemObject.class);
@@ -141,7 +141,7 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export returns archive bytes when systems found")
-    void exportReturnsBytesFromArchiveWriter() throws JsonProcessingException {
+    void exportReturnsBytesFromArchiveWriter() throws JacksonException {
         MCPSystem system = buildSystem();
         ExportedSystemObject exported = mock(ExportedSystemObject.class);
         when(mcpSystemService.findAll()).thenReturn(List.of(system));
@@ -155,7 +155,7 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export serializes all systems and passes them to archiveWriter")
-    void exportSerializesAllSystems() throws JsonProcessingException {
+    void exportSerializesAllSystems() throws JacksonException {
         MCPSystem s1 = buildSystem("id-1", "sys-1");
         MCPSystem s2 = buildSystem("id-2", "sys-2");
         ExportedSystemObject e1 = mock(ExportedSystemObject.class);
@@ -173,7 +173,7 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export logs EXPORT action for each exported system")
-    void exportLogsExportForEachSystem() throws JsonProcessingException {
+    void exportLogsExportForEachSystem() throws JacksonException {
         MCPSystem s1 = buildSystem("id-1", "sys-1");
         MCPSystem s2 = buildSystem("id-2", "sys-2");
         ExportedSystemObject e1 = mock(ExportedSystemObject.class);
@@ -190,10 +190,10 @@ class MCPSystemImportExportServiceTest {
 
     @Test
     @DisplayName("export throws RuntimeException when serialization fails")
-    void exportThrowsWhenSerializationFails() throws JsonProcessingException {
+    void exportThrowsWhenSerializationFails() throws JacksonException {
         MCPSystem system = buildSystem();
         when(mcpSystemService.findAll()).thenReturn(List.of(system));
-        when(mcpSystemSerializer.serialize(system)).thenThrow(mock(JsonProcessingException.class));
+        when(mcpSystemSerializer.serialize(system)).thenThrow(mock(JacksonException.class));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.export(null));
 

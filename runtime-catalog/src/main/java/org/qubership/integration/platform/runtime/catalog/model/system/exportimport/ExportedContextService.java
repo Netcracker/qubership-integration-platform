@@ -1,12 +1,13 @@
 package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
+
 
 @Getter
 @Setter

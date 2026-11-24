@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -56,6 +52,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,6 +64,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+
 
 @Slf4j
 @Service
@@ -108,10 +111,11 @@ public class ImportInstructionsService {
             @Value("${cip.export.minimize-quotes}") boolean minimizeQuotes
     ) {
         this.instructionsFileName = instructionsFileName + ".yaml";
-        this.yamlMapper = new YAMLMapper(new MinimizedQuotesYamlFactory(
+        this.yamlMapper = YAMLMapper.builder(new MinimizedQuotesYamlFactory(
                         YAMLFactory.builder().stringQuotingChecker(new YamlStringQuotingChecker())))
-                .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
-                .configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
+                .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+                .configure(YAMLWriteFeature.MINIMIZE_QUOTES, minimizeQuotes)
+                .build();
         this.importInstructionsRepository = importInstructionsRepository;
         this.generalInstructionsMapper = generalInstructionsMapper;
         this.serviceInstructionsMapper = serviceInstructionsMapper;
@@ -258,7 +262,7 @@ public class ImportInstructionsService {
 
                             """);
 
-            Iterator<Map.Entry<String, JsonNode>> nodesIterator = instructionsNode.fields();
+            Iterator<Map.Entry<String, JsonNode>> nodesIterator = instructionsNode.properties().iterator();
             while (nodesIterator.hasNext()) {
                 Map.Entry<String, JsonNode> nodeEntry = nodesIterator.next();
                 switch (nodeEntry.getKey()) {
@@ -475,7 +479,7 @@ public class ImportInstructionsService {
 
         try {
             return yamlMapper.readValue(fileContent, GeneralImportInstructionsConfig.class);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             log.error("Unable to parse import instructions config file: {}", fileName, e);
             throw new ImportInstructionsExternalException("Unable to parse import instructions config file: " + fileName, e);
         }

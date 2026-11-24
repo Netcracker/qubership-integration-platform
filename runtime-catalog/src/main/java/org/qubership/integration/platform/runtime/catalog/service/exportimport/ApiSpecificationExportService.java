@@ -305,7 +305,7 @@ public class ApiSpecificationExportService {
         if (!(base.get(field) instanceof ObjectNode baseField)) {
             return;
         }
-        other.get(field).fields().forEachRemaining(entry -> {
+        other.get(field).properties().iterator().forEachRemaining(entry -> {
             if (!baseField.has(entry.getKey())) {
                 baseField.set(entry.getKey(), entry.getValue());
             }
@@ -421,7 +421,7 @@ public class ApiSpecificationExportService {
                 return new Components();
             }
             Map<String, Schema> schemas = new HashMap<>();
-            Iterator<Map.Entry<String, JsonNode>> fieldIterator = definitionsNode.fields();
+            Iterator<Map.Entry<String, JsonNode>> fieldIterator = definitionsNode.properties().iterator();
             while (fieldIterator.hasNext()) {
                 Map.Entry<String, JsonNode> entry = fieldIterator.next();
                 Schema schema = mapper.treeToValue(entry.getValue(), Schema.class);

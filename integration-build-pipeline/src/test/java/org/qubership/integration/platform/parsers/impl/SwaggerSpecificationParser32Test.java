@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;

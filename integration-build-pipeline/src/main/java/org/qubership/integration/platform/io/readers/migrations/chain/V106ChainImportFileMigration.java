@@ -1,14 +1,15 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.Collection;
 import java.util.List;
+
 
 @Slf4j
 @Component
@@ -39,7 +40,7 @@ public class V106ChainImportFileMigration extends ChainElementsPropertiesMigrati
     }
 
     private static void changePropertyTypeFromStringToInteger(ObjectNode properties, String propertyName) {
-        if (properties.path(propertyName) instanceof TextNode textNode) {
+        if (properties.path(propertyName) instanceof StringNode textNode) {
             try {
                 String textValue = textNode.asText();
                 Integer value = Integer.valueOf(StringUtils.isEmpty(textValue) ? "0" : textValue);

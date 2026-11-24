@@ -1,9 +1,9 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

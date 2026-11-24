@@ -17,28 +17,30 @@
 package org.qubership.integration.platform.engine.opensearch.ism.deserializers;
 
 
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.TreeNode;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.TreeNode;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.node.StringNode;
 
-import java.io.IOException;
 
-public class TimeValueDeserializer extends JsonDeserializer<TimeValue> {
+
+
+
+public class TimeValueDeserializer extends ValueDeserializer<TimeValue> {
     @Override
     public TimeValue deserialize(
             JsonParser jsonParser,
             DeserializationContext deserializationContext
-    ) throws IOException, JacksonException {
-        TreeNode node = jsonParser.readValueAsTree();
-        if (node instanceof TextNode textNode) {
-            return TimeValue.parseTimeValue(textNode.textValue(), jsonParser.getCurrentName());
+    ) throws JacksonException {
+        TreeNode node = deserializationContext.readTree(jsonParser);
+        if (node instanceof StringNode textNode) {
+            return TimeValue.parseTimeValue(textNode.stringValue(), jsonParser.currentName());
         } else {
-            String message = String.format("Wrong %s field type", jsonParser.getCurrentName());
+            String message = String.format("Wrong %s field type", jsonParser.currentName());
             throw InvalidFormatException.from(jsonParser, message, node.asToken().asString(), TimeValue.class);
         }
     }

@@ -17,11 +17,6 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rabbitmq.client.LongString;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.jdbc.PgArray;
@@ -29,6 +24,14 @@ import org.qubership.integration.platform.engine.camel.components.rabbitmq.seria
 import org.qubership.integration.platform.engine.camel.processors.serializers.PgArraySerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
+
+
+
 
 @Configuration
 public class MapperConfiguration {
@@ -39,25 +42,33 @@ public class MapperConfiguration {
 
     @Bean("checkpointMapper")
     public ObjectMapper checkpointMapper() {
-        ObjectMapper mapper = buildObjectMapper();
-        mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
-        return mapper;
+        return buildObjectMapper(true);
     }
 
     @NotNull
     private static ObjectMapper buildObjectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(LongString.class, new LongStringSerializer(LongString.class));
         serializeModule.addSerializer(PgArray.class, new PgArraySerializer(PgArray.class));
+        return buildObjectMapper(false, serializeModule);
+    }
 
-        objectMapper.registerModule(serializeModule);
-        return objectMapper;
+    private static ObjectMapper buildObjectMapper(boolean allowEmptyBeans) {
+        SimpleModule serializeModule = new SimpleModule();
+        serializeModule.addSerializer(LongString.class, new LongStringSerializer(LongString.class));
+        serializeModule.addSerializer(PgArray.class, new PgArraySerializer(PgArray.class));
+        return buildObjectMapper(allowEmptyBeans, serializeModule);
+    }
+
+    private static ObjectMapper buildObjectMapper(boolean allowEmptyBeans, SimpleModule serializeModule) {
+        JsonMapper.Builder builder = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .addModule(serializeModule);
+        if (allowEmptyBeans) {
+            builder.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+        }
+        return builder.build();
     }
 }

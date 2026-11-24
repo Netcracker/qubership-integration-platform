@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,6 +17,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.i
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ArchiveWriter;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

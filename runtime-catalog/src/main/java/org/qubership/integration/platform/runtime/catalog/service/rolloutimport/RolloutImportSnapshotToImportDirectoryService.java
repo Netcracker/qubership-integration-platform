@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationRequest;
@@ -10,6 +9,7 @@ import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.
 import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter.VariableConfigurationsToFilesConverter;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -72,7 +72,7 @@ public class RolloutImportSnapshotToImportDirectoryService {
             writeSection(rootDir, SERVICES_DIR_NAME, serviceFiles);
 
             return rootDir;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("JSON conversion failed for import directory {}", rootDir.getAbsolutePath(), e);
             throw new IOException("Failed to convert rollout import snapshot package to import directory", e);
         } catch (RuntimeException | IOException e) {

@@ -1,15 +1,18 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.core.ObjectCodec;
-import com.fasterxml.jackson.core.io.IOContext;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.fasterxml.jackson.dataformat.yaml.util.StringQuotingChecker;
-import org.yaml.snakeyaml.DumperOptions;
+import org.snakeyaml.engine.v2.api.DumpSettings;
+import org.snakeyaml.engine.v2.common.ScalarStyle;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.ObjectWriteContext;
+import tools.jackson.core.io.IOContext;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLFactoryBuilder;
+import tools.jackson.dataformat.yaml.YAMLGenerator;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
+import tools.jackson.dataformat.yaml.util.StringQuotingChecker;
 
-import java.io.IOException;
 import java.io.Writer;
+
 
 /**
  * Writes a multi-line string double-quoted instead of as a literal block when it contains U+0085, U+2028, or
@@ -21,7 +24,7 @@ public class MinimizedQuotesYamlFactory extends YAMLFactory {
     }
 
     private MinimizedQuotesYamlFactory(MinimizedQuotesYamlFactory src) {
-        super(src, null);
+        super(src);
     }
 
     @Override
@@ -30,34 +33,28 @@ public class MinimizedQuotesYamlFactory extends YAMLFactory {
     }
 
     @Override
-    protected YAMLGenerator _createGenerator(Writer out, IOContext ctxt) throws IOException {
-        return _dumperOptions == null
-                ? new Generator(ctxt, _generatorFeatures, _yamlGeneratorFeatures, _quotingChecker, _objectCodec, out,
-                        _version)
-                : new Generator(ctxt, _generatorFeatures, _yamlGeneratorFeatures, _quotingChecker, _objectCodec, out,
-                        _dumperOptions);
+    protected YAMLGenerator _createGenerator(ObjectWriteContext context, IOContext ctxt, Writer out)
+            throws JacksonException {
+        return new Generator(context, ctxt, context.getStreamWriteFeatures(_streamWriteFeatures),
+                context.getFormatWriteFeatures(_formatWriteFeatures), _quotingChecker, out, _version, _dumpSettings);
     }
 
     private static final class Generator extends YAMLGenerator {
-        Generator(IOContext ctxt, int jsonFeatures, int yamlFeatures, StringQuotingChecker quotingChecker,
-                ObjectCodec codec, Writer out, DumperOptions.Version version) throws IOException {
-            super(ctxt, jsonFeatures, yamlFeatures, quotingChecker, codec, out, version);
-        }
-
-        Generator(IOContext ctxt, int jsonFeatures, int yamlFeatures, StringQuotingChecker quotingChecker,
-                ObjectCodec codec, Writer out, DumperOptions dumperOptions) throws IOException {
-            super(ctxt, jsonFeatures, yamlFeatures, quotingChecker, codec, out, dumperOptions);
+        Generator(ObjectWriteContext context, IOContext ctxt, int jsonFeatures, int yamlFeatures,
+                StringQuotingChecker quotingChecker, Writer out, org.snakeyaml.engine.v2.common.SpecVersion version,
+                DumpSettings dumpSettings) {
+            super(context, ctxt, jsonFeatures, yamlFeatures, quotingChecker, out, version, dumpSettings);
         }
 
         @Override
-        public void writeString(String text) throws IOException {
-            if (text != null && isEnabled(Feature.MINIMIZE_QUOTES) && text.indexOf('\n') >= 0
+        public tools.jackson.core.JsonGenerator writeString(String text) throws JacksonException {
+            if (text != null && isEnabled(YAMLWriteFeature.MINIMIZE_QUOTES) && text.indexOf('\n') >= 0
                     && YamlStringQuotingChecker.containsUnicodeLineBreak(text)) {
                 _verifyValueWrite("write String value");
-                _writeScalar(text, "string", DumperOptions.ScalarStyle.DOUBLE_QUOTED);
-                return;
+                _writeScalar(text, "string", ScalarStyle.DOUBLE_QUOTED);
+                return this;
             }
-            super.writeString(text);
+            return super.writeString(text);
         }
     }
 }

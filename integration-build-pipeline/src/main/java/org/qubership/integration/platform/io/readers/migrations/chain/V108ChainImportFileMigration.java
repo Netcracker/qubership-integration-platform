@@ -1,13 +1,14 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * Converts the deprecated nested {@code content.folder} structure into the flat

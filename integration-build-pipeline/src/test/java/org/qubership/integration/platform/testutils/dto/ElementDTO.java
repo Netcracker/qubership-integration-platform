@@ -3,6 +3,7 @@ package org.qubership.integration.platform.testutils.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
@@ -12,6 +13,7 @@ import java.util.Map;
 
 @Data
 @Jacksonized
+@NoArgsConstructor
 @JsonInclude(value = JsonInclude.Include.NON_EMPTY, content = JsonInclude.Include.NON_NULL)
 @SuperBuilder
 public class ElementDTO {

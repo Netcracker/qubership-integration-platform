@@ -16,14 +16,15 @@
 
 package org.qubership.integration.platform.io.readers.migrations.common;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Collectors;
+
 
 public class MigrationUtil {
     private MigrationUtil() {
@@ -37,7 +38,7 @@ public class MigrationUtil {
 
         // Move all fields except id and name to the content node
         ObjectNode contentNode = JsonNodeFactory.instance.objectNode();
-        rootNode.fields().forEachRemaining(entry -> {
+        rootNode.properties().iterator().forEachRemaining(entry -> {
             String key = entry.getKey();
             if (!"id".equals(key) && !"name".equals(key)) {
                 contentNode.set(key, entry.getValue());
@@ -56,7 +57,7 @@ public class MigrationUtil {
 
         ObjectNode content = (ObjectNode) canonical.get("content");
         if (content != null) {
-            content.fields().forEachRemaining(e ->
+            content.properties().iterator().forEachRemaining(e ->
                     result.set(e.getKey(), e.getValue()));
         }
 

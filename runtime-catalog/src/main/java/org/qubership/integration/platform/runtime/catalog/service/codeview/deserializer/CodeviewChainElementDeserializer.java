@@ -16,22 +16,21 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.codeview.deserializer;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Qualifier;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.deser.std.StdDeserializer;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 
 @Slf4j
 public class CodeviewChainElementDeserializer extends StdDeserializer<ChainElement> {
@@ -44,10 +43,9 @@ public class CodeviewChainElementDeserializer extends StdDeserializer<ChainEleme
     }
 
     @Override
-    public ChainElement deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+    public ChainElement deserialize(JsonParser parser, DeserializationContext context) {
         ChainElement resultElement = new ChainElement();
-        YAMLMapper mapper = (YAMLMapper) parser.getCodec();
-        JsonNode node = mapper.readTree(parser);
+        JsonNode node = context.readTree(parser);
 
         JsonNode idNode = node.get("id");
         JsonNode nameNode = node.get("name");

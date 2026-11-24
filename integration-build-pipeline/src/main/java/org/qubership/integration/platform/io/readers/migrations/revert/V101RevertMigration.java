@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.io.readers.migrations.revert;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +63,7 @@ public class V101RevertMigration implements RevertMigration {
         copyIfExists(element, reordered, "description");
 
         List<String> remainingFields = new ArrayList<>();
-        element.fieldNames().forEachRemaining(field -> {
+        element.propertyNames().iterator().forEachRemaining(field -> {
             if (!reordered.has(field)) {
                 remainingFields.add(field);
             }

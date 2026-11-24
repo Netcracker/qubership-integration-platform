@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +25,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SystemModelBas
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.concurrent.CompletableFuture;
 

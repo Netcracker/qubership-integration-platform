@@ -17,8 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.kubernetes.secret;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -39,11 +37,15 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.k
 import org.qubership.integration.platform.runtime.catalog.model.json.JsonPatch;
 import org.qubership.integration.platform.runtime.catalog.model.json.PatchOperation;
 import org.springframework.lang.Nullable;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 public class DefaultKubeSecretOperator implements KubeSecretOperator {
@@ -65,8 +67,9 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         appsApi = new AppsV1Api();
         customObjectsApi = new CustomObjectsApi();
         namespace = null;
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        this.objectMapper = JsonMapper.builder()
+                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_EMPTY))
+                .build();
     }
 
     public DefaultKubeSecretOperator(
@@ -83,8 +86,9 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         customObjectsApi.setApiClient(client);
 
         this.namespace = namespace;
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        this.objectMapper = JsonMapper.builder()
+                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_EMPTY))
+                .build();
     }
 
     @Override
@@ -285,7 +289,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
                         namespace,
                         new V1Patch(objectMapper.writeValueAsString(patches))
                 ).buildCall(null);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.error("Unable to serialize secret patch request", e);
                 throw new KubeApiException("Unable to serialize secret patch request", e);
             }

@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.library.components;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.github.fge.jsonpatch.JsonPatch;
 import com.github.fge.jsonpatch.JsonPatchException;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +27,9 @@ import org.qubership.integration.platform.library.model.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.PropertyPlaceholderHelper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,9 +39,13 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+
 @Slf4j
 @Service
 public class LibraryElementsService {
+    private static final com.fasterxml.jackson.databind.ObjectMapper PATCH_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final ObjectMapper yamlMapper;
     private final PropertyPlaceholderHelper propertyPlaceholderHelper;
     private final Properties descriptorProperties;
@@ -103,8 +107,9 @@ public class LibraryElementsService {
             JsonNode elementPatchNode = elementPatches.get(elementName);
             if (elementPatchNode != null) {
                 try {
-                    JsonPatch jsonPatch = JsonPatch.fromJson(elementPatchNode);
-                    descriptorNode = jsonPatch.apply(descriptorNode);
+                    JsonPatch jsonPatch = JsonPatch.fromJson(PATCH_MAPPER.readTree(elementPatchNode.toString()));
+                    String patchedDescriptor = jsonPatch.apply(PATCH_MAPPER.readTree(descriptorNode.toString())).toString();
+                    descriptorNode = yamlMapper.readTree(patchedDescriptor);
                 } catch (JsonPatchException e) {
                     log.error("Failed to apply patch for element descriptor: {}", elementName, e);
                 }

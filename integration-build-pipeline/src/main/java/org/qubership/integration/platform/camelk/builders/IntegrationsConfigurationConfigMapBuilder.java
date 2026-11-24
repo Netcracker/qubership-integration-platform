@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.camelk.builders;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfigurationBuilder;
@@ -17,6 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.Collections;
 import java.util.List;

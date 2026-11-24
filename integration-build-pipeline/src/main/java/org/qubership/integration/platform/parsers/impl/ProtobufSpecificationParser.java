@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.squareup.wire.schema.Field;
 import com.squareup.wire.schema.Location;
 import com.squareup.wire.schema.internal.parser.*;
@@ -33,6 +29,10 @@ import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -417,12 +417,8 @@ public class ProtobufSpecificationParser implements SpecificationParser {
             return Stream.of("properties", "additionalProperties")
                     .map(node::get)
                     .filter(Objects::nonNull)
-                    .map(JsonNode::fields)
-                    .flatMap(fields -> {
-                        Collection<String> types = new ArrayList<>();
-                        fields.forEachRemaining(entry -> types.addAll(getReferencedTypeNames(entry.getValue())));
-                        return types.stream();
-                    })
+                    .flatMap(propertyNode -> propertyNode.properties().stream())
+                    .flatMap(entry -> getReferencedTypeNames(entry.getValue()).stream())
                     .toList();
         }
         if (typeNode.asText().equals("array")) {
@@ -442,16 +438,16 @@ public class ProtobufSpecificationParser implements SpecificationParser {
         specification.put("operationId", operationName);
 
         specification
-                .with("responses")
-                .with("200")
-                .with("content")
-                .with("application/json")
+                .withObjectProperty("responses")
+                .withObjectProperty("200")
+                .withObjectProperty("content")
+                .withObjectProperty("application/json")
                 .set("schema", responseSchema);
 
         specification
-                .with("requestBody")
-                .with("content")
-                .with("application/json")
+                .withObjectProperty("requestBody")
+                .withObjectProperty("content")
+                .withObjectProperty("application/json")
                 .set("schema", requestSchema);
 
         return specification;

@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.parsers.schemas.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import static org.qubership.integration.platform.parsers.schemas.SchemasConstants.*;
 
@@ -38,14 +38,13 @@ public class StringSchemaProcessor extends DefaultSchemaProcessor implements Sch
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
+    public MutablePair<String, String> process(Schema<?> schema, com.fasterxml.jackson.databind.ObjectMapper mapper) {
         StringSchema stringSchema = (StringSchema) schema;
-        ObjectNode schemaAsNode = mapper.convertValue(stringSchema, ObjectNode.class);
-        schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
         try {
-            String schemaAsString = mapper.writeValueAsString(schemaAsNode);
-            return new MutablePair<>(stringSchema.get$ref(), schemaAsString);
-        } catch (JsonProcessingException e) {
+            ObjectNode schemaAsNode = (ObjectNode) objectMapper.readTree(mapper.writeValueAsString(stringSchema));
+            schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
+            return new MutablePair<>(stringSchema.get$ref(), objectMapper.writeValueAsString(schemaAsNode));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | JacksonException e) {
             log.error("Error during converting content string schema to JSON", e);
         }
         return new MutablePair<>();

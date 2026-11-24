@@ -1,18 +1,19 @@
 package org.qubership.integration.platform.io.configuration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.swagger.v3.core.util.Json;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.EnumFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ser.std.SimpleFilterProvider;
+
 
 @AutoConfiguration
 public class ObjectMapperAutoConfiguration {
@@ -20,19 +21,16 @@ public class ObjectMapperAutoConfiguration {
     @Bean("primaryObjectMapper")
     @ConditionalOnMissingBean(name = "primaryObjectMapper")
     public ObjectMapper primaryObjectMapper() {
-        ObjectMapper objectMapper = JsonMapper.builder()
+        return JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-            .enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+            .enable(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
             .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
             .build();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        objectMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-        return objectMapper;
     }
 
     /**
@@ -41,7 +39,7 @@ public class ObjectMapperAutoConfiguration {
      */
     @Bean("openApiObjectMapper")
     @ConditionalOnMissingBean(name = "openApiObjectMapper")
-    public ObjectMapper openApiObjectMapper() {
+    public com.fasterxml.jackson.databind.ObjectMapper openApiObjectMapper() {
         return Json.mapper();
     }
 }

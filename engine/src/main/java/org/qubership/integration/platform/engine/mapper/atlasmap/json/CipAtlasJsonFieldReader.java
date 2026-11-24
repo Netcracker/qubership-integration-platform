@@ -16,13 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.json;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NullNode;
 import io.atlasmap.api.AtlasConversionException;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.core.AtlasPath;
@@ -36,9 +29,18 @@ import io.atlasmap.spi.AtlasFieldReader;
 import io.atlasmap.spi.AtlasInternalSession;
 import io.atlasmap.v2.*;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.NullNode;
 
 import java.util.ArrayList;
 import java.util.List;
+
+
+
 
 @Slf4j
 public class CipAtlasJsonFieldReader implements AtlasFieldReader {
@@ -126,9 +128,9 @@ public class CipAtlasJsonFieldReader implements AtlasFieldReader {
             segmentContext = segments.get(depth);
         } else {
             if (depth == 0) {
-                if (node.size() == 1 && !path.getSegments(false).get(0).getExpression().startsWith(rootNode.fieldNames().next())) {
+                if (node.size() == 1 && !path.getSegments(false).get(0).getExpression().startsWith(rootNode.propertyNames().iterator().next())) {
                     //peel off a rooted object, i.e. mapping /orderId works for document { source: { orderId: 123 } }
-                    node = node.elements().next();
+                    node = node.values().iterator().next();
                 }
 
                 if (segments.size() > 1) {
@@ -268,7 +270,7 @@ public class CipAtlasJsonFieldReader implements AtlasFieldReader {
             return handleNumberNode(valueNode, jsonField);
         } else if (valueNode.isBoolean()) {
             return handleBooleanNode(valueNode, jsonField);
-        } else if (valueNode.isContainerNode()) {
+        } else if (valueNode.isContainer()) {
             return handleContainerNode(valueNode, jsonField);
         } else if (valueNode.isNull()) {
             return null;
@@ -284,14 +286,14 @@ public class CipAtlasJsonFieldReader implements AtlasFieldReader {
     private Object handleTextualNode(JsonNode valueNode, JsonField jsonField) {
         if (jsonField.getFieldType() == null || FieldType.STRING.equals(jsonField.getFieldType())) {
             jsonField.setFieldType(FieldType.STRING);
-            return valueNode.textValue();
+            return valueNode.stringValue();
         }
         if (FieldType.CHAR.equals(jsonField.getFieldType())) {
-            return valueNode.textValue().charAt(0);
+            return valueNode.stringValue().charAt(0);
         }
         log.warn(String.format("Unsupported FieldType for text data t=%s p=%s docId=%s",
                 jsonField.getFieldType().value(), jsonField.getPath(), jsonField.getDocId()));
-        return valueNode.textValue();
+        return valueNode.stringValue();
     }
 
     private Object handleNumberNode(JsonNode valueNode, JsonField jsonField) {
@@ -356,8 +358,7 @@ public class CipAtlasJsonFieldReader implements AtlasFieldReader {
 
         try {
             JsonFactory factory = new JsonFactory();
-            ObjectMapper mapper = new ObjectMapper()
-                    .enable(MapperFeature.BLOCK_UNSAFE_POLYMORPHIC_BASE_TYPES);
+            ObjectMapper mapper = new ObjectMapper();
             JsonParser parser = factory.createParser(document);
             this.rootNode = mapper.readTree(parser);
         } catch (Exception e) {

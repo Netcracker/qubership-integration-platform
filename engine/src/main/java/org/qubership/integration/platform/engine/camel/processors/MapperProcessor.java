@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.core.DefaultAtlasFunctionResolver;
@@ -40,6 +35,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -235,7 +235,7 @@ public class MapperProcessor implements Processor {
                             : exchange.getProperty(propertyName);
                     try {
                         session.setSourceDocument(propertyName, propertyValue != null ? objectMapper.writeValueAsString(propertyValue) : null);
-                    } catch (JsonProcessingException e) {
+                    } catch (JacksonException e) {
                         throw new RuntimeException(UNABLE_TO_READ_PROPERTY_ERROR_MESSAGE.concat(propertyName), e);
                     }
                 });
@@ -249,8 +249,8 @@ public class MapperProcessor implements Processor {
                     JsonNode valueObject;
                     try {
                         valueObject = objectMapper.readTree(value);
-                    } catch (JsonProcessingException e) {
-                        valueObject = new TextNode(value);
+                    } catch (JacksonException e) {
+                        valueObject = new StringNode(value);
                     }
                     rootObject.set(key, valueObject);
                 }

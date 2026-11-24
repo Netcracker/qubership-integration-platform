@@ -17,8 +17,6 @@
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.ServiceEnvironment;
@@ -26,6 +24,9 @@ import org.qubership.integration.platform.io.util.MaasUtils;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplateInstantiationException;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplatesHelper;
 import org.qubership.integration.platform.util.ElementUtils;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -72,7 +73,7 @@ public class EnvironmentPropertiesHelper {
         }
         try {
             return OBJECT_MAPPER.writeValueAsString(props);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(
                     "Error processing json in environmentPropertiesJson helper", e);
         }
@@ -107,7 +108,7 @@ public class EnvironmentPropertiesHelper {
         }
         try {
             return OBJECT_MAPPER.writeValueAsString(props);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(
                 "Error processing json in environmentPropertiesJson helper", e);
         }
@@ -162,7 +163,7 @@ public class EnvironmentPropertiesHelper {
     public CharSequence grpcPropertiesJson(Element element) {
         try {
             return OBJECT_MAPPER.writeValueAsString(grpcProperties(element));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(
                     "Error processing json in environmentPropertiesJson helper", e);
         }
@@ -173,8 +174,8 @@ public class EnvironmentPropertiesHelper {
     }
 
     private static ObjectMapper initObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
-        return mapper;
+        return JsonMapper.builder()
+                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_EMPTY))
+                .build();
     }
 }

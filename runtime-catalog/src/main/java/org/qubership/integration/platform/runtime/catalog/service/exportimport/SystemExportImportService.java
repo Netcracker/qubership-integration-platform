@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -60,6 +57,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -287,7 +287,7 @@ public class SystemExportImportService {
                     .build();
 
             setCompareSystemResult(baseSystem, resultSystemCompareDTO);
-        } catch (RuntimeException | IOException e) {
+        } catch (RuntimeException e) {
             log.error("Exception while system compare: ", e);
             resultSystemCompareDTO = ImportSystemResult.builder()
                     .id(systemId)
@@ -894,7 +894,7 @@ public class SystemExportImportService {
         }
     }
 
-    protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JsonProcessingException {
+    protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JacksonException {
         SystemDeserializationResult result = new SystemDeserializationResult();
 
         String systemId = Optional.ofNullable(serviceNode.get("id")).map(JsonNode::asText)

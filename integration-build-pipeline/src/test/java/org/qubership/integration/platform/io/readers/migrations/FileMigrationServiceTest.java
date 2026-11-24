@@ -1,13 +1,13 @@
 package org.qubership.integration.platform.io.readers.migrations;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.ArrayList;
 import java.util.List;

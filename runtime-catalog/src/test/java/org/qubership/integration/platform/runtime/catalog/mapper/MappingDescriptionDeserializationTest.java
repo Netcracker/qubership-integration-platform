@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
 import org.qubership.integration.platform.mapper.model.mapping.action.AttributeKind;
@@ -26,6 +24,8 @@ import org.qubership.integration.platform.mapper.model.mapping.definition.Attrib
 import org.qubership.integration.platform.mapper.model.mapping.definition.MessageSchema;
 import org.qubership.integration.platform.mapper.model.mapping.definition.ObjectSchema;
 import org.qubership.integration.platform.mapper.model.metadata.Metadata;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,7 +39,7 @@ public class MappingDescriptionDeserializationTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void testMetadataDeserialization() throws JsonProcessingException {
+    void testMetadataDeserialization() throws JacksonException {
         Metadata metadata = objectMapper.readValue("""
                 {
                     "foo": "bar",
@@ -54,31 +54,31 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testNullTypeDeserialization() throws JsonProcessingException {
+    void testNullTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"null\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
         assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.NullType);
     }
 
     @Test
-    void testStringTypeDeserialization() throws JsonProcessingException {
+    void testStringTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"string\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
         assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
-    void testIntegerTypeDeserialization() throws JsonProcessingException {
+    void testIntegerTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"number\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
         assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.IntegerType);
     }
 
     @Test
-    void testBooleanTypeDeserialization() throws JsonProcessingException {
+    void testBooleanTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"boolean\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
         assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.BooleanType);
     }
 
     @Test
-    void testTypeDefinitionDeserialization() throws JsonProcessingException {
+    void testTypeDefinitionDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition typeDefinition = objectMapper.readValue("""
                 {
                     "id": "foo",
@@ -92,7 +92,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testArrayTypeDeserialization() throws JsonProcessingException {
+    void testArrayTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "array",
@@ -105,7 +105,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testDeserializationOfArrayTypeWithDefinitions() throws JsonProcessingException {
+    void testDeserializationOfArrayTypeWithDefinitions() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "array",
@@ -130,7 +130,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testAttributeDeserialization() throws JsonProcessingException {
+    void testAttributeDeserialization() throws JacksonException {
         Attribute attribute = objectMapper.readValue("""
                 {
                     "id": "foo",
@@ -144,7 +144,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testObjectSchemaDeserialization() throws JsonProcessingException {
+    void testObjectSchemaDeserialization() throws JacksonException {
         ObjectSchema schema = objectMapper.readValue("""
                 {
                     "id": "foo",
@@ -159,7 +159,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testObjectTypeDeserialization() throws JsonProcessingException {
+    void testObjectTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "object",
@@ -171,7 +171,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testReferenceTypeDeserialization() throws JsonProcessingException {
+    void testReferenceTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "reference",
@@ -183,7 +183,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testAnyOfTypeDeserialization() throws JsonProcessingException {
+    void testAnyOfTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "anyOf",
@@ -196,7 +196,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testAllOfTypeDeserialization() throws JsonProcessingException {
+    void testAllOfTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "allOf",
@@ -209,7 +209,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testOneOfTypeDeserialization() throws JsonProcessingException {
+    void testOneOfTypeDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "oneOf",
@@ -222,7 +222,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testGivenValueDeserialization() throws JsonProcessingException {
+    void testGivenValueDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier supplier = objectMapper.readValue("""
                 {
                     "kind": "given",
@@ -234,7 +234,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testValueGeneratorDeserialization() throws JsonProcessingException {
+    void testValueGeneratorDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueGenerator generator = objectMapper.readValue("""
                 {
                     "name": "foo",
@@ -246,7 +246,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testGeneratedValueDeserialization() throws JsonProcessingException {
+    void testGeneratedValueDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier supplier = objectMapper.readValue("""
                 {
                     "kind": "generated",
@@ -258,7 +258,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testConstantDeserialization() throws JsonProcessingException {
+    void testConstantDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.definition.constant.Constant constant = objectMapper.readValue("""
                 {
                     "id": "foo",
@@ -275,7 +275,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testMessageSchemaDeserialization() throws JsonProcessingException {
+    void testMessageSchemaDeserialization() throws JacksonException {
         MessageSchema messageSchema = objectMapper.readValue("""
                 {
                     "headers": [{ "id": "foo", "name": "bar", "type": { "name": "string" } }],
@@ -291,7 +291,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testTransformationDeserialization() throws JsonProcessingException {
+    void testTransformationDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.action.Transformation transformation = objectMapper.readValue("""
                 {
                     "name": "foo",
@@ -303,7 +303,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testConstantReferenceDeserialization() throws JsonProcessingException {
+    void testConstantReferenceDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.action.ElementReference elementReference = objectMapper.readValue("""
                 {
                     "type": "constant",
@@ -315,7 +315,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testAttributeReferenceDeserialization() throws JsonProcessingException {
+    void testAttributeReferenceDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.action.ElementReference elementReference = objectMapper.readValue("""
                 {
                     "type": "attribute",
@@ -329,7 +329,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testMappingActionDeserialization() throws JsonProcessingException {
+    void testMappingActionDeserialization() throws JacksonException {
         org.qubership.integration.platform.mapper.model.mapping.action.MappingAction action = objectMapper.readValue("""
                 {
                     "id": "fizz",
@@ -346,7 +346,7 @@ public class MappingDescriptionDeserializationTest {
     }
 
     @Test
-    void testMappingDescriptionDeserialization() throws JsonProcessingException {
+    void testMappingDescriptionDeserialization() throws JacksonException {
         MappingDescription mappingDescription = objectMapper.readValue("""
                 {
                     "source": { "headers": [], "properties": [], "body": { "name": "null" } },

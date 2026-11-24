@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.parsers.schemas.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import static org.qubership.integration.platform.parsers.schemas.SchemasConstants.DEFAULT_SCHEMA_CLASS;
 
@@ -38,10 +38,10 @@ public class DefaultSchemaProcessor implements SchemaProcessor {
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
+    public MutablePair<String, String> process(Schema<?> schema, com.fasterxml.jackson.databind.ObjectMapper mapper) {
         try {
             return new MutablePair<>(schema.get$ref(), mapper.writeValueAsString(schema));
-        } catch (JsonProcessingException e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             log.error("Error during converting content string schema to JSON", e);
         }
         return new MutablePair<>();
@@ -51,7 +51,7 @@ public class DefaultSchemaProcessor implements SchemaProcessor {
     public ObjectNode applySchemaType(String schemaAsString) {
         try {
             return (ObjectNode) objectMapper.readTree(schemaAsString);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error during converting content schema to JSON", e);
         }
         return objectMapper.createObjectNode();

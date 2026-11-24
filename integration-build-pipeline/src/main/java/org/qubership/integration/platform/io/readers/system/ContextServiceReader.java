@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.io.readers.system;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.chain.impl.ContextServiceImpl;
 import org.qubership.integration.platform.chain.model.ContextService;
 import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceContentDto;
@@ -26,11 +25,13 @@ import org.qubership.integration.platform.io.readers.migrations.ImportFileMigrat
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Collection;
 import java.util.List;
+
 
 /**
  * Reads a context-service export file into the library {@link ContextService} model.

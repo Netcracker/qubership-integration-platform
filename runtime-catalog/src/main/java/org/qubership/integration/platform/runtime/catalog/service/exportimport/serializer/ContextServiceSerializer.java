@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
@@ -26,6 +23,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+
 
 @Component
 public class ContextServiceSerializer {
@@ -45,7 +46,7 @@ public class ContextServiceSerializer {
         this.fileMigrationService = fileMigrationService;
     }
 
-    public ExportedSystemObject serialize(ContextSystem system) throws JsonProcessingException {
+    public ExportedSystemObject serialize(ContextSystem system) throws JacksonException {
         ContextServiceDto contextServiceDto = contextServiceDtoMapper.toExternalEntity(system);
         ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(contextServiceDto));
 

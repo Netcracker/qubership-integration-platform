@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netcracker.cloud.context.propagation.core.ContextManager;
 import groovy.lang.GroovyObject;
 import groovy.lang.GroovyRuntimeException;
@@ -35,6 +34,7 @@ import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -44,6 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+
+
 
 @Slf4j
 @Component

@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
@@ -40,6 +38,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

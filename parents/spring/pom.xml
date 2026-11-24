@@ -73,7 +73,6 @@
     <grpc.version>1.75.0</grpc.version>
     <handlebars.version>4.3.1</handlebars.version>
     <hypersistence-utils-hibernate.version>3.16.0</hypersistence-utils-hibernate.version>
-    <jackson.version>2.19.4</jackson.version>
     <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <jandex.version>3.4.0</jandex.version>
     <jose4j.version>0.9.6</jose4j.version>

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +48,7 @@ import org.qubership.integration.platform.runtime.catalog.service.deployment.Dep
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;

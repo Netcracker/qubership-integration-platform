@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v3.controller;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.extensions.Extension;
@@ -50,11 +48,15 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.EnumFeature;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+
+
 
 @Slf4j
 @RestController
@@ -181,7 +183,7 @@ public class ImportControllerV3 {
         ChainDifferenceRequest chainDiffRequest;
         try {
             chainDiffRequest = objectMapper.readValue(diffRequest, ChainDifferenceRequest.class);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Unable to deserialize diffRequest field value: " + diffRequest);
         }
 
@@ -230,9 +232,9 @@ public class ImportControllerV3 {
     public static <T> T readImportParameter(ObjectMapper objectMapper, String name, String value, Class<T> type) {
         try {
             return objectMapper.readerFor(type)
-                .without(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                .without(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
                 .readValue(value);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new BadRequestException("Unable to deserialize " + name + " field value: " + e.getMessage());
         }
     }

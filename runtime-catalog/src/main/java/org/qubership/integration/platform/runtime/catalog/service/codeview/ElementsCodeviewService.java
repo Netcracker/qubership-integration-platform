@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.codeview;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementsCodeException;
@@ -35,11 +32,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @Service
@@ -63,7 +64,7 @@ public class ElementsCodeviewService {
         try {
             Chain chain = chainFinderService.findById(chainId);
             return yamlMapper.writeValueAsString(chain.getElements());
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ElementsCodeException("Failed to save elements from YAML", e);
         }
     }
@@ -83,7 +84,7 @@ public class ElementsCodeviewService {
             logChainAction(chain, LogOperation.UPDATE);
 
             return chain.getRootElements();
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ElementsCodeException("Failed to save elements from YAML", e);
         }
     }

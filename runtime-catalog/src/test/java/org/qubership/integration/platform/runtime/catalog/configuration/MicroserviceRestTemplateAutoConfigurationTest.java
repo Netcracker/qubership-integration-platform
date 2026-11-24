@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.rest.handler.RestTemplateMsResponseErrorHandler;
 import org.qubership.integration.platform.runtime.catalog.rest.handler.exception.MicroserviceErrorResponseException;
@@ -16,6 +15,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;

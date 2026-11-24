@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.io.readers.migrations.revert;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
+
 
 public interface RevertMigration {
 

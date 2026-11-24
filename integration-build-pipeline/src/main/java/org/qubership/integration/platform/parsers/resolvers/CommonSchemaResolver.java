@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.parsers.resolvers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.*;
 
@@ -72,10 +72,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         schemaRefs.forEach(definitions::set);
         try {
             resolvedSchema.set(DEFINITIONS_NODE_NAME, OBJECT_MAPPER.readTree(OBJECT_MAPPER.writeValueAsString(definitions)));
-            resolvedSchema.set(SCHEMA_ID_NODE_NAME, new TextNode(SCHEMA_ID_VALUE_DOMAIN.concat(schemaRef.replace(MESSAGES_PREFIX, EMPTY_STRING_REPLACEMENT))));
+            resolvedSchema.set(SCHEMA_ID_NODE_NAME, new StringNode(SCHEMA_ID_VALUE_DOMAIN.concat(schemaRef.replace(MESSAGES_PREFIX, EMPTY_STRING_REPLACEMENT))));
             resolvedSchema.set(SCHEMA_HEADER_NODE_NAME, SCHEMA_HEADER_VALUE);
                 return OBJECT_MAPPER.writeValueAsString(resolvedSchema);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error during parsing components node", e);
         }
 
@@ -85,7 +85,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     protected void convertPayloadToSchemaNode(ObjectNode componentNode) {
         ObjectNode payloadNode = (ObjectNode) componentNode.get(PAYLOAD_FIELD_NAME);
         if (payloadNode != null) {
-            Iterator<Map.Entry<String, JsonNode>> payloadNodeIterator = payloadNode.fields();
+            Iterator<Map.Entry<String, JsonNode>> payloadNodeIterator = payloadNode.properties().iterator();
             while (payloadNodeIterator.hasNext()) {
                 Map.Entry<String, JsonNode> payloadField = payloadNodeIterator.next();
                 componentNode.set(payloadField.getKey(), payloadField.getValue());
@@ -135,8 +135,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
     private void getSchemaNodeProperties(JsonNode componentsNode, Map<String, JsonNode> result, JsonNode additionalPropertiesNode, String modelType, List<String> refList) {
         if (additionalPropertiesNode != null) {
-            if (additionalPropertiesNode.elements() != null) {
-                additionalPropertiesNode.elements().forEachRemaining(property -> {
+            if (additionalPropertiesNode.values().iterator() != null) {
+                additionalPropertiesNode.values().iterator().forEachRemaining(property -> {
                     if (property.isObject()) {
                         Map<String, ObjectNode> refValues = getRefs((ObjectNode) property, componentsNode, modelType);
 
@@ -174,7 +174,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             refKey = property.get(REF_FIELD_NAME).asText();
             refKey = refKey.replace(COMPONENTS_PREFIX, EMPTY_STRING_REPLACEMENT);
             refKeyNew = getNewRef(property.get(REF_FIELD_NAME).asText());
-            JsonNode newRefNode = new TextNode(refKeyNew);
+            JsonNode newRefNode = new StringNode(refKeyNew);
             property.replace(REF_FIELD_NAME, newRefNode);
         }
         if (property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()) {
@@ -183,7 +183,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
                 refKey = items.get(REF_FIELD_NAME).asText();
                 refKey = refKey.replace(COMPONENTS_PREFIX, EMPTY_STRING_REPLACEMENT);
                 refKeyNew = getNewRef(items.get(REF_FIELD_NAME).asText());
-                JsonNode newRefNode = new TextNode(refKeyNew);
+                JsonNode newRefNode = new StringNode(refKeyNew);
                 items.replace(REF_FIELD_NAME, newRefNode);
                 property.replace(ITEMS_FIELD_NAME, items);
             }
@@ -223,7 +223,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         }
         if (!fieldName.isEmpty()) {
             JsonNode nestedProperties = property.get(fieldName);
-            Iterator<JsonNode> propertiesIterator = nestedProperties.elements();
+            Iterator<JsonNode> propertiesIterator = nestedProperties.values().iterator();
             while (propertiesIterator.hasNext()) {
                 JsonNode nestedProperty = propertiesIterator.next();
                 if (nestedProperty.isObject()) {

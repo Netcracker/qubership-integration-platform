@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Iterator;
+
 
 public final class JsonNodeUtils {
 
@@ -26,12 +27,12 @@ public final class JsonNodeUtils {
     }
 
     public static JsonNode removeEmptyNodes(JsonNode rootNode) {
-        Iterator<JsonNode> iterator = rootNode.elements();
+        Iterator<JsonNode> iterator = rootNode.values().iterator();
         while (iterator.hasNext()) {
             JsonNode node = iterator.next();
             if (node.isMissingNode() || node.isNull()) {
                 iterator.remove();
-            } else if (node.isContainerNode()) {
+            } else if (node.isContainer()) {
                 removeEmptyNodes(node);
                 if (node.isEmpty()) {
                     iterator.remove();

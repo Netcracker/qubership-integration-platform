@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -28,6 +26,8 @@ import org.opensearch.client.opensearch.generic.Response;
 import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 import org.qubership.integration.platform.engine.opensearch.ism.model.rest.GenericRequest;
 import org.springframework.util.StringUtils;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.URI;
@@ -37,6 +37,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.StringJoiner;
 
+
+
+
 public class RequestHelper {
     private static final String ISM_ENDPOINT_BASE = "_plugins/_ism";
 
@@ -45,7 +48,7 @@ public class RequestHelper {
         return new GenericRequest(HttpGet.METHOD_NAME, endpoint, Collections.emptyList());
     }
 
-    public static Request buildCreatePolicyRequest(ObjectMapper objectMapper, Policy policy) throws JsonProcessingException {
+    public static Request buildCreatePolicyRequest(ObjectMapper objectMapper, Policy policy) throws JacksonException {
         String endpoint = buildPolicyEndpoint(policy.getPolicyId());
 
         PolicyRequest policyRequest = PolicyRequest.builder().policy(policy).build();
@@ -53,7 +56,7 @@ public class RequestHelper {
         return new GenericRequest(HttpPut.METHOD_NAME, endpoint, Collections.emptyList(), Collections.emptyMap(), Body.from(requestText.getBytes(), String.valueOf(ContentType.APPLICATION_JSON)));
     }
 
-    public static Request buildUpdatePolicyRequest(ObjectMapper objectMapper, Policy policy, long seqNo, long primaryTerm) throws JsonProcessingException {
+    public static Request buildUpdatePolicyRequest(ObjectMapper objectMapper, Policy policy, long seqNo, long primaryTerm) throws JacksonException {
         String endpoint = buildPolicyEndpoint(policy.getPolicyId());
 
         PolicyRequest policyRequest = PolicyRequest.builder().policy(policy).build();
@@ -64,7 +67,7 @@ public class RequestHelper {
         return new GenericRequest(HttpPut.METHOD_NAME, endpoint, Collections.emptyList(), parameters, Body.from(requestText.getBytes(), String.valueOf(ContentType.APPLICATION_JSON)));
     }
 
-    public static Request buildAddPolicyRequest(ObjectMapper objectMapper, String indexName, String policyId) throws JsonProcessingException {
+    public static Request buildAddPolicyRequest(ObjectMapper objectMapper, String indexName, String policyId) throws JacksonException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs(ISM_ENDPOINT_BASE)
                 .addPathPartAsIs("add")
@@ -91,7 +94,7 @@ public class RequestHelper {
                 .build();
     }
 
-    public static Request buildPutIndexTemplateRequest(ObjectMapper objectMapper, String templateName, Map<String, Object> request) throws JsonProcessingException {
+    public static Request buildPutIndexTemplateRequest(ObjectMapper objectMapper, String templateName, Map<String, Object> request) throws JacksonException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_index_template")
                 .addPathPart(templateName)
@@ -100,7 +103,7 @@ public class RequestHelper {
         return new GenericRequest(HttpPut.METHOD_NAME, endpoint, Collections.emptyList(), Collections.emptyMap(), Body.from(requestText.getBytes(), String.valueOf(ContentType.APPLICATION_JSON)));
     }
 
-    public static Request buildCreateIndexRequest(ObjectMapper objectMapper, String indexName, Map<String, Object> request) throws JsonProcessingException {
+    public static Request buildCreateIndexRequest(ObjectMapper objectMapper, String indexName, Map<String, Object> request) throws JacksonException {
         String endpoint = new EndpointBuilder()
                 .addPathPart(indexName)
                 .build();
@@ -108,7 +111,7 @@ public class RequestHelper {
         return new GenericRequest(HttpPut.METHOD_NAME, endpoint, Collections.emptyList(), Collections.emptyMap(), Body.from(requestText.getBytes(), String.valueOf(ContentType.APPLICATION_JSON)));
     }
 
-    public static Request buildPutIndexMapping(ObjectMapper objectMapper, String indexName, Map<String, Object> request) throws JsonProcessingException {
+    public static Request buildPutIndexMapping(ObjectMapper objectMapper, String indexName, Map<String, Object> request) throws JacksonException {
         String endpoint = new EndpointBuilder()
                 .addPathPart(indexName)
                 .addPathPartAsIs("_mapping")

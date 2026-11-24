@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.io.readers.migrations.versions;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Optional;
+
 
 public interface VersionsGetterStrategy {
     Optional<List<Integer>> getVersions(JsonNode document);

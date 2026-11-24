@@ -16,16 +16,19 @@
 
 package org.qubership.integration.platform.engine.camel.processors.serializers;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.rabbitmq.client.LongString;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.jdbc.PgArray;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ser.std.StdSerializer;
 
-import java.io.IOException;
 import java.sql.SQLException;
 import java.util.stream.IntStream;
+
+
+
 
 @Slf4j
 public class PgArraySerializer extends StdSerializer<PgArray> {
@@ -35,8 +38,8 @@ public class PgArraySerializer extends StdSerializer<PgArray> {
     }
 
     @Override
-    public void serialize(PgArray value, JsonGenerator generator, SerializerProvider provider)
-        throws IOException {
+    public void serialize(PgArray value, JsonGenerator generator, SerializationContext provider)
+        throws JacksonException {
         try {
             Object convertedArray = value.getArray();
             if (convertedArray instanceof String[] array) {
@@ -59,8 +62,8 @@ public class PgArraySerializer extends StdSerializer<PgArray> {
                 generator.writeArray(IntStream.range(0, array.length).mapToDouble(i -> array[i]).toArray(), 0, array.length);
                 return;
             }
-            throw new IOException("Failed to serialize PgArray object, invalid array type: " + convertedArray.getClass().getName());
-        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to serialize PgArray object, invalid array type: " + convertedArray.getClass().getName());
+        } catch (JacksonException e) {
             log.warn("Exception while serializing {} object", LongString.class.getName(), e);
             throw e;
         } catch (SQLException e) {

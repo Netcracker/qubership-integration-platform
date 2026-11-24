@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Collections;
@@ -27,10 +27,13 @@ import java.util.List;
 
 @Getter
 @Setter
-@NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Search criteria for chain element")
 public class ChainElementSearchCriteria {
+    @JsonCreator
+    public ChainElementSearchCriteria() {
+    }
+
     @Schema(description = "Which entity order number should we start from")
     private int offset = 0;
     @Schema(description = "Amount of entities received at a time")

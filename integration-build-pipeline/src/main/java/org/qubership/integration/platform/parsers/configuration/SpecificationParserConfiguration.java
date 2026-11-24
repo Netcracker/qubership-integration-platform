@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.parsers.configuration;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import graphql.parser.ParserOptions;
 import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
 import org.qubership.integration.platform.parsers.impl.AsyncapiSpecificationParser;
@@ -42,15 +38,20 @@ import org.qubership.integration.platform.parsers.schemas.impl.FileSchemaProcess
 import org.qubership.integration.platform.parsers.schemas.impl.ObjectSchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.StringSchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.UUIDSchemaProcessor;
+import org.snakeyaml.engine.v2.api.LoadSettings;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.yaml.snakeyaml.LoaderOptions;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.ArrayList;
 import java.util.List;
 import javax.xml.parsers.SAXParserFactory;
+
 
 /**
  * Wires the persistence-free specification parsers.
@@ -86,8 +87,8 @@ public class SpecificationParserConfiguration {
     /**
      * Builds the library Swagger parser with the schema processors it dispatches to.
      * {@code OperationParserService} dispatches to this parser by protocol and reconciles the
-     * environments it emits. The processors serialize schemas with the swagger-core OpenAPI mapper,
-     * so they take {@code openApiObjectMapper} rather than the primary mapper.
+     * environments it emits. The processors convert Swagger models through JSON text before building Jackson 3 nodes.
+     * They use a dedicated mapper so schema parsing stays separate from application serialization settings.
      */
     @Bean
     @ConditionalOnMissingBean(SwaggerSpecificationParser.class)
@@ -140,12 +141,13 @@ public class SpecificationParserConfiguration {
      * on before this configuration moved into the library.
      */
     private static YAMLMapper createAsyncapiYamlMapper() {
-        LoaderOptions loaderOptions = new LoaderOptions();
-        loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
-        YAMLFactory yamlFactory = YAMLFactory.builder().loaderOptions(loaderOptions).build();
-        YAMLMapper yamlMapper = new YAMLMapper(yamlFactory);
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return yamlMapper;
+        LoadSettings loadSettings = LoadSettings.builder()
+                .setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024)
+                .build();
+        YAMLFactory yamlFactory = YAMLFactory.builder().loadSettings(loadSettings).build();
+        return YAMLMapper.builder(yamlFactory)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
     }
 
     /**

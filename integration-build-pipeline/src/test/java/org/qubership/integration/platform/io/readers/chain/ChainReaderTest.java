@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.io.readers.chain;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +29,8 @@ import org.qubership.integration.platform.library.configuration.ElementDescripto
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.springframework.util.PropertyPlaceholderHelper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;

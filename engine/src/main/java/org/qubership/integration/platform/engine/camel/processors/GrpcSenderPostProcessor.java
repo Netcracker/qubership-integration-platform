@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
@@ -30,8 +27,14 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.util.List;
+
+
+
 
 
 @Component
@@ -56,7 +59,7 @@ public class GrpcSenderPostProcessor implements Processor {
     }
 
     private String extractBodyAsJsonString(Exchange exchange)
-            throws InvalidProtocolBufferException, JsonProcessingException {
+            throws InvalidProtocolBufferException, JacksonException {
         Object body = exchange.getMessage().getBody();
         if (body instanceof List<?> list) {
             ArrayNode responses = objectMapper.createArrayNode();

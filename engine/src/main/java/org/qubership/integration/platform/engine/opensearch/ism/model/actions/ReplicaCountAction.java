@@ -17,11 +17,14 @@
 package org.qubership.integration.platform.engine.opensearch.ism.model.actions;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import lombok.*;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonNaming;
+
+
+
 
 @Data
 @NoArgsConstructor
@@ -30,7 +33,7 @@ import lombok.*;
 @Builder(toBuilder = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class ReplicaCountAction extends Action {
     private Long numberOfReplicas;
 }

@@ -16,15 +16,16 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.serializers;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import org.qubership.integration.platform.engine.opensearch.ism.model.actions.*;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.introspect.BeanPropertyDefinition;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ import java.util.Set;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
-public class ActionSerializer extends JsonSerializer<Action> {
+public class ActionSerializer extends ValueSerializer<Action> {
     private static final Map<Class<? extends Action>, String> CLASS_MAP = Map.ofEntries(
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(ForceMergeAction.class, "force_merge"),
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(ReadOnlyAction.class, "read_only"),
@@ -52,26 +53,26 @@ public class ActionSerializer extends JsonSerializer<Action> {
     );
 
     @Override
-    public void serialize(Action action, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    public void serialize(Action action, JsonGenerator jsonGenerator, SerializationContext serializerProvider) throws JacksonException {
         jsonGenerator.writeStartObject();
         serializeBaseProperties(action, jsonGenerator, serializerProvider);
         serializeOwnProperties(action, jsonGenerator, serializerProvider);
         jsonGenerator.writeEndObject();
     }
 
-    private void serializeBaseProperties(Action action, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    private void serializeBaseProperties(Action action, JsonGenerator jsonGenerator, SerializationContext serializerProvider) throws JacksonException {
         List<BeanPropertyDefinition> properties = getPropertyDefinitions(Action.class, serializerProvider);
         serializeProperties(action, properties, jsonGenerator, serializerProvider);
     }
 
-    private void serializeOwnProperties(Action action, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    private void serializeOwnProperties(Action action, JsonGenerator jsonGenerator, SerializationContext serializerProvider) throws JacksonException {
         String fieldName = CLASS_MAP.get(action.getClass());
         if (isNull(fieldName)) {
             String message = String.format("Unsupported Action class: %s", action.getClass().getCanonicalName());
-            throw new IOException(message);
+            throw DatabindException.from(serializerProvider, message);
         }
 
-        jsonGenerator.writeObjectFieldStart(fieldName);
+        jsonGenerator.writeObjectPropertyStart(fieldName);
         List<BeanPropertyDefinition> properties = getPropertyDefinitions(action.getClass(), serializerProvider).stream()
                 .filter(property -> !Action.class.equals(property.getAccessor().getDeclaringClass()))
                 .toList();
@@ -79,9 +80,9 @@ public class ActionSerializer extends JsonSerializer<Action> {
         jsonGenerator.writeEndObject();
     }
 
-    private <T> List<BeanPropertyDefinition> getPropertyDefinitions(Class<T> cls, SerializerProvider serializerProvider) {
+    private <T> List<BeanPropertyDefinition> getPropertyDefinitions(Class<T> cls, SerializationContext serializerProvider) {
         JavaType type = serializerProvider.getTypeFactory().constructType(cls);
-        BeanDescription description = serializerProvider.getConfig().introspect(type);
+        BeanDescription description = serializerProvider.introspectBeanDescription(type, null);
         Set<String> ignoredProperties = description.getIgnoredPropertyNames();
         return description.findProperties().stream()
                 .filter(definition -> !ignoredProperties.contains(definition.getName()))
@@ -92,29 +93,30 @@ public class ActionSerializer extends JsonSerializer<Action> {
             T pojo,
             List<BeanPropertyDefinition> properties,
             JsonGenerator jsonGenerator,
-            SerializerProvider serializerProvider
-    ) throws IOException {
+            SerializationContext serializerProvider
+    ) throws JacksonException {
         for (BeanPropertyDefinition propertyDefinition : properties) {
             try {
                 Object value = propertyDefinition.getGetter().callOn(pojo);
                 if (nonNull(value)) {
-                    Object serializerCls = serializerProvider.getAnnotationIntrospector().findSerializer(propertyDefinition.getField());
+                    Object serializerCls = serializerProvider.getAnnotationIntrospector().findSerializer(
+                            serializerProvider.getConfig(), propertyDefinition.getField());
                     if (serializerCls instanceof Class<?> cls) {
                         @SuppressWarnings("unchecked")
-                        JsonSerializer<Object> serializer = (JsonSerializer<Object>) cls.getConstructor().newInstance();
-                        jsonGenerator.writeFieldName(propertyDefinition.getName());
+                        ValueSerializer<Object> serializer = (ValueSerializer<Object>) cls.getConstructor().newInstance();
+                        jsonGenerator.writeName(propertyDefinition.getName());
                         serializer.serialize(value, jsonGenerator, serializerProvider);
-                    } else if (serializerCls instanceof JsonSerializer<?> serializer) {
-                        jsonGenerator.writeFieldName(propertyDefinition.getName());
+                    } else if (serializerCls instanceof ValueSerializer<?> serializer) {
+                        jsonGenerator.writeName(propertyDefinition.getName());
                         //noinspection unchecked
-                        ((JsonSerializer<Object>) serializer).serialize(value, jsonGenerator, serializerProvider);
+                        ((ValueSerializer<Object>) serializer).serialize(value, jsonGenerator, serializerProvider);
                     } else {
-                        jsonGenerator.writeObjectField(propertyDefinition.getName(), value);
+                        jsonGenerator.writePOJOProperty(propertyDefinition.getName(), value);
                     }
                 }
             } catch (Exception exception) {
                 String message = String.format("Failed to get '%s' field value.", propertyDefinition.getName());
-                throw new IOException(message, exception);
+                throw DatabindException.from(serializerProvider, message, exception);
             }
         }
     }

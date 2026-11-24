@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplatesHelper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
 
 /**
  * Handlebars helper, that receives property with required name and
@@ -36,7 +37,7 @@ public class PropertyJsonHelper extends BaseHelper implements Helper<String> {
         Object value = getPropertyValue(propertyName, options);
         try {
             return value != null ? OBJECT_MAPPER.writeValueAsString(value) : null;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Error processing json in property-json helper", e);
         }
     }

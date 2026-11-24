@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.Collection;
 import java.util.List;
@@ -24,7 +24,7 @@ class ChainElementsPropertiesMigrationTest extends ChainElementsPropertiesMigrat
     protected Collection<ElementPropertiesMigrationRule> getMigrationRules() {
         return List.of(new ElementPropertiesMigrationRule(
                 elementHasType("foo"),
-                properties -> properties.set("baz", TextNode.valueOf("biz"))));
+                properties -> properties.set("baz", StringNode.valueOf("biz"))));
     }
 
     @DisplayName("elementHasType should return predicate that tests element type field")
@@ -36,21 +36,21 @@ class ChainElementsPropertiesMigrationTest extends ChainElementsPropertiesMigrat
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
         assertFalse(predicate.test(elementNode));
 
-        elementNode.set("type", TextNode.valueOf("foo"));
+        elementNode.set("type", StringNode.valueOf("foo"));
         assertTrue(predicate.test(elementNode));
 
-        elementNode.set("type", TextNode.valueOf("bar"));
+        elementNode.set("type", StringNode.valueOf("bar"));
         assertFalse(predicate.test(elementNode));
     }
 
     @DisplayName("Should apply property migrations described by rules")
     @Test
-    void shouldApplyPropertyMigrationsDescribedByRules() throws JsonProcessingException {
+    void shouldApplyPropertyMigrationsDescribedByRules() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("foo"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("foo"));
         elementNode.withObjectProperty("properties")
-                .set("bla", TextNode.valueOf("bla-bla-bla"));
+                .set("bla", StringNode.valueOf("bla-bla-bla"));
 
         ObjectNode chainNode = JsonNodeFactory.instance.objectNode();
         chainNode

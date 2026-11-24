@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables.secrets;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ser.std.StdSerializer;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 
 @Slf4j
 @Component
@@ -44,28 +44,28 @@ public class KubeSecretSerializer extends StdSerializer<V1Secret> {
     }
 
     @Override
-    public void serialize(V1Secret secret, JsonGenerator jsonGenerator, SerializerProvider provider) throws IOException {
+    public void serialize(V1Secret secret, JsonGenerator jsonGenerator, SerializationContext provider) {
         jsonGenerator.writeStartObject();
 
         if (secret.getKind() != null) {
-            jsonGenerator.writeStringField(V1Secret.SERIALIZED_NAME_KIND, secret.getKind());
+            jsonGenerator.writeStringProperty(V1Secret.SERIALIZED_NAME_KIND, secret.getKind());
         }
         if (secret.getApiVersion() != null) {
-            jsonGenerator.writeStringField(V1Secret.SERIALIZED_NAME_API_VERSION, secret.getApiVersion());
+            jsonGenerator.writeStringProperty(V1Secret.SERIALIZED_NAME_API_VERSION, secret.getApiVersion());
         }
         if (secret.getType() != null) {
-            jsonGenerator.writeStringField(V1Secret.SERIALIZED_NAME_TYPE, secret.getType());
+            jsonGenerator.writeStringProperty(V1Secret.SERIALIZED_NAME_TYPE, secret.getType());
         }
         if (secret.getImmutable() != null) {
-            jsonGenerator.writeBooleanField(V1Secret.SERIALIZED_NAME_IMMUTABLE, secret.getImmutable());
+            jsonGenerator.writeBooleanProperty(V1Secret.SERIALIZED_NAME_IMMUTABLE, secret.getImmutable());
         }
         if (secret.getMetadata() != null) {
-            jsonGenerator.writeFieldName(V1Secret.SERIALIZED_NAME_METADATA);
+            jsonGenerator.writeName(V1Secret.SERIALIZED_NAME_METADATA);
             jsonGenerator.writeStartObject();
-            jsonGenerator.writeStringField(V1ObjectMeta.SERIALIZED_NAME_NAME, secret.getMetadata().getName());
+            jsonGenerator.writeStringProperty(V1ObjectMeta.SERIALIZED_NAME_NAME, secret.getMetadata().getName());
 
             if (secret.getMetadata().getLabels() != null) {
-                jsonGenerator.writeObjectField(V1ObjectMeta.SERIALIZED_NAME_LABELS, secret.getMetadata().getLabels());
+                jsonGenerator.writePOJOProperty(V1ObjectMeta.SERIALIZED_NAME_LABELS, secret.getMetadata().getLabels());
             }
             jsonGenerator.writeEndObject();
         }
@@ -74,17 +74,17 @@ public class KubeSecretSerializer extends StdSerializer<V1Secret> {
         jsonGenerator.writeEndObject();
     }
 
-    private void writeSecuredVariablesData(JsonGenerator jsonGenerator, Map<String, byte[]> data) throws IOException {
+    private void writeSecuredVariablesData(JsonGenerator jsonGenerator, Map<String, byte[]> data) {
         if (MapUtils.isEmpty(data)) {
             data = new HashMap<>();
             data.put(TEST_VARIABLE_KEY, new byte[0]);
         }
 
-        jsonGenerator.writeFieldName(V1Secret.SERIALIZED_NAME_STRING_DATA);
+        jsonGenerator.writeName(V1Secret.SERIALIZED_NAME_STRING_DATA);
         jsonGenerator.writeStartObject();
 
         for (String variableKey : data.keySet()) {
-            jsonGenerator.writeFieldName(variableKey);
+            jsonGenerator.writeName(variableKey);
             jsonGenerator.writeString(composeHelmChartExpressionFromKey(variableKey));
         }
         jsonGenerator.writeEndObject();

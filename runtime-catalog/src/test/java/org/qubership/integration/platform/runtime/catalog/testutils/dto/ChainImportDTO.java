@@ -18,6 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
@@ -27,6 +29,8 @@ import java.util.List;
 import java.util.Set;
 
 @Jacksonized
+@NoArgsConstructor
+@Setter
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @SuperBuilder
 public class ChainImportDTO extends ImportEntityDTO {
@@ -35,14 +39,14 @@ public class ChainImportDTO extends ImportEntityDTO {
     private String assumptions;
     private String outOfScope;
 
-    private final Set<MaskedFieldImportDTO> maskedFields;
+    private Set<MaskedFieldImportDTO> maskedFields;
     @JsonProperty("default-swimlane-id")
-    private final String defaultSwimlaneId;
+    private String defaultSwimlaneId;
     @JsonProperty("reuse-swimlane-id")
-    private final String reuseSwimlaneId;
-    private final List<ChainElementImportDTO> elements;
-    private final List<DependencyImportDTO> dependencies;
-    private final FolderImportDTO folder;
+    private String reuseSwimlaneId;
+    private List<ChainElementImportDTO> elements;
+    private List<DependencyImportDTO> dependencies;
+    private FolderImportDTO folder;
 
     public Set<MaskedFieldImportDTO> getMaskedFields() {
         return maskedFields != null ? maskedFields : new HashSet<>();

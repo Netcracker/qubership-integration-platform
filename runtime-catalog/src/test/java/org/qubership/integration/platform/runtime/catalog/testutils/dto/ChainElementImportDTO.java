@@ -18,6 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
@@ -28,24 +30,26 @@ import java.util.List;
 import java.util.Map;
 
 @Jacksonized
+@NoArgsConstructor
+@Setter
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @SuperBuilder
 public class ChainElementImportDTO extends ImportEntityDTO {
 
     @JsonProperty("element-type")
-    private final String type;
+    private String type;
     @JsonProperty("swimlane-id")
-    private final String swimlaneId;
-    private final List<ChainElementImportDTO> children;
-    private final Map<String, Object> properties;
+    private String swimlaneId;
+    private List<ChainElementImportDTO> children;
+    private Map<String, Object> properties;
     @JsonProperty("original-id")
-    private final String originalId;
+    private String originalId;
     @JsonProperty("service-environment")
-    private final ServiceEnvironment serviceEnvironment;
+    private ServiceEnvironment serviceEnvironment;
     @JsonProperty("just-created")
-    private final boolean justCreated;
+    private boolean justCreated;
     @JsonProperty("properties-filename")
-    private final String propertiesFilename;
+    private String propertiesFilename;
 
     public String getType() {
         return type;

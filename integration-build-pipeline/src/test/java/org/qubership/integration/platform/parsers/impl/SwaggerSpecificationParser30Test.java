@@ -1,13 +1,13 @@
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.swagger.v3.core.util.Json;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 
@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParserTest {
+    private static final JsonMapper JSON_MAPPER = new JsonMapper();
 
     @Test
     @DisplayName("OpenAPI 3.0: scalar type and the nullable keyword import unchanged via the legacy mapper")
@@ -332,7 +333,7 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
         JsonNode responseSchema = parse(spec).getOperations().getFirst().getResponseSchemas().get("200").get("application/json");
 
         assertEquals("array", responseSchema.at("/type").asText());
-        assertEquals(Json.mapper().readTree(itemSchema), responseSchema.get("items"));
+        assertEquals(JSON_MAPPER.readTree(itemSchema), responseSchema.get("items"));
     }
 
     @ParameterizedTest
@@ -379,7 +380,7 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
         JsonNode responseSchema = parse(spec).getOperations().getFirst().getResponseSchemas().get("200").get("application/json");
 
         assertEquals("array", responseSchema.at("/type").asText());
-        assertEquals(Json.mapper().readTree(itemComponent.replace("#/components/schemas/", "#/definitions/")),
+        assertEquals(JSON_MAPPER.readTree(itemComponent.replace("#/components/schemas/", "#/definitions/")),
                 responseSchema.get("items"));
         assertEquals(itemComponent.contains("$ref"), responseSchema.at("/definitions/Address").isObject());
         assertEquals("http://json-schema.org/draft-07/schema#", responseSchema.at("/$schema").asText());

@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.consul;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -37,11 +34,17 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+
+
+
 
 @Slf4j
 @Component
@@ -218,7 +221,7 @@ public class ConsulService {
 
     // return <index, timestamp>
     public Pair<Boolean, List<CompiledLibraryUpdate>> waitForLibrariesUpdate()
-        throws KVNotFoundException, JsonProcessingException {
+        throws KVNotFoundException, JacksonException {
         Pair<Long, List<KeyResponse>> pair =
             client.waitForKVChanges(keyPrefix + keyEngineConfigRoot + keyLibrariesUpdate,
                 false, librariesStateLastIndex, WAIT_TIMEOUT_STRING);
@@ -234,7 +237,7 @@ public class ConsulService {
     }
 
     private List<CompiledLibraryUpdate> parseLibrariesUpdate(Pair<Long, List<KeyResponse>> pair)
-        throws JsonProcessingException {
+        throws JacksonException {
         List<KeyResponse> response = pair.getRight();
         switch (response.size()) {
             case 0:

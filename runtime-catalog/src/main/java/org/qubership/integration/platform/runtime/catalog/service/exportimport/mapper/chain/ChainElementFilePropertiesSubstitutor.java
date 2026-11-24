@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.internal.lang3.tuple.Pair;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -25,6 +23,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -75,7 +75,7 @@ public class ChainElementFilePropertiesSubstitutor {
     }
 
     private Optional<Pair<String, byte[]>> extractPropertyToSeparateFile(ChainElementExternalEntity externalElement)
-            throws JsonProcessingException {
+            throws JacksonException {
         Map<String, Object> properties = externalElement.getProperties();
         List<String> propsToExportSeparately = getPropertiesToExportInSeparateFile(externalElement);
         if (!CollectionUtils.isEmpty(propsToExportSeparately)) {
@@ -106,7 +106,7 @@ public class ChainElementFilePropertiesSubstitutor {
         return Optional.empty();
     }
 
-    private Map<String, byte[]> extractServiceCallPropertiesToSeparateFiles(ChainElementExternalEntity externalElement) throws JsonProcessingException {
+    private Map<String, byte[]> extractServiceCallPropertiesToSeparateFiles(ChainElementExternalEntity externalElement) throws JacksonException {
         Map<String, byte[]> result = new HashMap<>();
         Map<String, Object> properties = externalElement.getProperties();
 
@@ -149,7 +149,7 @@ public class ChainElementFilePropertiesSubstitutor {
         return result;
     }
 
-    private String extractPropertyStringForMapper(Map<String, Object> properties) throws JsonProcessingException {
+    private String extractPropertyStringForMapper(Map<String, Object> properties) throws JacksonException {
         String propertyContent = "";
         List<String> props = List.of(MAPPING_DESCRIPTION, MAPPING, SOURCE, TARGET);
         Map<String, Object> propsToExportSeparatelyMap = properties.keySet().stream()

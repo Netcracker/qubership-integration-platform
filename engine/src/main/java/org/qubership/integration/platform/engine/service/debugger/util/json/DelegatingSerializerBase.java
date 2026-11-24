@@ -16,20 +16,14 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util.json;
 
-import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.ser.BeanSerializerFactory;
-import com.fasterxml.jackson.databind.ser.DefaultSerializerProvider;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
 
-abstract class DelegatingSerializerBase extends JsonSerializer<Object> {
-    private final SerializerProvider provider;
 
-    public DelegatingSerializerBase() {
-        SerializationConfig config = new ObjectMapper().getSerializationConfig()
-                .without(SerializationFeature.FAIL_ON_EMPTY_BEANS);
-        this.provider = new DefaultSerializerProvider.Impl().createInstance(config, BeanSerializerFactory.instance);
-    }
 
-    protected JsonSerializer<Object> getSerializer(Object value) throws JsonMappingException {
-        return provider.findTypedValueSerializer(value.getClass(), true, null);
+abstract class DelegatingSerializerBase extends ValueSerializer<Object> {
+    protected ValueSerializer<Object> getSerializer(Object value, SerializationContext context) throws JacksonException {
+        return context.findTypedValueSerializer(value.getClass(), true);
     }
 }

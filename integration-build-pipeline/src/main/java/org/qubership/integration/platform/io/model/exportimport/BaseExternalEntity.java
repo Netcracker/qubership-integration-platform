@@ -18,6 +18,7 @@ package org.qubership.integration.platform.io.model.exportimport;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
@@ -25,6 +26,7 @@ import lombok.extern.jackson.Jacksonized;
 import java.sql.Timestamp;
 
 @Jacksonized
+@NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @Getter
 @Setter

@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.io.readers.system;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.MissingNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.impl.ImportSpecificationSourceImpl;
@@ -42,6 +37,11 @@ import org.qubership.integration.platform.io.readers.migrations.system.ServiceIm
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.MissingNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -204,7 +204,7 @@ public class IntegrationSystemReader {
             return groupsArray;
         }
         for (JsonNode node : groupsArray) {
-            if (Objects.equals(groupId, node.path("id").textValue())) {
+            if (Objects.equals(groupId, node.path("id").stringValue())) {
                 return node;
             }
         }
@@ -400,7 +400,7 @@ public class IntegrationSystemReader {
 
     private ObjectNode migrate(ObjectNode node, String migrations) throws MigrationException {
         if (migrations != null) {
-            node.set("migrations", TextNode.valueOf(migrations));
+            node.set("migrations", StringNode.valueOf(migrations));
         }
         return fileMigrationService.migrate(
                 node,

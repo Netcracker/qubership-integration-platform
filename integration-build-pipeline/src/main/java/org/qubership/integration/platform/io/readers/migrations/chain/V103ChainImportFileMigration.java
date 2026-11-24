@@ -1,11 +1,12 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Map;
 import java.util.function.Consumer;
+
 
 @Component
 public class V103ChainImportFileMigration extends V102ChainImportFileMigration {

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.util.json.JsonObject;
@@ -26,6 +25,10 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
+
+
+
 
 @Component
 public class GraphQLVariablesProcessor implements Processor {

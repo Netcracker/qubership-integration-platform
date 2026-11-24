@@ -1,9 +1,5 @@
 package org.qubership.integration.platform.camelk.builders.chain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
@@ -17,6 +13,10 @@ import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +42,7 @@ class HttpRouteResourceBuilderTest {
         // (see YamlMapperConfiguration), so assertions here can match unquoted YAML scalars the
         // same way the real generated CRs render them.
         YAMLFactory yamlFactory = YAMLFactory.builder()
-                .enable(YAMLGenerator.Feature.MINIMIZE_QUOTES)
+                .enable(YAMLWriteFeature.MINIMIZE_QUOTES)
                 .build();
         YAMLMapper yamlMapper = new YAMLMapper(yamlFactory);
         NamingStrategy<ResourceBuildContext<Snapshot>> publicNamingStrategy =

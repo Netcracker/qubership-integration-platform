@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -38,6 +37,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestBodySpec;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;

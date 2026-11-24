@@ -1847,7 +1847,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MappingJacksonValue"
+                type: string
           description: OK
       tags:
       - runtime-deployment-controller
@@ -4539,7 +4539,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/JsonNode"
           description: OK
       tags:
       - operation-controller
@@ -8516,7 +8516,6 @@ components:
         lastEventId:
           type: string
           description: Last event id sent in this bulk
-    FilterProvider: {}
     FilterRequestDTO:
       type: object
       description: Filter request object
@@ -9299,7 +9298,68 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportVariableResult"
-    JsonNode: {}
+    JsonNode:
+      type: object
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          type: string
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          type: boolean
+          deprecated: true
+        valueNode:
+          type: boolean
     LibraryElementGroup:
       type: object
       description: Group of libraries elements (descriptors)
@@ -9482,12 +9542,6 @@ components:
           format: int64
         name:
           type: string
-    MappingJacksonValue:
-      type: object
-      properties:
-        filters:
-          $ref: "#/components/schemas/FilterProvider"
-        value: {}
     MaskedField:
       type: object
       properties:

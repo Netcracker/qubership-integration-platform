@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.TagType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.Map;
@@ -40,7 +40,7 @@ public class ManualQueryParamsHelperTest {
 
     @DisplayName("Composing manual query params")
     @Test
-    public void manualQueryParamsTest() throws JsonProcessingException {
+    public void manualQueryParamsTest() throws JacksonException {
         String expected = "?brokers=kafka-main-1:9092,kafka-main-2:9092&topic=test-topic&groupId=test-topic-group&batchSize=20";
 
         Map<String, Object> testData = objectMapper.readValue(

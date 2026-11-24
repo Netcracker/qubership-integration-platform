@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 import java.util.Optional;

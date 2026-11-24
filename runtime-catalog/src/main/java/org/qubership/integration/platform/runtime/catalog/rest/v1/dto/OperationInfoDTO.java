@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Map;
+
 
 @Data
 @Builder

@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.cloudcore.maas.localdev;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.netcracker.cloud.maas.client.api.MaaSAPIClient;
 import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.rabbit.RabbitMaaSClient;
@@ -17,11 +14,15 @@ import com.netcracker.cloud.maas.client.impl.rabbit.RabbitMaaSClientImpl;
 import com.netcracker.cloud.tenantmanager.client.Tenant;
 import com.netcracker.cloud.tenantmanager.client.TenantManagerConnector;
 import lombok.SneakyThrows;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
+
 
 public class LocalDevMaaSAPIClient implements MaaSAPIClient {
     private final String agentUrl;
@@ -93,7 +94,7 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
         );
 
         ArrayNode responseArray = (ArrayNode) mapper.readTree(responseBody.getBytes(StandardCharsets.UTF_8));
-        Iterator<JsonNode> it = responseArray.elements();
+        Iterator<JsonNode> it = responseArray.values().iterator();
         List<ConfigureResponse> result = new ArrayList<>(responseArray.size());
         while (it.hasNext()) {
             JsonNode responseNode = it.next();

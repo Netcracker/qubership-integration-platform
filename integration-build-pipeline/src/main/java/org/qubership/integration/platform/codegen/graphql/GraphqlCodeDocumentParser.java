@@ -19,8 +19,6 @@ package org.qubership.integration.platform.codegen.graphql;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.graphql_java_generator.annotation.*;
 import com.graphql_java_generator.plugin.ResourceSchemaStringProvider;
 import com.graphql_java_generator.plugin.conf.*;
@@ -41,6 +39,8 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+
 
 /**
  * This class parses the GraphQL shema file(s), and loads it in a structure that'll make it easy to send to Velocity

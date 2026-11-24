@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,6 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.nio.file.Files;

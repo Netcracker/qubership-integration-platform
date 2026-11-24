@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +43,9 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.Elemen
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -165,7 +165,7 @@ class SystemExportImportServiceTest {
     @DisplayName("importOneSystemInTransaction returns ERROR result when yaml reading fails")
     void importOneSystemReturnsErrorWhenYamlReadFails() throws IOException {
         File file = mock(File.class);
-        when(yamlMapper.readTree(file)).thenThrow(new IOException("Failed to read yaml"));
+        when(yamlMapper.readTree(file)).thenThrow(new RuntimeException("Failed to read yaml"));
 
         ImportSystemResult result = service.importOneSystemInTransaction(file, null, null, null);
 

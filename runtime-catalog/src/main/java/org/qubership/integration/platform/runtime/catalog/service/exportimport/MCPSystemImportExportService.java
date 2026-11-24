@@ -1,9 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -38,6 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -114,7 +114,7 @@ public class MCPSystemImportExportService {
     private ExportedSystemObject exportSystem(MCPSystem system) {
         try {
             return mcpSystemSerializer.serialize(system);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             String message = String.format("Failed to export system: %s (%s)",
                     system.getName(), system.getId());
             throw new RuntimeException(message, e);
@@ -340,7 +340,7 @@ public class MCPSystemImportExportService {
     }
 
     private MCPSystem getBaseSystemDeserializationResult(JsonNode serviceNode)
-            throws JsonProcessingException {
+            throws JacksonException {
         MCPSystem result = new MCPSystem();
 
         JsonNode idNode = serviceNode.get(AbstractSystemEntity.Fields.id);

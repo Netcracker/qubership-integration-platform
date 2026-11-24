@@ -17,20 +17,24 @@
 package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
 import java.sql.Timestamp;
 
 @Jacksonized
+@NoArgsConstructor
+@Setter
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @SuperBuilder
 public class ImportEntityDTO {
 
-    private final String id;
-    private final String name;
-    private final String description;
-    private final Timestamp modifiedWhen;
+    private String id;
+    private String name;
+    private String description;
+    private Timestamp modifiedWhen;
 
     public String getId() {
         return id;

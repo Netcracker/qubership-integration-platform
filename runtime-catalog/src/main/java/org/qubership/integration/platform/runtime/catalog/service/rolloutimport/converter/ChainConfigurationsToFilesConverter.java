@@ -1,16 +1,16 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -41,7 +41,7 @@ public class ChainConfigurationsToFilesConverter {
     }
 
     public Map<Path, byte[]> convert(Map<String, RolloutImportConfigurationItem> chainConfigs, Map<String, String> resources)
-            throws JsonProcessingException {
+            throws JacksonException {
         if (chainConfigs.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -52,7 +52,7 @@ public class ChainConfigurationsToFilesConverter {
             if (contentNode instanceof ObjectNode chainContent) {
                 chainContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
-                        TextNode.valueOf(MigrationUtil.formatVersions(chainImportFileMigrations))
+                        StringNode.valueOf(MigrationUtil.formatVersions(chainImportFileMigrations))
                 );
             }
 
@@ -61,7 +61,7 @@ public class ChainConfigurationsToFilesConverter {
             String chainFileName = generateChainFileExportName(chainId, false);
             files.put(chainDirectory.resolve(chainFileName), objectMapper.writeValueAsBytes(chainConfig.getValue()));
 
-            List<String> propertyFileNames = contentNode.findValuesAsText(FILE_NAME_PROPERTY);
+            List<String> propertyFileNames = contentNode.findValuesAsString(FILE_NAME_PROPERTY);
             for (String propertyFileName : propertyFileNames) {
                 String resourceName = propertyFileName.startsWith(RESOURCES_FOLDER_PREFIX)
                         ? propertyFileName.substring(RESOURCES_FOLDER_PREFIX.length())

@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
+
 
 @Converter
 public class ImportResultConverter implements AttributeConverter<ImportResult, String> {
@@ -33,7 +33,7 @@ public class ImportResultConverter implements AttributeConverter<ImportResult, S
     public String convertToDatabaseColumn(ImportResult importResult) {
         try {
             return objectMapper.writeValueAsString(importResult);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("ImportResult object cannot be converted to DB column value", e);
         }
     }
@@ -42,7 +42,7 @@ public class ImportResultConverter implements AttributeConverter<ImportResult, S
     public ImportResult convertToEntityAttribute(String importResultColumnValue) {
         try {
             return objectMapper.readValue(importResultColumnValue, ImportResult.class);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Import result value cannot be converted into object: " + importResultColumnValue, e);
         }
     }

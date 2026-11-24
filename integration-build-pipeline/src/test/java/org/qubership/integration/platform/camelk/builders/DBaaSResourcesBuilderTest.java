@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.camelk.builders;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.github.jknack.handlebars.EscapingStrategy;
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
@@ -15,6 +13,8 @@ import org.qubership.integration.platform.camelk.naming.validation.K8sNameValida
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.Collections;
 import java.util.List;

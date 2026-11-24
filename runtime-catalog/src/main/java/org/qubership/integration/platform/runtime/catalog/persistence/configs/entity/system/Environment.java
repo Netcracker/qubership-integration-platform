@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -27,9 +26,11 @@ import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
 import org.qubership.integration.platform.runtime.catalog.util.CompareListUtils;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Objects;
+
 
 @Getter
 @Setter

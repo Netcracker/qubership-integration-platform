@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -28,10 +27,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
 
 @Getter
 @Setter

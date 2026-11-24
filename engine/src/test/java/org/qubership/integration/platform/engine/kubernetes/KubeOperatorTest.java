@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.kubernetes;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
@@ -17,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;

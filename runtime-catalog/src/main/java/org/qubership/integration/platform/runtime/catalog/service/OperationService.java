@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -28,9 +26,12 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.Elemen
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @Service
@@ -114,7 +115,7 @@ public class OperationService {
                 .keySet()
                 .stream()
                 .map(key -> {
-                    var fields = operation.getResponseSchemas().get(key).fields();
+                    var fields = operation.getResponseSchemas().get(key).properties().iterator();
                     var fieldsMap = new HashMap<>();
                     while (fields.hasNext()) {
                         var field = fields.next();

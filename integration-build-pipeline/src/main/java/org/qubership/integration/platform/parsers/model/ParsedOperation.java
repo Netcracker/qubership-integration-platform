@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.parsers.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Map;
+
 
 /**
  * A single operation produced by a specification parser.

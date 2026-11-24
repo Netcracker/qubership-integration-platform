@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.library.constants.CamelNames;
@@ -28,11 +26,14 @@ import org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.e
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 @Slf4j
 @Component
@@ -88,7 +89,7 @@ public class HttpTriggerDDSConverter extends ElementDDSConverter {
                     .replace("\"", ""));
             value.put("resource", elementProps.get(CamelOptions.ABAC_RESOURCE));
             elementTemplateProps.put("accessControl", value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(e);
         }
 

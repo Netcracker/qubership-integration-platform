@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +35,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.stream.Stream;
@@ -161,7 +161,7 @@ public class EndpointHelperSourceTest {
             String elementProperties,
             String environment,
             String expectedAddress
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         Element element = ElementBuilder.createNew()
             .id(UUID_VALUE)
             .originalId("8ff3584f-3666-4c75-ba40-a3c8955c44e8")
@@ -221,7 +221,7 @@ public class EndpointHelperSourceTest {
             String scenario,
             String elementProperties,
             String environment
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         Element element = ElementBuilder.createNew()
             .id(UUID_VALUE)
             .properties(isNull(elementProperties)
@@ -279,7 +279,7 @@ public class EndpointHelperSourceTest {
     @DisplayName("Error case of extracting integration endpoint")
     @ParameterizedTest(name = "#{index} => {0}")
     @MethodSource("integrationEndpointErrorTestData")
-    public void integrationEndpointErrorTest(String scenario, String environment) throws JsonProcessingException {
+    public void integrationEndpointErrorTest(String scenario, String environment) throws JacksonException {
         Element element = ElementBuilder.createNew()
             .id(UUID_VALUE)
             .serviceEnvironment(isNull(environment)

@@ -16,7 +16,8 @@
 
 package org.qubership.integration.platform.parsers.schemas;
 
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.StringNode;
+
 
 public final class SchemasConstants {
     public static final String ARRAY_SCHEMA_CLASS = "ArraySchema";
@@ -38,11 +39,11 @@ public final class SchemasConstants {
     public static final String ALL_OF = "allOf";
     public static final String ANY_OF = "anyOf";
     public static final String ONE_OF = "oneOf";
-    public static final TextNode ARRAY_TYPE_NODE = new TextNode("array");
-    public static final TextNode OBJECT_TYPE_NODE = new TextNode("object");
-    public static final TextNode STRING_TYPE_NODE = new TextNode("string");
-    public static final TextNode BINARY_TYPE_NODE = new  TextNode("binary");
-    public static final TextNode UUID_TYPE_NODE =  new TextNode("uuid");
+    public static final StringNode ARRAY_TYPE_NODE = new StringNode("array");
+    public static final StringNode OBJECT_TYPE_NODE = new StringNode("object");
+    public static final StringNode STRING_TYPE_NODE = new StringNode("string");
+    public static final StringNode BINARY_TYPE_NODE = new  StringNode("binary");
+    public static final StringNode UUID_TYPE_NODE =  new StringNode("uuid");
 
-    public static final TextNode SCHEMA_HEADER_VALUE = new TextNode("http://json-schema.org/draft-07/schema#");
+    public static final StringNode SCHEMA_HEADER_VALUE = new StringNode("http://json-schema.org/draft-07/schema#");
 }

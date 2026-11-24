@@ -16,30 +16,30 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util.json;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.Version;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.Version;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 
 import java.util.Set;
 
 import static org.qubership.integration.platform.engine.service.debugger.util.json.IdentitySetHelper.createIdentitySet;
 
 public class JsonSerializationHelper {
-    private static String serialize(Object value, JsonSerializer<Object> serializer) throws JsonProcessingException {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+    private static String serialize(Object value, ValueSerializer<Object> serializer) throws JacksonException {
         SimpleModule module = new SimpleModule("module", Version.unknownVersion());
         module.addSerializer(Object.class, serializer);
-        objectMapper.registerModule(module);
-        objectMapper.registerModule(new JavaTimeModule());
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                .addModule(module)
+                .build();
         return objectMapper.writeValueAsString(value);
     }
 
-    public static String serializeJson(Object value) throws JsonProcessingException {
+    public static String serializeJson(Object value) throws JacksonException {
         Set<Object> selfReferencedObjects = createIdentitySet();
         String serializedValue = serialize(value, new CircularReferencesFinderSerializer(selfReferencedObjects::add));
         return selfReferencedObjects.isEmpty()

@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.swagger.v3.core.util.Json;
 import org.junit.jupiter.api.BeforeEach;
 import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
@@ -29,10 +27,13 @@ import org.qubership.integration.platform.parsers.schemas.impl.FileSchemaProcess
 import org.qubership.integration.platform.parsers.schemas.impl.ObjectSchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.StringSchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.UUIDSchemaProcessor;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+
 
 /**
  * Shared wiring for the version-specific Swagger parser tests. Builds a parser backed by the real
@@ -45,7 +46,7 @@ abstract class AbstractSwaggerSpecificationParserTest {
 
     @BeforeEach
     void setUpParser() {
-        ObjectMapper mapper = Json.mapper();
+        ObjectMapper mapper = JsonMapper.builder().build();
         SwaggerSchemaResolver resolver = new SwaggerSchemaResolver();
         OpenApiMapperResolver mapperResolver = new OpenApiMapperResolver();
 

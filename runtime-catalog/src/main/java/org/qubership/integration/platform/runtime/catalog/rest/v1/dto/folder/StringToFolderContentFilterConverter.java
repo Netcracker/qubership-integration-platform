@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
+
 
 @Component
 public class StringToFolderContentFilterConverter implements Converter<String, FolderContentFilter> {

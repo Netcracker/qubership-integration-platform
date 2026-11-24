@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
@@ -49,7 +49,7 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying chain migration: {}", getVersion());
         ObjectNode rootNode = fileNode.deepCopy();
         rootNode.path(CONTENT).path(ELEMENTS).forEach(this::processElementsAction);

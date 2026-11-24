@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netcracker.cloud.context.propagation.core.ContextManager;
 import groovy.xml.slurpersupport.GPathResult;
 import jakarta.persistence.EntityNotFoundException;
@@ -37,10 +35,15 @@ import org.qubership.integration.platform.engine.util.CheckpointUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+
+
+
 
 @Slf4j
 @Component

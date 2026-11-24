@@ -16,18 +16,19 @@
 
 package org.qubership.integration.platform.io.readers.migrations;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.*;
+
 
 @Slf4j
 @Service
@@ -59,7 +60,7 @@ public class FileMigrationService {
         JsonNode node;
         try {
             node = yamlMapper.readTree(data);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MigrationException("Failed to parse document to import", exception);
         }
         if (!node.isObject()) {
@@ -72,7 +73,7 @@ public class FileMigrationService {
         }
         try {
             return yamlMapper.writeValueAsString(migrate(documentNode, migrations));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MigrationException("Failed to serialize migrated document",
                     exception, getId(documentNode), getName(documentNode));
         }

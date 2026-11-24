@@ -1,13 +1,14 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
 
 @Slf4j
 public abstract class ChainElementsPropertiesMigration implements ChainImportFileMigration {
@@ -17,7 +18,7 @@ public abstract class ChainElementsPropertiesMigration implements ChainImportFil
     ) {}
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying chain migration: {}", getVersion());
         ObjectNode rootNode = fileNode.deepCopy();
         rootNode

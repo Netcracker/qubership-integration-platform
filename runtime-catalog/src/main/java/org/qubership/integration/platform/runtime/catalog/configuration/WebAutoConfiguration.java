@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder.StringToFolderContentFilterConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,23 +24,25 @@ import org.springframework.format.FormatterRegistry;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
+
 
 @AutoConfiguration
 public class WebAutoConfiguration implements WebMvcConfigurer {
 
 
     private final StringToFolderContentFilterConverter stringToFolderContentFilterConverter;
-    private final ObjectMapper primaryObjectMapper;
+    private final JsonMapper primaryObjectMapper;
 
     @Autowired
     public WebAutoConfiguration(
             StringToFolderContentFilterConverter stringToFolderContentFilterConverter,
-            @Qualifier("primaryObjectMapper") ObjectMapper primaryObjectMapper) {
+            @Qualifier("primaryObjectMapper") JsonMapper primaryObjectMapper) {
         this.stringToFolderContentFilterConverter = stringToFolderContentFilterConverter;
         this.primaryObjectMapper = primaryObjectMapper;
     }
@@ -61,7 +62,7 @@ public class WebAutoConfiguration implements WebMvcConfigurer {
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         // Keep the catalog mapper converter on the server; Boot also adds converter beans to REST clients.
-        converters.add(0, new MappingJackson2HttpMessageConverter(primaryObjectMapper));
+        converters.add(0, new JacksonJsonHttpMessageConverter(primaryObjectMapper));
 
         int nextPriorityIndex = 0;
         for (int i = 0; i < converters.size(); i++) {

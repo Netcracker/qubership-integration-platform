@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -39,6 +37,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.util.*;

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
@@ -26,6 +25,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
