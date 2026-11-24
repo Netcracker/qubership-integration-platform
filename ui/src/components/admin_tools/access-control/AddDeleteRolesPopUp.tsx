@@ -173,12 +173,11 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
           redeploy: false,
         }}
       >
-        <Form.Item name="roles">
+        <Form.Item name="roles" label={"Roles"}>
           <Select
             mode={isDeleteMode ? "multiple" : "tags"}
             allowClear
             style={{ width: "100%" }}
-            placeholder={isDeleteMode ? "Remove Roles" : "Add Roles"}
             onChange={handleRolesChange}
             value={selectedRoles}
             options={roleOptions}

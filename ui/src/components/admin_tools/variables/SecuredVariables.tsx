@@ -576,9 +576,30 @@ export const SecuredVariables: React.FC = () => {
           createForm.resetFields();
           setCreateModalVisible(false);
         }}
-        footer={null}
+        footer={[
+          <Button
+            key={"cancel"}
+            size="middle"
+            onClick={() => {
+              createForm.resetFields();
+              setCreateModalVisible(false);
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key={"create"}
+            type="primary"
+            size="middle"
+            htmlType="submit"
+            form="createSecretForm"
+          >
+            Save
+          </Button>,
+        ]}
       >
         <Form<{ secretName: string }>
+          id="createSecretForm"
           layout="vertical"
           form={createForm}
           onFinish={(values) => void handleCreateSecret(values)}
@@ -597,20 +618,6 @@ export const SecuredVariables: React.FC = () => {
           >
             <Input placeholder="e.g., my-secret" />
           </Form.Item>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button
-              size="middle"
-              onClick={() => {
-                createForm.resetFields();
-                setCreateModalVisible(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="primary" size="middle" htmlType="submit">
-              Save
-            </Button>
-          </div>
         </Form>
       </Modal>
 

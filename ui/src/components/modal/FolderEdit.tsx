@@ -62,9 +62,8 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
     >
       <Form<FolderEditFormData>
         id="folderEditForm"
+        layout="vertical"
         disabled={confirmLoading}
-        labelCol={{ flex: "150px" }}
-        wrapperCol={{ flex: "auto" }}
         initialValues={{
           name,
           ...((!mode || mode === "create") && {
@@ -72,7 +71,6 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
             newTab: false,
           }),
         }}
-        labelWrap
         onFieldsChange={(changedFields: FieldData<FolderEditFormData>[]) => {
           changedFields
             .filter((field) => field.name[0] === "openFolder")
@@ -121,7 +119,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
           <Input autoFocus={true} ref={nameInput} />
         </Form.Item>
         {mode === "create" ? (
-          <Flex vertical={false} style={{ marginLeft: 150 }}>
+          <Flex vertical={false}>
             <Form.Item name="openFolder" valuePropName="checked" label={null}>
               <Checkbox>Open folder</Checkbox>
             </Form.Item>
