@@ -12,7 +12,11 @@ public final class KafkaLegacyHeaderCompatibility {
     private static final Map<String, String> REPLACED_HEADERS = Map.of(
         "kafka.KEY", KafkaConstants.KEY,
         "kafka.TOPIC", KafkaConstants.TOPIC,
-        "kafka.HEADERS", KafkaConstants.HEADERS
+        "kafka.HEADERS", KafkaConstants.HEADERS,
+        "kafka.PARTITION_KEY", KafkaConstants.PARTITION_KEY,
+        "kafka.PARTITION", KafkaConstants.PARTITION,
+        "kafka.OVERRIDE_TOPIC", KafkaConstants.OVERRIDE_TOPIC,
+        "kafka.OFFSET", KafkaConstants.OFFSET
     );
 
     private final List<String> legacyHeaderNames;
@@ -44,5 +48,31 @@ public final class KafkaLegacyHeaderCompatibility {
         }
 
         return null;
+    }
+
+    public <T> T getHeaderValue(Message message, String currentHeaderName, Class<T> type) {
+        Object value = message.getHeader(currentHeaderName);
+        if (value != null) {
+            return message.getHeader(currentHeaderName, type);
+        }
+
+        for (String legacyHeaderName : legacyHeaderNames) {
+            if (currentHeaderName.equals(REPLACED_HEADERS.get(legacyHeaderName))) {
+                return message.getHeader(legacyHeaderName, type);
+            }
+        }
+
+        return null;
+    }
+
+    public Object removeHeaderValue(Message message, String currentHeaderName) {
+        Object value = getHeaderValue(message, currentHeaderName);
+        message.removeHeader(currentHeaderName);
+        for (String legacyHeaderName : legacyHeaderNames) {
+            if (currentHeaderName.equals(REPLACED_HEADERS.get(legacyHeaderName))) {
+                message.removeHeader(legacyHeaderName);
+            }
+        }
+        return value;
     }
 }

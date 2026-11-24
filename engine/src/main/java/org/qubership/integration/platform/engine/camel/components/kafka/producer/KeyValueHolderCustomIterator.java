@@ -108,8 +108,10 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
     }
 
     private String getInnerTopic(Message innerMessage) {
-        if (innerMessage.getHeader(KafkaConstants.OVERRIDE_TOPIC) != null) {
-            return (String) innerMessage.removeHeader(KafkaConstants.OVERRIDE_TOPIC);
+        Object overrideTopic = legacyHeaderCompatibility.getHeaderValue(innerMessage, KafkaConstants.OVERRIDE_TOPIC);
+        if (overrideTopic != null) {
+            legacyHeaderCompatibility.removeHeaderValue(innerMessage, KafkaConstants.OVERRIDE_TOPIC);
+            return overrideTopic.toString();
         }
 
         return msgTopic;
@@ -133,7 +135,7 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
     }
 
     private Integer getInnerPartitionKey(Message innerMessage) {
-        Integer partitionKey = innerMessage.getHeader(KafkaConstants.PARTITION_KEY, Integer.class);
+        Integer partitionKey = legacyHeaderCompatibility.getHeaderValue(innerMessage, KafkaConstants.PARTITION_KEY, Integer.class);
 
         return kafkaConfiguration.getPartitionKey() != null
             ? kafkaConfiguration.getPartitionKey()

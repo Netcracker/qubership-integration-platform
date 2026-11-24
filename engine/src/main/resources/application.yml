@@ -264,7 +264,7 @@ cip:
         thread-pool-count: 10
       kafka:
         predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
-        legacy-header-names: kafka.KEY,kafka.TOPIC,kafka.HEADERS
+        legacy-header-names: ${CAMEL_KAFKA_LEGACY_HEADERS:kafka.KEY,kafka.TOPIC,kafka.HEADERS}
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
       pubsub:

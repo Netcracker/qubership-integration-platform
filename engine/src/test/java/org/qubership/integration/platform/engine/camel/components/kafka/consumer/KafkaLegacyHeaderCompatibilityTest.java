@@ -7,6 +7,7 @@ import org.qubership.integration.platform.engine.camel.components.kafka.KafkaLeg
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -20,8 +21,14 @@ class KafkaLegacyHeaderCompatibilityTest {
         when(message.getHeader(KafkaConstants.KEY)).thenReturn("record-key");
         when(message.getHeader(KafkaConstants.TOPIC)).thenReturn("record-topic");
         when(message.getHeader(KafkaConstants.HEADERS)).thenReturn("record-headers");
+        when(message.getHeader(KafkaConstants.PARTITION_KEY)).thenReturn("partition-key");
+        when(message.getHeader(KafkaConstants.PARTITION)).thenReturn("partition");
+        when(message.getHeader(KafkaConstants.OVERRIDE_TOPIC)).thenReturn("override-topic");
+        when(message.getHeader(KafkaConstants.OFFSET)).thenReturn("offset");
 
-        new KafkaLegacyHeaderCompatibility(List.of("kafka.KEY", "kafka.TOPIC", "kafka.HEADERS"))
+        new KafkaLegacyHeaderCompatibility(List.of(
+            "kafka.KEY", "kafka.TOPIC", "kafka.HEADERS", "kafka.PARTITION_KEY", "kafka.PARTITION",
+            "kafka.OVERRIDE_TOPIC", "kafka.OFFSET"))
             .apply(message);
 
         verify(message, times(1)).getHeader(KafkaConstants.KEY);
@@ -30,6 +37,41 @@ class KafkaLegacyHeaderCompatibilityTest {
         verify(message).setHeader("kafka.KEY", "record-key");
         verify(message).setHeader("kafka.TOPIC", "record-topic");
         verify(message).setHeader("kafka.HEADERS", "record-headers");
+        verify(message).setHeader("kafka.PARTITION_KEY", "partition-key");
+        verify(message).setHeader("kafka.PARTITION", "partition");
+        verify(message).setHeader("kafka.OVERRIDE_TOPIC", "override-topic");
+        verify(message).setHeader("kafka.OFFSET", "offset");
+    }
+
+    @Test
+    void shouldReadConfiguredLegacyHeaderForEveryRenamedProducerHeader() {
+        Message message = mock(Message.class);
+        when(message.getHeader("kafka.PARTITION_KEY")).thenReturn("4");
+        when(message.getHeader("kafka.OVERRIDE_TOPIC")).thenReturn("legacy-topic");
+
+        KafkaLegacyHeaderCompatibility compatibility = new KafkaLegacyHeaderCompatibility(
+            List.of("kafka.PARTITION_KEY", "kafka.OVERRIDE_TOPIC"));
+
+        assertEquals("4", compatibility.getHeaderValue(message, KafkaConstants.PARTITION_KEY));
+        assertEquals("legacy-topic", compatibility.getHeaderValue(message, KafkaConstants.OVERRIDE_TOPIC));
+    }
+
+    @Test
+    void shouldReadTypedLegacyHeaderAndRemoveBothNamesForProducerOverrides() {
+        Message message = mock(Message.class);
+        when(message.getHeader("kafka.PARTITION_KEY", Integer.class)).thenReturn(4);
+        when(message.getHeader(KafkaConstants.OVERRIDE_TOPIC)).thenReturn(null);
+        when(message.getHeader("kafka.OVERRIDE_TOPIC")).thenReturn("legacy-topic");
+
+        KafkaLegacyHeaderCompatibility compatibility = new KafkaLegacyHeaderCompatibility(
+            List.of("kafka.PARTITION_KEY", "kafka.OVERRIDE_TOPIC"));
+
+        assertEquals(4,
+            compatibility.getHeaderValue(message, KafkaConstants.PARTITION_KEY, Integer.class));
+        assertEquals("legacy-topic",
+            compatibility.removeHeaderValue(message, KafkaConstants.OVERRIDE_TOPIC));
+        verify(message).removeHeader(KafkaConstants.OVERRIDE_TOPIC);
+        verify(message).removeHeader("kafka.OVERRIDE_TOPIC");
     }
 
     @Test

@@ -200,7 +200,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     private Integer getOverridePartitionKey(Message message) {
         if (ObjectHelper.isEmpty(configPartitionKey)) {
-            return message.getHeader(KafkaConstants.PARTITION_KEY, Integer.class);
+            return legacyHeaderCompatibility.getHeaderValue(message, KafkaConstants.PARTITION_KEY, Integer.class);
         }
 
         return configPartitionKey;
@@ -214,7 +214,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     private String evaluateTopic(Message message) {
         // must remove header so it's not propagated.
-        Object overrideTopic = message.removeHeader(KafkaConstants.OVERRIDE_TOPIC);
+        Object overrideTopic = legacyHeaderCompatibility.removeHeaderValue(message, KafkaConstants.OVERRIDE_TOPIC);
         if (overrideTopic != null) {
             LOG.debug("Using override topic: {}", overrideTopic);
             return overrideTopic.toString();
