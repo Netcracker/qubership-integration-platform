@@ -80,6 +80,7 @@ export const TransformationEditDialog: React.FC<
   return (
     <Modal
       title="Edit transformation"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

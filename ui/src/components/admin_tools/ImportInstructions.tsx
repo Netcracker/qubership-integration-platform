@@ -865,6 +865,7 @@ export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
   return (
     <Modal
       title="Add Instruction"
+      centered
       open
       destroyOnHidden
       onCancel={onClose}

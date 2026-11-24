@@ -62,6 +62,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
 
   return (
     <Modal
+      centered
       title="Deployment"
       open={true}
       onCancel={handleCancel}

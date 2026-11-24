@@ -141,6 +141,7 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
   return (
     <Modal
       title={title}
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

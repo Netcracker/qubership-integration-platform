@@ -18,6 +18,7 @@ export const LoadConfirmationDialog: React.FC<LoadConfirmationDialogProps> = ({
   return (
     <Modal
       title="Warning"
+      centered
       open={true}
       okText={"Apply"}
       onOk={() => {

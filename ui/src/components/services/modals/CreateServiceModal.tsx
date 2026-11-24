@@ -51,6 +51,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
 
   return (
     <Modal
+      centered
       open={true}
       title="Create service"
       onCancel={closeContainingModal}

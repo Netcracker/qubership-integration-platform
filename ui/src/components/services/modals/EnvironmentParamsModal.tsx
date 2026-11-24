@@ -146,6 +146,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   return (
     <Modal
+      centered
       open={true}
       title={action === "edit" ? "Edit Environment" : "Add Environment"}
       onCancel={handleClose}

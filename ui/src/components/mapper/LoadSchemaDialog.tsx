@@ -623,6 +623,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
   return (
     <Modal
       title="Load source"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

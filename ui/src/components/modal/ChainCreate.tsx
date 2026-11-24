@@ -131,6 +131,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
   return (
     <Modal
       title={modalTitle}
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

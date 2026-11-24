@@ -571,6 +571,7 @@ export const SecuredVariables: React.FC = () => {
 
       <Modal
         title="Create Secret"
+        centered
         open={createModalVisible}
         onCancel={() => {
           createForm.resetFields();

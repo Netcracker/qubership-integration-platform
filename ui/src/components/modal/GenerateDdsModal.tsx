@@ -56,6 +56,7 @@ export const GenerateDdsModal: React.FC<GenerateDdsModalProps> = ({
 
   return (
     <Modal
+      centered
       title="Generate Chain Documentation"
       open={true}
       onCancel={closeContainingModal}

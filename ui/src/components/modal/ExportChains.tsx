@@ -23,6 +23,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
 
   return (
     <Modal
+      centered
       className={styles.modal}
       title={multiple ? "Export Chains" : "Export Chain"}
       open={true}

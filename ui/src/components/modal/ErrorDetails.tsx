@@ -99,6 +99,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
 
   return (
     <Modal
+      centered
       title={modalTitle}
       open={true}
       onCancel={closeContainingModal}

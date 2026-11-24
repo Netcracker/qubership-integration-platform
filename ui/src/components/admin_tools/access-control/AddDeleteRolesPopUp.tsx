@@ -143,6 +143,7 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
   return (
     <Modal
       title={isDeleteMode ? "Remove Roles" : "Add Roles"}
+      centered
       open={true}
       onCancel={closeContainingModal}
       styles={{ body: { paddingTop: "8px" } }}

@@ -18,6 +18,7 @@ export const UploadImportInstructionsWarningModal: React.FC<
 
   return (
     <Modal
+      centered
       title="Upload Import Instructions"
       open={true}
       onCancel={closeContainingModal}

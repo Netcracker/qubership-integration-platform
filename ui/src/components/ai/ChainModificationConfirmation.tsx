@@ -99,6 +99,7 @@ export const ChainModificationConfirmation: React.FC<Props> = ({
   return (
     <Modal
       open={open}
+      centered
       title="Apply changes to chain"
       onCancel={onCancel}
       onOk={() => {
@@ -108,7 +109,7 @@ export const ChainModificationConfirmation: React.FC<Props> = ({
       }}
       okText="Apply changes"
       okButtonProps={{ disabled: !proposal || changes.length === 0 }}
-      destroyOnClose
+      destroyOnHidden
     >
       {!proposal || changes.length === 0 ? (
         <Typography.Text type="secondary">

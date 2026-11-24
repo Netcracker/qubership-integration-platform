@@ -59,6 +59,7 @@ export const ConstantValueEditDialog: React.FC<
   return (
     <Modal
       title="Edit constant value"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

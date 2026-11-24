@@ -19,6 +19,7 @@ export const DeleteDeploymentWarningModal: React.FC<
   return (
     <Modal
       title="Delete Deployment"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

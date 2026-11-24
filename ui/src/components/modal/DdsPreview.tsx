@@ -144,6 +144,7 @@ export const DdsPreview: React.FC<DdsViewProps> = ({
   return (
     <Modal
       title="Document Preview"
+      centered
       open={true}
       onCancel={closeContainingModal}
       width={"80vw"}

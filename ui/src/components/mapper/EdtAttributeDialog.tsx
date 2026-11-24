@@ -55,6 +55,7 @@ export const EditAttributeDialog: React.FC<EditAttributeDialogProps> = ({
   return (
     <Modal
       title={title}
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

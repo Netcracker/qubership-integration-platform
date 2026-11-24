@@ -99,6 +99,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   return (
     <Modal
       title="Import variables"
+      centered
       open={true}
       onCancel={handleCancel}
       footer={[
