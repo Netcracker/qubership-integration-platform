@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.service.externallibrary;
 import groovy.lang.Script;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
+import org.apache.camel.language.groovy.GroovyExpression;
 import org.apache.camel.language.groovy.GroovyLanguage;
 
 import java.lang.reflect.Field;
@@ -45,6 +46,14 @@ public class GroovyLanguageWithResettableCache extends GroovyLanguage {
     // Empty once the context has stopped, because the stop empties its registry
     public static Optional<GroovyLanguageWithResettableCache> of(CamelContext context) {
         return Optional.ofNullable(context.getRegistry().lookupByNameAndType(NAME, GroovyLanguageWithResettableCache.class));
+    }
+
+    @Override
+    public GroovyExpression createExpression(String expression) {
+        if (expression == null || expression.isBlank()) {
+            return super.createExpression("null");
+        }
+        return super.createExpression(expression);
     }
 
     public void resetScriptCache() {
