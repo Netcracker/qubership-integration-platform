@@ -31,9 +31,6 @@ import { covers } from "../../registry/covers.js";
 const FIXTURE = "http-out";
 const SENDER = "HTTP Sender";
 
-/** What the real endpoint answers, and what a mock has to be distinguishable from. */
-const REAL_ENDPOINT_MARKER = '"status":"UP"';
-
 test.describe("endpoint mock", { tag: ["@testing-service", "@engine"] }, () => {
   test("answers a correlated call, not an uncorrelated one", async ({ env, request, run, testingService }) => {
     // The fixture's outbound call is an `http-sender` at its defaults, and the second half of this
@@ -75,9 +72,10 @@ test.describe("endpoint mock", { tag: ["@testing-service", "@engine"] }, () => {
       data: { ping: "live" },
     });
     expect(live.status()).toBe(200);
+    const liveBody: unknown = await live.json();
     expect(
-      await live.text(),
+      liveBody,
       "an uncorrelated call did not reach the real endpoint",
-    ).toContain(REAL_ENDPOINT_MARKER);
+    ).toMatchObject({ status: "UP" });
   });
 });

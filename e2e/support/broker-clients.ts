@@ -7,7 +7,7 @@ import { platformFetch as fetch } from "../env/platform-http.js";
  * once here rather than copy-pasted per spec file, which is how the two `consumeOne` shapes and the
  * AMQP publish's routing key had already started to drift.
  */
-import { Kafka, logLevel, type Consumer } from "kafkajs";
+import { Kafka, logLevel, type Consumer, type IHeaders } from "kafkajs";
 import amqp, { type Channel, type ChannelModel } from "amqplib";
 import Client from "ssh2-sftp-client";
 import { expect } from "@playwright/test";
@@ -30,7 +30,7 @@ export async function publishKafka(
   topic: string,
   token: string,
   value: string,
-  extra: { key?: string; headers?: Record<string, string> } = {},
+  extra: { key?: string; headers?: IHeaders } = {},
 ): Promise<void> {
   const producer = kafka.producer();
   await producer.connect();
@@ -41,6 +41,36 @@ export async function publishKafka(
     });
   } finally {
     await producer.disconnect();
+  }
+}
+
+/** Consumes matching records for a bounded window so a spec can assert that no duplicate arrived. */
+export async function consumeMatchingKafka(
+  topic: string,
+  groupId: string,
+  wanted: (record: KafkaRecord) => boolean,
+  timeoutMs = 10_000,
+): Promise<KafkaRecord[]> {
+  const consumer: Consumer = kafka.consumer({ groupId });
+  const found: KafkaRecord[] = [];
+  await consumer.connect();
+  try {
+    await consumer.subscribe({ topic, fromBeginning: true });
+    await consumer.run({
+      eachMessage: async ({ message }) => {
+        const value = message.value === null ? null : message.value.toString("utf-8");
+        const record: KafkaRecord = {
+          value,
+          key: message.key === null ? null : message.key.toString("utf-8"),
+          headers: Object.fromEntries(Object.entries(message.headers ?? {}).map(([name, each]) => [name, String(each)])),
+        };
+        if (wanted(record)) found.push(record);
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+    return found;
+  } finally {
+    await consumer.disconnect();
   }
 }
 
@@ -72,11 +102,11 @@ export async function consumeOneKafka(
   try {
     await consumer.run({
       eachMessage: async ({ message }) => {
-        const value = message.value ? message.value.toString("utf-8") : null;
+        const value = message.value === null ? null : message.value.toString("utf-8");
         if (!wanted(value)) return;
         clearTimeout(timer);
         const headers = Object.fromEntries(Object.entries(message.headers ?? {}).map(([name, each]) => [name, String(each)]));
-        resolveFound({ value, key: message.key ? message.key.toString("utf-8") : null, headers });
+        resolveFound({ value, key: message.key === null ? null : message.key.toString("utf-8"), headers });
       },
     });
     return await found;

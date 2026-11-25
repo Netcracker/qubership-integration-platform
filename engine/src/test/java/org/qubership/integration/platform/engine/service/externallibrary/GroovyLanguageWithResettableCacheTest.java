@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.service.externallibrary;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 // resetScriptCache and addScriptToCache reach Camel's private GroovyLanguage.scriptCache by
 // reflection and log instead of failing when that reflection breaks. These two tests turn a Camel
@@ -57,5 +59,10 @@ class GroovyLanguageWithResettableCacheTest {
         language.resetScriptCache();
 
         assertEquals("not compiled", language.evaluate("'not compiled'", new HashMap<>(), String.class));
+    }
+
+    @Test
+    void shouldEvaluateWhitespaceOnlyScriptAsNull() {
+        assertNull(language.createExpression("   ").evaluate(new DefaultExchange(camelContext), Object.class));
     }
 }

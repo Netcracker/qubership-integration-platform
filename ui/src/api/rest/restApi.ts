@@ -1096,7 +1096,7 @@ export class RestApi implements Api {
     openedFolderId: string,
   ): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
-      `${this.v1()}/catalog/folders/`,
+      `${this.v1()}/catalog/folders`,
       {
         params: {
           filter: filter,

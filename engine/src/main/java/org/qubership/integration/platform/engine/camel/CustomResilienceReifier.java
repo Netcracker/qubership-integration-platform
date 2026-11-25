@@ -51,19 +51,30 @@ public class CustomResilienceReifier extends ResilienceReifier {
         return processor;
     }
 
-    private CircuitBreakerConfig getCircuitBreakerConfig(ResilienceProcessor processor) {
-        return CircuitBreakerConfig.custom()
+    CircuitBreakerConfig getCircuitBreakerConfig(ResilienceProcessor processor) {
+        CircuitBreakerConfig.Builder builder = CircuitBreakerConfig.custom()
                 .automaticTransitionFromOpenToHalfOpenEnabled(processor.isCircuitBreakerTransitionFromOpenToHalfOpenEnabled())
                 .failureRateThreshold(processor.getCircuitBreakerFailureRateThreshold())
                 .minimumNumberOfCalls(processor.getCircuitBreakerMinimumNumberOfCalls())
                 .permittedNumberOfCallsInHalfOpenState(processor.getCircuitBreakerPermittedNumberOfCallsInHalfOpenState())
                 .slidingWindowSize(processor.getCircuitBreakerSlidingWindowSize())
                 .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.valueOf(processor.getCircuitBreakerSlidingWindowType()))
-                .slowCallDurationThreshold(Duration.ofSeconds(parseLong(definition.getResilience4jConfiguration().getSlowCallDurationThreshold())))
                 .slowCallRateThreshold(processor.getCircuitBreakerSlowCallRateThreshold())
-                .waitDurationInOpenState(Duration.ofSeconds(processor.getCircuitBreakerWaitDurationInOpenState()))
-                .writableStackTraceEnabled(processor.isCircuitBreakerWritableStackTraceEnabled())
-                .build();
+                .writableStackTraceEnabled(processor.isCircuitBreakerWritableStackTraceEnabled());
+
+        String slowCallDurationThreshold = definition.getResilience4jConfiguration().getSlowCallDurationThreshold();
+        if (slowCallDurationThreshold != null) {
+            builder.slowCallDurationThreshold(Duration.ofSeconds(parseLong(slowCallDurationThreshold)));
+        }
+
+        String waitDurationInOpenState = definition.getResilience4jConfiguration().getWaitDurationInOpenState();
+        if (waitDurationInOpenState != null) {
+            builder.waitDurationInOpenState(Duration.ofSeconds(processor.getCircuitBreakerWaitDurationInOpenState()));
+        } else {
+            builder.waitDurationInOpenState(Duration.ofMillis(processor.getCircuitBreakerWaitDurationInOpenState()));
+        }
+
+        return builder.build();
     }
 
     private void configureEventPublisher(

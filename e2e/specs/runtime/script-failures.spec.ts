@@ -31,7 +31,7 @@
  * `specs/runtime/script-in-container.spec.ts`, where a loop body and every split branch is a route
  * reached by `direct:` with its script as a top-level output. `choice` is still unmeasured.
  *
- * The three chains that cannot deploy are **spec-owned**: they are imported, deployed and deleted
+ * The chains that cannot deploy are **spec-owned**: they are imported, deployed and deleted
  * by this file and named in `SPEC_OWNED_FIXTURES`, because the shared seed gates on every corpus
  * chain reaching a live route and one that never does would break every runtime spec in the suite.
  * The chains that do deploy are ordinary corpus fixtures.
@@ -289,12 +289,9 @@ test.describe("script failures", { tag: ["@engine"] }, () => {
   });
 
   test("a whitespace-only script passes the body through", { tag: ["@sessions"] }, async ({ request, env, sessions }) => {
-    // Measured on the classic engine, which is the only one Compose runs. Micro's
-    // `GroovyLanguageWithResettableCache` coalesces a null script to `""` and the classic copy does
-    // not, which reads as a divergence and is not one: the two engines use different chain loaders,
-    // `camel-xml-io-dsl` drops a whitespace-only expression body where the Spring engine's JAXB
-    // loader keeps it, and the override restores the behavior this case asserts. To Groovy an empty
-    // source and a whitespace-only one are the same thing.
+    // The micro engine's XML loader drops a whitespace-only body, while the classic loader retains
+    // it. Their Groovy language implementations normalize both forms to a no-op expression, so
+    // either engine should deploy the chain and pass the message body through. Compose runs classic.
     const chain = seedChain(readCorpusState(), "script-empty.yaml");
     const sent = { ping: "empty" };
     const call = await callChain(request, env.chainUrl(chain.contextPath), { data: sent });

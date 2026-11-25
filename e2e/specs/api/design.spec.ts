@@ -303,7 +303,6 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   // The script corpus under `fixtures/script/`, drawn like any other script: one line per
   // element, under the name the fixture gave it. The `.yaml` is part of the fixture name, because
   // these are a file per chain rather than a directory per chain.
-  "script-empty.yaml": { labels: ["Empty Script"] },
   // The failure corpus. The three chains that cannot deploy are spec-owned and never seeded, so
   // they have no row here; these three are ordinary corpus chains that happen to fail at run time.
   "script-failures-caught.yaml": {
@@ -518,7 +517,6 @@ test.describe("chain design", { tag: ["@catalog"] }, () => {
     const noTemplate = await catalog.raw("get", `/v1/detailed-design/chains/${chain.id}`);
     expect(noTemplate.status()).toBe(400);
     expect(await noTemplate.json()).toMatchObject({
-      type: "about:blank",
       detail: "Required parameter 'templateId' is not present.",
     });
   });

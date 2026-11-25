@@ -42,7 +42,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.yaml.snakeyaml.LoaderOptions;
 
 @AutoConfiguration
@@ -184,9 +183,4 @@ public class MapperAutoConfiguration {
                 .stringQuotingChecker(new YamlStringQuotingChecker()));
     }
 
-    @Bean
-    public MappingJackson2HttpMessageConverter mappingJackson2HttpMessageConverter(
-            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
-        return new MappingJackson2HttpMessageConverter(jsonMapper);
-    }
 }

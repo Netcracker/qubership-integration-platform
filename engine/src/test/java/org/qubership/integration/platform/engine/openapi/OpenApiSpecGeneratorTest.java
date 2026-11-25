@@ -16,26 +16,31 @@
 
 package org.qubership.integration.platform.engine.openapi;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.configuration.datasource.FlywayInitializer;
 import org.qubership.integration.platform.engine.opensearch.ism.converters.StringToTimeValueConverter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.client.RestTestClient;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 /**
@@ -87,8 +92,8 @@ class OpenApiSpecGeneratorTest {
     @MockitoBean
     private FlywayInitializer flywayInitializer;
 
-    @Autowired
-    private TestRestTemplate restTemplate;
+    @LocalServerPort
+    private int port;
 
     static class ConverterInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
         @Override
@@ -116,7 +121,63 @@ class OpenApiSpecGeneratorTest {
     @DisplayName("generate OpenAPI specification")
     void generateOpenApiSpecFile() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
-        String rawYaml = restTemplate.getForObject("/v3/api-docs.yaml", String.class);
-        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), rawYaml);
+        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), fetchApiDocsYaml());
+    }
+
+    @Test
+    @DisplayName("serve the document as a JSON object")
+    void servesApiDocsAsJsonObject() throws IOException {
+        String rawJson = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build()
+                .get()
+                .uri("/v3/api-docs")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+        JsonNode document = new ObjectMapper().readTree(rawJson);
+        assertThat(document.isObject()).as("/v3/api-docs returns a JSON object").isTrue();
+        assertThat(document.path("paths").size()).as("/v3/api-docs documents the paths").isPositive();
+    }
+
+    @Test
+    @DisplayName("document the canonical GET /v1/engine/live-exchanges operation")
+    void documentsCanonicalOperation() {
+        Map<String, Object> liveExchanges = documentedPaths().get("/v1/engine/live-exchanges");
+        assertThat(liveExchanges).as("the /v1/engine/live-exchanges path").isNotNull();
+        assertThat(liveExchanges.get("get"))
+                .as("GET /v1/engine/live-exchanges in the generated document")
+                .isNotNull();
+    }
+
+    @Test
+    @DisplayName("hide the proxy aliases")
+    void hidesProxyAliases() {
+        assertThat(documentedPaths().keySet().stream()
+                .filter(path -> path.startsWith("/api") || path.startsWith("/cip"))
+                .toList())
+                .as("proxy alias paths in the generated document")
+                .isEmpty();
+    }
+
+    private String fetchApiDocsYaml() {
+        return RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build()
+                .get()
+                .uri("/v3/api-docs.yaml")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> documentedPaths() {
+        Map<String, Object> document = new Yaml().load(fetchApiDocsYaml());
+        return (Map<String, Map<String, Object>>) document.get("paths");
     }
 }

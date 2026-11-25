@@ -24,7 +24,7 @@ import org.qubership.integration.platform.engine.camel.components.servlet.Servle
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
+import org.springframework.boot.tomcat.TomcatConnectorCustomizer;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

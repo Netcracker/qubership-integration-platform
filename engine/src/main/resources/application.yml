@@ -30,8 +30,8 @@ spring:
     - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
     - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
     - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - org.springframework.boot.jdbc.autoconfigure.health.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.jdbc.autoconfigure.metrics.DataSourcePoolMetricsAutoConfiguration
     - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
     - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
   main:
@@ -69,6 +69,8 @@ spring:
     database: postgresql
     properties:
       hibernate:
+        type:
+          json_format_mapper: jackson
         physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
         temp:
           use_jdbc_metadata_defaults: false # disable connection during init
@@ -262,6 +264,7 @@ cip:
         thread-pool-count: 10
       kafka:
         predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
+        legacy-header-names: ${CAMEL_KAFKA_LEGACY_HEADERS:kafka.KEY,kafka.TOPIC,kafka.HEADERS}
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
       pubsub:

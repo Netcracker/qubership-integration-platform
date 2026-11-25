@@ -23,9 +23,12 @@ import org.apache.camel.spring.boot.util.ConditionalOnHierarchicalProperties;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Configuration
 @EnableConfigurationProperties({
@@ -36,10 +39,13 @@ import org.springframework.context.annotation.Configuration;
 public class KafkaCustomComponentConfiguration {
 
     private final KafkaComponentConfiguration configuration;
+    private final List<String> legacyHeaderNames;
 
     @Autowired
-    public KafkaCustomComponentConfiguration(KafkaComponentConfiguration configuration) {
+    public KafkaCustomComponentConfiguration(KafkaComponentConfiguration configuration,
+        @Value("${cip.camel.component.kafka.legacy-header-names}") List<String> legacyHeaderNames) {
         this.configuration = configuration;
+        this.legacyHeaderNames = legacyHeaderNames;
     }
 
     @Bean
@@ -52,6 +58,7 @@ public class KafkaCustomComponentConfiguration {
                 config.setSslTruststoreLocation(configuration.getSslTruststoreLocation());
                 config.setSslTruststorePassword(configuration.getSslTruststorePassword());
                 config.setSslTruststoreType(configuration.getSslTruststoreType());
+                config.setLegacyHeaderNames(legacyHeaderNames);
             });
     }
 }

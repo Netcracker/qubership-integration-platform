@@ -24,6 +24,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.A
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,6 +63,7 @@ public class ActionsLogExportController {
         ByteArrayResource resource = new ByteArrayResource(document);
         return ResponseEntity.ok()
                 .headers(header)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .contentLength(resource.contentLength())
                 .body(resource);
     }

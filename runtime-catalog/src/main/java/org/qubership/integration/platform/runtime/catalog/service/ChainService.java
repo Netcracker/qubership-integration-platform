@@ -30,8 +30,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.ChainLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainSearchRequestDTO;
@@ -354,8 +356,31 @@ public class ChainService extends ChainBaseService {
         chainCopy.setSnapshots(new ArrayList<>());
         chainCopy.setCurrentSnapshot(null);
         chainCopy.setDeployments(new ArrayList<>());
+        chainCopy.setValidationAlerts(new ArrayList<>());
+        Set<MaskedField> maskedFields = chain.getMaskedFields().stream()
+                .map(MaskedField::copy)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        maskedFields.forEach(field -> field.setChain(chainCopy));
+        chainCopy.setMaskedFields(maskedFields);
+        chainCopy.getElements().forEach(element -> {
+            element.setValidationAlerts(new ArrayList<>());
+            if (element instanceof ContainerChainElement container) {
+                container.setElements(new ArrayList<>());
+            }
+            if (element instanceof SwimlaneChainElement swimlane) {
+                swimlane.setElements(new ArrayList<>());
+            }
+        });
 
         chainCopy.setElements(copyElements(chainCopy.getElements(), chainCopy.getId()));
+        chainCopy.getElements().forEach(element -> {
+            if (element.getParent() != null) {
+                element.getParent().getElements().add(element);
+            }
+            if (element.getSwimlane() != null) {
+                element.getSwimlane().getElements().add(element);
+            }
+        });
         Set<String> elementsModifiedState = saveElementsModifiedState(chainCopy.getElements());
         restoreElementsModifiedState(elementsModifiedState, chainCopy.getElements());
 

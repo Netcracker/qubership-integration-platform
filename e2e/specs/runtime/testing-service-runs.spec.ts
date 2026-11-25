@@ -132,8 +132,11 @@ test.describe("testing-service test runs", { tag: ["@testing-service", "@engine"
       });
       const answered = await live.text();
       expect(answered, "a plain call was mocked").not.toContain(marker);
+      const answerBody: unknown = JSON.parse(answered);
       // The real endpoint is the catalog's health document, whatever status it reports.
-      expect(answered, "a plain call did not reach the real endpoint").toMatch(/"status":"[A-Z_]+"/);
+      expect(answerBody, "a plain call did not reach the real endpoint").toMatchObject({
+        status: expect.stringMatching(/^[A-Z_]+$/),
+      });
     });
   });
 
