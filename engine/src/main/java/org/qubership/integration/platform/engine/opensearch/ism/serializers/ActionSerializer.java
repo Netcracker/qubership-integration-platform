@@ -22,9 +22,12 @@ import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.BeanDescription;
 import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.JavaType;
+import tools.jackson.databind.SerializationConfig;
 import tools.jackson.databind.SerializationContext;
 import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.introspect.AnnotatedClass;
 import tools.jackson.databind.introspect.BeanPropertyDefinition;
+import tools.jackson.databind.introspect.ClassIntrospector;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -82,7 +85,10 @@ public class ActionSerializer extends ValueSerializer<Action> {
 
     private <T> List<BeanPropertyDefinition> getPropertyDefinitions(Class<T> cls, SerializationContext serializerProvider) {
         JavaType type = serializerProvider.getTypeFactory().constructType(cls);
-        BeanDescription description = serializerProvider.introspectBeanDescription(type, null);
+        SerializationConfig config = serializerProvider.getConfig();
+        ClassIntrospector classIntrospector = config.classIntrospectorInstance().forOperation(config);
+        AnnotatedClass annotatedClass = classIntrospector.introspectClassAnnotations(type);
+        BeanDescription description = serializerProvider.introspectBeanDescription(type, annotatedClass);
         Set<String> ignoredProperties = description.getIgnoredPropertyNames();
         return description.findProperties().stream()
                 .filter(definition -> !ignoredProperties.contains(definition.getName()))
