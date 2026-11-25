@@ -18,12 +18,14 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
 import java.util.List;
 
 @Data
+@NoArgsConstructor
 @Jacksonized
 @SuperBuilder
 @Schema(description = "Transfer element request object")
