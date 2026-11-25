@@ -45,9 +45,9 @@ import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -81,7 +81,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
     private final SwaggerSchemaResolver swaggerSchemaResolver;
     private final OpenApiMapperResolver openApiMapperResolver;
-    private final ObjectMapper treeMapper = new JsonMapper();
+    private final ObjectMapper treeMapper = YAMLMapper.builder().build();
 
     private final Map<String, SchemaProcessor> schemaProcessorMap = new HashMap<>();
 

@@ -20,6 +20,29 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
     private static final JsonMapper JSON_MAPPER = new JsonMapper();
 
     @Test
+    @DisplayName("OpenAPI YAML specs are parsed into operations")
+    void parsesYamlSpecification() {
+        String spec = """
+                openapi: 3.0.3
+                info:
+                  title: Test
+                  version: 1.0.0
+                paths:
+                  /things:
+                    get:
+                      operationId: listThings
+                      responses:
+                        "200":
+                          description: OK
+                """;
+
+        ParsedSystemModel model = parse(spec);
+
+        assertEquals(1, model.getOperations().size());
+        assertEquals("listThings", model.getOperations().get(0).getName());
+    }
+
+    @Test
     @DisplayName("OpenAPI 3.0: scalar type and the nullable keyword import unchanged via the legacy mapper")
     void openApi30ImportsWithLegacyMapper() {
         String spec = """
