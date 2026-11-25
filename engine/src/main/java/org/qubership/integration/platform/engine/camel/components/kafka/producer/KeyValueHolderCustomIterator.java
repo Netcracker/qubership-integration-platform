@@ -52,6 +52,8 @@ public class KeyValueHolderCustomIterator implements Iterator<KeyValueHolder<Obj
             final Message innerMessage = getInnerMessage(body);
             final Exchange innerExchange = getInnerExchange(body);
 
+            legacyHeaderCompatibility.applyLegacyOverrides(innerMessage);
+
             final String innerTopic = getInnerTopic(innerMessage);
             final Integer innerPartitionKey = getInnerPartitionKey(innerMessage);
             final Object innerKey = getInnerKey(innerExchange, innerMessage);

@@ -35,6 +35,18 @@ public final class KafkaLegacyHeaderCompatibility {
         }
     }
 
+    public void applyLegacyOverrides(Message message) {
+        for (String legacyHeaderName : legacyHeaderNames) {
+            String currentHeaderName = REPLACED_HEADERS.get(legacyHeaderName);
+            if (currentHeaderName != null) {
+                Object value = message.getHeader(legacyHeaderName);
+                if (value != null) {
+                    message.setHeader(currentHeaderName, value);
+                }
+            }
+        }
+    }
+
     public Object getHeaderValue(Message message, String currentHeaderName) {
         Object value = message.getHeader(currentHeaderName);
         if (value != null) {

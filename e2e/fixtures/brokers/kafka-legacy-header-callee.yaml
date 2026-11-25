@@ -24,6 +24,12 @@ content:
         } else if (data.senderMode == 'both-same') {
             message.setHeader('kafka.KEY', data.senderKey)
             message.setHeader('CamelKafkaKey', data.senderKey)
+        } else if (data.senderMode == 'both-conflict') {
+            message.setHeader('kafka.KEY', data.senderKey)
+            message.setHeader('CamelKafkaKey', data.currentSenderKey)
+        } else if (data.senderMode == 'current-only') {
+            message.removeHeader('kafka.KEY')
+            message.setHeader('CamelKafkaKey', data.currentSenderKey)
         } else {
             throw new IllegalArgumentException('Unknown sender mode: ' + data.senderMode)
         }

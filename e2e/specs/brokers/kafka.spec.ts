@@ -103,6 +103,22 @@ test.describe("kafka", { tag: ["@engine", "@sessions", "@kafka"] }, () => {
           senderKey: "paired-output-key",
         },
         {
+          token: callToken("legacy-header-conflict"),
+          inputKey: "input-conflict-key",
+          userHeaderValues: undefined,
+          senderMode: "both-conflict",
+          senderKey: "legacy-wins-key",
+          currentSenderKey: "current-loses-key",
+        },
+        {
+          token: callToken("legacy-header-current-only"),
+          inputKey: "input-current-key",
+          userHeaderValues: undefined,
+          senderMode: "current-only",
+          senderKey: "current-only-key",
+          currentSenderKey: "current-only-key",
+        },
+        {
           token: callToken("legacy-header-empty-key"),
           inputKey: "",
           userHeaderValues: undefined,
@@ -121,6 +137,7 @@ test.describe("kafka", { tag: ["@engine", "@sessions", "@kafka"] }, () => {
                 userHeaderName: "e2e-user-header",
                 senderMode: entry.senderMode,
                 senderKey: entry.senderKey,
+                currentSenderKey: "currentSenderKey" in entry ? entry.currentSenderKey : undefined,
                 marker: entry.token,
               };
               await publish(sourceTopic, entry.token, JSON.stringify(payload), {

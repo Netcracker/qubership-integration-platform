@@ -151,6 +151,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     protected Iterator<KeyValueHolder<Object, ProducerRecord<Object, Object>>> createRecordIterable(
         Exchange exchange, Message message) {
+        legacyHeaderCompatibility.applyLegacyOverrides(message);
         String topic = evaluateTopic(message);
 
         // extracting headers which need to be propagated
@@ -164,6 +165,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
     }
 
     protected ProducerRecord<Object, Object> createRecord(Exchange exchange, Message message) {
+        legacyHeaderCompatibility.applyLegacyOverrides(message);
         String topic = evaluateTopic(message);
 
         Long timeStamp = null;

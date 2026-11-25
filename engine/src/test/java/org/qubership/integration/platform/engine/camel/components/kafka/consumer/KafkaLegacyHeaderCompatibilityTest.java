@@ -44,6 +44,48 @@ class KafkaLegacyHeaderCompatibilityTest {
     }
 
     @Test
+    void shouldCopyConfiguredLegacyValuesOverCurrentHeadersBeforeSending() {
+        Message message = mock(Message.class);
+        when(message.getHeader("kafka.KEY")).thenReturn("legacy-key");
+        when(message.getHeader(KafkaConstants.KEY)).thenReturn("current-key");
+        when(message.getHeader("kafka.OVERRIDE_TOPIC")).thenReturn("legacy-topic");
+        when(message.getHeader(KafkaConstants.OVERRIDE_TOPIC)).thenReturn("current-topic");
+
+        new KafkaLegacyHeaderCompatibility(List.of("kafka.KEY", "kafka.OVERRIDE_TOPIC"))
+            .applyLegacyOverrides(message);
+
+        verify(message).setHeader(KafkaConstants.KEY, "legacy-key");
+        verify(message).setHeader(KafkaConstants.OVERRIDE_TOPIC, "legacy-topic");
+    }
+
+    @Test
+    void shouldLeaveCurrentHeadersUntouchedWhenLegacyAliasesAreMissingOrUnconfigured() {
+        Message message = mock(Message.class);
+        when(message.getHeader("kafka.KEY")).thenReturn(null);
+        when(message.getHeader(KafkaConstants.KEY)).thenReturn("current-key");
+        when(message.getHeader("kafka.OVERRIDE_TOPIC")).thenReturn("unconfigured-topic");
+        when(message.getHeader(KafkaConstants.OVERRIDE_TOPIC)).thenReturn("current-topic");
+
+        new KafkaLegacyHeaderCompatibility(List.of("kafka.KEY"))
+            .applyLegacyOverrides(message);
+
+        verify(message, times(0)).setHeader(KafkaConstants.KEY, null);
+        verify(message, times(0)).setHeader(KafkaConstants.OVERRIDE_TOPIC, "unconfigured-topic");
+    }
+
+    @Test
+    void shouldCopyEmptyLegacyValueOverCurrentHeader() {
+        Message message = mock(Message.class);
+        when(message.getHeader("kafka.KEY")).thenReturn("");
+        when(message.getHeader(KafkaConstants.KEY)).thenReturn("current-key");
+
+        new KafkaLegacyHeaderCompatibility(List.of("kafka.KEY"))
+            .applyLegacyOverrides(message);
+
+        verify(message).setHeader(KafkaConstants.KEY, "");
+    }
+
+    @Test
     void shouldReadConfiguredLegacyHeaderForEveryRenamedProducerHeader() {
         Message message = mock(Message.class);
         when(message.getHeader("kafka.PARTITION_KEY")).thenReturn("4");
