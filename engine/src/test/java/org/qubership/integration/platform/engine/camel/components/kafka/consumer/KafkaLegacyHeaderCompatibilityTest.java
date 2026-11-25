@@ -25,10 +25,11 @@ class KafkaLegacyHeaderCompatibilityTest {
         when(message.getHeader(KafkaConstants.PARTITION)).thenReturn("partition");
         when(message.getHeader(KafkaConstants.OVERRIDE_TOPIC)).thenReturn("override-topic");
         when(message.getHeader(KafkaConstants.OFFSET)).thenReturn("offset");
+        when(message.getHeader(KafkaConstants.TIMESTAMP)).thenReturn(123456L);
 
         new KafkaLegacyHeaderCompatibility(List.of(
             "kafka.KEY", "kafka.TOPIC", "kafka.HEADERS", "kafka.PARTITION_KEY", "kafka.PARTITION",
-            "kafka.OVERRIDE_TOPIC", "kafka.OFFSET"))
+            "kafka.OVERRIDE_TOPIC", "kafka.OFFSET", "kafka.TIMESTAMP"))
             .apply(message);
 
         verify(message, times(1)).getHeader(KafkaConstants.KEY);
@@ -41,6 +42,7 @@ class KafkaLegacyHeaderCompatibilityTest {
         verify(message).setHeader("kafka.PARTITION", "partition");
         verify(message).setHeader("kafka.OVERRIDE_TOPIC", "override-topic");
         verify(message).setHeader("kafka.OFFSET", "offset");
+        verify(message).setHeader("kafka.TIMESTAMP", 123456L);
     }
 
     @Test

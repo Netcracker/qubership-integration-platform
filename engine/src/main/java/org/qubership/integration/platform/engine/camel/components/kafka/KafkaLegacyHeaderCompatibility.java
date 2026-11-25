@@ -16,7 +16,8 @@ public final class KafkaLegacyHeaderCompatibility {
         "kafka.PARTITION_KEY", KafkaConstants.PARTITION_KEY,
         "kafka.PARTITION", KafkaConstants.PARTITION,
         "kafka.OVERRIDE_TOPIC", KafkaConstants.OVERRIDE_TOPIC,
-        "kafka.OFFSET", KafkaConstants.OFFSET
+        "kafka.OFFSET", KafkaConstants.OFFSET,
+        "kafka.TIMESTAMP", KafkaConstants.TIMESTAMP
     );
 
     private final List<String> legacyHeaderNames;
