@@ -223,9 +223,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
     }
 
-    // requires completion of all deployment processes
     private Map<String, EngineDeployment> buildActualDeploymentsSnapshot() {
-        Lock processLock = this.processLock.writeLock();
+        Lock processLock = this.processLock.readLock();
         try {
             processLock.lock();
             // copy deployments objects to avoid concurrent modification
@@ -261,19 +260,25 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
         for (Entry<String, TreeSet<DeploymentUpdate>> entry : updatesPerChain.entrySet()) {
             TreeSet<DeploymentUpdate> chainDeployments = entry.getValue();
-            completableFutures.add(process(chainDeployments, DeploymentOperation.UPDATE, retry));
+            completableFutures.add(processAndReportState(chainDeployments, DeploymentOperation.UPDATE, retry));
         }
 
         for (DeploymentUpdate toStop : update.getStop()) {
             completableFutures.add(
-                process(Collections.singletonList(toStop), DeploymentOperation.STOP, retry));
+                processAndReportState(Collections.singletonList(toStop), DeploymentOperation.STOP, retry));
         }
 
         // wait for all async tasks
         CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).get();
 
-        // update engine state in consul
-        updateEngineState();
+        if (completableFutures.isEmpty()) {
+            updateEngineState();
+        }
+    }
+
+    private CompletableFuture<?> processAndReportState(Collection<DeploymentUpdate> chainDeployments,
+                                                        DeploymentOperation operation, boolean retry) {
+        return process(chainDeployments, operation, retry).thenRun(this::updateEngineState);
     }
 
     private synchronized void updateEngineState() {

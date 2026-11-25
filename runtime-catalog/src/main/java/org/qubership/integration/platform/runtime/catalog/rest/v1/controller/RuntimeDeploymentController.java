@@ -60,7 +60,7 @@ public class RuntimeDeploymentController {
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(description = "Get deployment statuses for all chains on all available engine pods")
-    public ResponseEntity<String> findChainRuntimeDeployments(
+    public ResponseEntity<byte[]> findChainRuntimeDeployments(
             @RequestParam(value = "fields", required = false) @Parameter(description = "Fields to include in the response") String[] fields
     ) {
         Map<String, Collection<ChainRuntimeDeployment>> deployments = runtimeDeploymentService.getChainRuntimeDeployments();
@@ -68,9 +68,9 @@ public class RuntimeDeploymentController {
             return ResponseEntity.noContent().build();
         }
 
-        String result = ArrayUtils.isNotEmpty(fields)
-                ? objectMapper.writer(createFilters(fields)).writeValueAsString(deployments)
-                : objectMapper.writeValueAsString(deployments);
+        byte[] result = ArrayUtils.isNotEmpty(fields)
+                ? objectMapper.writer(createFilters(fields)).writeValueAsBytes(deployments)
+                : objectMapper.writeValueAsBytes(deployments);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(result);
     }
 
