@@ -18,7 +18,7 @@ package org.qubership.integration.platform.engine.service;
 
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
-import org.apache.camel.component.jackson.JacksonConstants;
+import org.apache.camel.component.jackson3.JacksonConstants;
 import org.apache.camel.impl.engine.DefaultManagementStrategy;
 import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
 import org.apache.camel.model.*;
