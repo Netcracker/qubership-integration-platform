@@ -170,7 +170,7 @@ test.describe("element forms", () => {
     );
   });
 
-  test("a service call saves a response code outside its specification", async ({ vscode }) => {
+  test("a service call saves a custom response code", async ({ vscode }) => {
     await vscode.open();
     await vscode.openFile(SERVICES_CHAIN);
     const graph = new ChainGraphPage(vscode.webview);
