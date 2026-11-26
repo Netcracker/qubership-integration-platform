@@ -48,7 +48,7 @@ type publicationAPI struct {
 
 func apiFixture(t *testing.T, p Plan) (*Client, *publicationAPI) {
 	t.Helper()
-	a := &publicationAPI{viewerLogin: "agent-bot", headComparison: "ahead", prFiles: []map[string]string{{"filename": "help/docs/readme.md"}}, plan: p, state: "closed", project: "REVIEW", head: p.BaseSHA}
+	a := &publicationAPI{viewerLogin: "agent-bot", orgBotLogin: "agent-bot", headComparison: "ahead", prFiles: []map[string]string{{"filename": "help/docs/readme.md"}}, plan: p, state: "closed", project: "REVIEW", head: p.BaseSHA}
 	return projectClientFixture(t, p.Repository, a.serve), a
 }
 
@@ -77,7 +77,7 @@ func projectClientFixture(t *testing.T, repository string, serve http.HandlerFun
 		serve(w, r)
 	}))
 	t.Cleanup(server.Close)
-	client, e := NewClient(repository, repositoryToken, ClientOptions{ProjectToken: projectToken, HTTPClient: server.Client(), BaseURL: server.URL})
+	client, e := NewClient(repository, repositoryToken, ClientOptions{UseOrgBot: true, ProjectToken: projectToken, HTTPClient: server.Client(), BaseURL: server.URL})
 	if e != nil {
 		t.Fatal(e)
 	}

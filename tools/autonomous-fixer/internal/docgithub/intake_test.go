@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/docpacket"
-	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/fixer"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,8 +23,11 @@ func TestIntakeAcceptsClosedIssueAndRequiresReviewStatus(t *testing.T) {
 				a.serve(w, r)
 			}))
 			defer server.Close()
-			api, _ := fixer.NewGitHubClient("org/repo", "test", server.Client(), server.URL)
-			v, e := Prepare(context.Background(), &Client{API: api, Repository: "org/repo"}, 1, 12)
+			client, err := NewClient("org/repo", "test", ClientOptions{HTTPClient: server.Client(), BaseURL: server.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, e := Prepare(context.Background(), client, 1, 12)
 			if status == "REVIEW" {
 				if e != nil || !v.Complete || v.Plan.Validate() != nil || v.Plan.Project.Number != 12 {
 					t.Fatal(v, e)

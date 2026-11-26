@@ -120,8 +120,10 @@ To publish a downloaded result locally, check out the plan's base commit and run
 new worktree. Pass that worktree as `--source` to
 `docs-agent publish --prepared ... --run ... --source ... --actor ... --apply`. For a hosted artifact,
 `--run` points to its `work/` directory. Omit `--apply` to validate the local publication without writes.
-Local applied publication requires a token whose login matches the declared actor and configured publisher.
-The initiating workflow actor may differ from the App publisher identity.
+For local `--apply`, the repository token's login must match both `--actor` and the configured
+publisher, and that login must be in `AGENT_ALLOWED_ACTORS`. In QIP, an allowed maintainer
+can run the documentation workflow in Actions with **Apply** selected. The workflow checks the
+maintainer's permission and publishes with the configured account.
 
 Human reviewers can append documentation-only corrections to the published branch. The gate and merge reconciliation check ancestry and the complete PR file list, including rename origins. The original candidate identity remains recorded, with the later merge head marked separately; added commits are an observation, not automatically a classifier error. A rewritten unrelated head or a product-code change needs separate validation.
 

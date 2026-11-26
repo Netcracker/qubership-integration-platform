@@ -92,12 +92,9 @@ func github(repo string) (*docgithub.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	var projectToken string
-	if useOrgBot {
-		projectToken = os.Getenv("AGENT_PROJECT_TOKEN")
-		if projectToken == "" {
-			return nil, fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
-		}
+	projectToken := os.Getenv("AGENT_PROJECT_TOKEN")
+	if useOrgBot && projectToken == "" {
+		return nil, fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
 	}
 	return docgithub.NewClient(repo, token, docgithub.ClientOptions{ProjectToken: projectToken, UseOrgBot: useOrgBot})
 }

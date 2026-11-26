@@ -35,7 +35,7 @@ func scheduleFixture(t *testing.T) (*Client, *scheduleAPI, Plan) {
 	base := strings.Repeat("a", 40)
 	a := &scheduleAPI{
 		publicationAPI: publicationAPI{
-			viewerLogin: "agent-bot", plan: Plan{Repository: "org/repo", IssueTitle: "Document the change", BaseSHA: base},
+			viewerLogin: "agent-bot", orgBotLogin: "agent-bot", plan: Plan{Repository: "org/repo", IssueTitle: "Document the change", BaseSHA: base},
 			state: "closed", project: "REVIEW", head: base,
 		},
 		attempts: map[string]fixer.WorkflowRun{}, jobs: map[string][]any{}, enabled: true, apply: true,
@@ -253,7 +253,7 @@ func TestScheduledClaimRevalidatesIssueBeforeWriting(t *testing.T) {
 
 func TestScheduleUsesOrganizationPublisherInSplitMode(t *testing.T) {
 	c, api, plan := scheduleFixture(t)
-	c.useOrgBot = true
+	api.orgBotLogin = ""
 	ctx := t.Context()
 	basis := scheduleBasis(plan)
 	attempt := ScheduledAttempt{RunID: 500, Attempt: 1}

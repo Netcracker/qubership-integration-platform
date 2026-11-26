@@ -32,7 +32,9 @@ func NewClient(repository, token string, options ClientOptions) (*Client, error)
 		return nil, err
 	}
 	client := &Client{API: api, Repository: repository, useOrgBot: options.UseOrgBot}
-	if options.ProjectToken != "" {
+	if !options.UseOrgBot {
+		client.projectAPI = api
+	} else if options.ProjectToken != "" {
 		client.projectAPI, err = fixer.NewGitHubClient(repository, options.ProjectToken, options.HTTPClient, options.BaseURL)
 		if err != nil {
 			return nil, err
@@ -47,11 +49,10 @@ func (c *Client) GraphQL(ctx context.Context, query string, variables map[string
 	return c.API.GraphQL(ctx, query, variables, target)
 }
 func (c *Client) projectGraphQL(ctx context.Context, query string, variables map[string]any, target any) error {
-	api := c.projectAPI
-	if api == nil {
-		api = c.API
+	if c.projectAPI == nil {
+		return fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
 	}
-	return api.GraphQL(ctx, query, variables, target)
+	return c.projectAPI.GraphQL(ctx, query, variables, target)
 }
 
 type Project struct {
