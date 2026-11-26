@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.model.chain.SessionsLoggingLevel;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 
 import java.util.HashMap;
@@ -30,5 +32,27 @@ class MapperAutoConfigurationTest {
                 .readValue(requestBody, DeleteInstructionsRequest.class);
 
         assertThat(request.getChains()).containsExactly("chain-id");
+    }
+
+    @Test
+    void primaryMapperReadsPartialLoggingPropertiesRequest() {
+        String requestBody = """
+                {"sessionsLoggingLevel":"DEBUG"}
+                """;
+
+        DeploymentRuntimeProperties request = new MapperAutoConfiguration().primaryObjectMapper()
+                .readValue(requestBody, DeploymentRuntimeProperties.class);
+
+        assertThat(request.getSessionsLoggingLevel()).isEqualTo(SessionsLoggingLevel.DEBUG);
+        assertThat(request.isMaskingEnabled()).isFalse();
+    }
+
+    @Test
+    void exportImportYamlMapperReadsPartialLoggingProperties() {
+        DeploymentRuntimeProperties request = new MapperAutoConfiguration()
+                .yamlExportImportMapper(false)
+                .readValue("sessionsLoggingLevel: DEBUG", DeploymentRuntimeProperties.class);
+
+        assertThat(request.isMaskingEnabled()).isFalse();
     }
 }

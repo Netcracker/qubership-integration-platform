@@ -62,6 +62,7 @@ public class MapperAutoConfiguration {
                 .enable(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
@@ -73,6 +74,7 @@ public class MapperAutoConfiguration {
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
         return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
@@ -81,12 +83,16 @@ public class MapperAutoConfiguration {
 
     @Bean("openApiObjectMapper")
     public ObjectMapper openApiObjectMapper() {
-        return JsonMapper.builder().build();
+        return JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
     }
 
     @Bean("defaultYamlMapper")
     public YAMLMapper defaultYamlMapper() {
-        return new YAMLMapper(createCustomYamlFactory());
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
     }
 
     @Bean("yamlExportImportMapper")
@@ -106,6 +112,7 @@ public class MapperAutoConfiguration {
         simpleFilterProvider.addFilter("baseEntityFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
         return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(simpleFilterProvider)
@@ -120,6 +127,7 @@ public class MapperAutoConfiguration {
         serializeModule.addSerializer(ChainElement.class, new CodeviewChainElementSerializer());
         serializeModule.addDeserializer(ChainElement.class, new CodeviewChainElementDeserializer(objectMapper));
         return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .build();
@@ -137,6 +145,7 @@ public class MapperAutoConfiguration {
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
         return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
@@ -153,6 +162,7 @@ public class MapperAutoConfiguration {
         simpleFilterProvider.addFilter("commonVariableFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
         return YAMLMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(simpleFilterProvider)
