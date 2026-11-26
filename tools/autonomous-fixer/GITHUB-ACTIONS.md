@@ -26,7 +26,7 @@ Install the workflows, controller, product source, and agent skills on the repos
 | --- | --- |
 | `OPENROUTER_API_KEY` | Model calls in the worker. A dedicated key lets you track its usage and revoke it independently. |
 | `AGENT_VARIABLES_READ_TOKEN` | Trusted controller steps. Grant repository Variables read access so the controller can recheck the allowlist and enable flag. |
-| `AGENT_PUBLICATION_TOKEN` | Trusted publication step. Grant Contents and Pull requests write and Issues read on this repository. The publisher creates a branch and draft PR and reads the issue to confirm eligibility. |
+| `AGENT_PUBLICATION_TOKEN` | Required for publication only when `AGENT_USE_ORG_BOT` is unset or disabled. Grant Contents and Pull requests write and Issues read on this repository. The publisher creates a branch and draft PR and reads the issue to confirm eligibility. |
 
 With `AGENT_USE_ORG_BOT=true`, trusted jobs use the organization secret `GH_ACCESS_TOKEN`
 for new issue comments, labels, branches, and PRs. Existing GitHub Actions comments keep their
