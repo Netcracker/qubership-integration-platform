@@ -492,7 +492,7 @@ func RunAction(ctx context.Context, mode string, cfg ActionConfig) (ActionResult
 			err = session.adapter.repairHostedReport(ctx, RunIdentity{RunID: session.run.ID, RunAttempt: session.run.RunAttempt})
 		}
 		if err == nil && result.State != nil && result.Disposition != "recovery-required" {
-			err = SyncStopLabels(ctx, cfg.Client, session.issue.Number, result.State)
+			err = SyncStopLabels(ctx, cfg.Client, session.adapter.Store.authors.Writer(), session.issue.Number, result.State)
 		}
 		if cfg.IsCompletionEvent() && err == nil && result.State != nil && result.State.Phase == "awaiting-publication" && result.State.HostedCandidate != nil {
 			candidate := result.State.HostedCandidate

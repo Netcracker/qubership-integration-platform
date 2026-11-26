@@ -269,7 +269,7 @@ func (a *GitHubAdapter) Observe(ctx context.Context, effect Effect) (Observation
 	return Observation{Status: "unknown"}, nil
 }
 
-func SyncStopLabels(ctx context.Context, client *GitHubClient, issue int64, state *State) error {
+func SyncStopLabels(ctx context.Context, client *GitHubClient, writer GitHubUser, issue int64, state *State) error {
 	desired, owned := make(map[string]bool), make(map[string]bool)
 	for _, reason := range StopReasons {
 		owned["needs-human:"+reason] = true
@@ -303,18 +303,18 @@ func SyncStopLabels(ctx context.Context, client *GitHubClient, issue int64, stat
 				if status, ok := err.(*HTTPError); !ok || status.Status != 404 {
 					return err
 				}
-				if err := client.WriteIssue(ctx, GitHubUser{}, "POST", "/labels", map[string]string{"name": label, "color": "FBCA04", "description": "The agent needs an action from an allowed user."}, nil); err != nil {
+				if err := client.writeIssue(ctx, writer, "POST", "/labels", map[string]string{"name": label, "color": "FBCA04", "description": "The agent needs an action from an allowed user."}, nil); err != nil {
 					return err
 				}
 			}
-			if err := client.WriteIssue(ctx, GitHubUser{}, "POST", fmt.Sprintf("/issues/%d/labels", issue), map[string]any{"labels": []string{label}}, nil); err != nil {
+			if err := client.writeIssue(ctx, writer, "POST", fmt.Sprintf("/issues/%d/labels", issue), map[string]any{"labels": []string{label}}, nil); err != nil {
 				return err
 			}
 		}
 	}
 	for label := range current {
 		if owned[label] && !desired[label] {
-			if err := client.WriteIssue(ctx, GitHubUser{}, "DELETE", fmt.Sprintf("/issues/%d/labels/%s", issue, url.PathEscape(label)), nil, nil); err != nil {
+			if err := client.writeIssue(ctx, writer, "DELETE", fmt.Sprintf("/issues/%d/labels/%s", issue, url.PathEscape(label)), nil, nil); err != nil {
 				return err
 			}
 		}

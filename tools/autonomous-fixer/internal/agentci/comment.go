@@ -45,13 +45,12 @@ func publish(ctx context.Context, client *fixer.GitHubClient, repo fixer.Reposit
 		report.Disposition = "unchanged"
 		return nil
 	}
-	var owner fixer.GitHubUser
-	method, target := "POST", path
-	if comment != nil {
-		owner = comment.User
-		method, target = "PATCH", fmt.Sprintf("/issues/comments/%d", comment.ID)
+	var requestErr error
+	if comment == nil {
+		requestErr = client.CreateIssueComment(ctx, pr.Number, authors.Writer(), body, nil)
+	} else {
+		requestErr = client.UpdateIssueComment(ctx, comment.ID, comment.User, body)
 	}
-	requestErr := client.WriteIssue(ctx, owner, method, target, map[string]string{"body": body}, nil)
 	confirmed, err := findComment(ctx, client, path, marker, authors)
 	if err != nil {
 		return errors.Join(requestErr, err)

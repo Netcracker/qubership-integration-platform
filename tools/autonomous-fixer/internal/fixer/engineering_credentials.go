@@ -123,15 +123,27 @@ func (c *GitHubClient) verifyOrganizationBot(ctx context.Context, login string, 
 	return nil
 }
 
-func (c *GitHubClient) WriteIssue(ctx context.Context, author GitHubUser, method, path string, input, output any) error {
+func (c *GitHubClient) CreateIssueComment(ctx context.Context, issue int64, writer GitHubUser, body string, created *Comment) error {
+	var output any
+	if created != nil {
+		output = created
+	}
+	return c.writeIssue(ctx, writer, http.MethodPost, fmt.Sprintf("/issues/%d/comments", issue), map[string]string{"body": body}, output)
+}
+
+func (c *GitHubClient) UpdateIssueComment(ctx context.Context, id int64, author GitHubUser, body string) error {
+	return c.writeIssue(ctx, author, http.MethodPatch, fmt.Sprintf("/issues/comments/%d", id), map[string]string{"body": body}, nil)
+}
+
+func (c *GitHubClient) writeIssue(ctx context.Context, author GitHubUser, method, path string, input, output any) error {
 	if (method != http.MethodPost && method != http.MethodPatch && method != http.MethodDelete) ||
 		(path != "/labels" && !strings.HasPrefix(path, "/issues/")) {
 		return fmt.Errorf("invalid issue write")
 	}
-	if author.Login == ActionsBotLogin || (author == (GitHubUser{}) && c.organizationLogin == "") {
+	if author.ID > 0 && author.Type == "Bot" && author.Login == ActionsBotLogin {
 		return c.Request(ctx, method, path, input, output)
 	}
-	if c.organizationLogin == "" || (author != (GitHubUser{}) && !matchesOrganizationBot(author, c.organizationLogin)) {
+	if c.organizationLogin == "" || !matchesOrganizationBot(author, c.organizationLogin) {
 		return fmt.Errorf("invalid issue write author")
 	}
 	if c.organizationToken == "" {

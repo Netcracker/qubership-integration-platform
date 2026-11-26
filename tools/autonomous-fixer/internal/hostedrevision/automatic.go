@@ -127,7 +127,7 @@ func (c *Controller) currentFailures(ctx context.Context, pr agentpr.PullRequest
 	if err != nil && !notFound(err) {
 		return nil, err
 	}
-	snapshot, err := agentci.ReadPullRequest(ctx, c.cfg.Client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, configured)
+	snapshot, err := agentci.ReadPullRequestSnapshot(ctx, c.cfg.Client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, configured)
 	if err != nil {
 		return nil, err
 	}

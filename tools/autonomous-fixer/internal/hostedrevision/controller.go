@@ -255,7 +255,7 @@ func (c *Controller) OpenRevision(ctx context.Context) (bool, error) {
 	if c.cfg.Run.RunAttempt != 1 {
 		return false, nil
 	}
-	comments, err := c.botComments(ctx)
+	comments, err := c.trustedComments(ctx)
 	if err != nil {
 		return false, err
 	}

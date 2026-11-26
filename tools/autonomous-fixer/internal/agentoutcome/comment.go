@@ -110,12 +110,11 @@ func outcomeBody(report Report) string {
 
 func saveOutcome(ctx context.Context, client *fixer.GitHubClient, authors fixer.EngineeringAuthors, previous *savedOutcome, report Report) error {
 	body := outcomeBody(report)
-	payload := map[string]string{"body": body}
 	var writeErr error
 	if previous == nil {
-		writeErr = client.WriteIssue(ctx, fixer.GitHubUser{}, "POST", fmt.Sprintf("/issues/%d/comments", report.PullRequest), payload, nil)
+		writeErr = client.CreateIssueComment(ctx, report.PullRequest, authors.Writer(), body, nil)
 	} else {
-		writeErr = client.WriteIssue(ctx, previous.comment.User, "PATCH", fmt.Sprintf("/issues/comments/%d", previous.comment.ID), payload, nil)
+		writeErr = client.UpdateIssueComment(ctx, previous.comment.ID, previous.comment.User, body)
 	}
 	comments, err := pullComments(ctx, client, report.PullRequest)
 	if err != nil {

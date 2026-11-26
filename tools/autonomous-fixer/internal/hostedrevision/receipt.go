@@ -23,7 +23,7 @@ var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 var digestSHA = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var publishedMarker = regexp.MustCompile(`^` + regexp.QuoteMeta(resultMarker) + `([1-9][0-9]*):([1-9][0-9]*):([1-9][0-9]*):[1-9][0-9]*:1:([0-9a-f]{40}):published:([0-9a-f]{40}) -->$`)
 
-func botOwned(comment fixer.Comment, authors fixer.EngineeringAuthors) bool {
+func trustedComment(comment fixer.Comment, authors fixer.EngineeringAuthors) bool {
 	return comment.ID > 0 && authors.Contains(comment.User)
 }
 
@@ -39,7 +39,7 @@ func publishedComments(comments []fixer.Comment, authors fixer.EngineeringAuthor
 	published := map[string]int64{}
 	repository, pull := strconv.FormatInt(repoID, 10), strconv.FormatInt(pullNumber, 10)
 	for _, comment := range comments {
-		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !trustedComment(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -66,7 +66,7 @@ type receipt struct {
 	CheckpointSHA string `json:"checkpointSha256"`
 }
 
-func (c *Controller) botComments(ctx context.Context) ([]fixer.Comment, error) {
+func (c *Controller) trustedComments(ctx context.Context) ([]fixer.Comment, error) {
 	raw, err := c.cfg.Client.List(ctx, fmt.Sprintf("/issues/%d/comments", c.pullNumber), "")
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (c *Controller) botComments(ctx context.Context) ([]fixer.Comment, error) {
 		if err := json.Unmarshal(item, &comment); err != nil {
 			return nil, err
 		}
-		if botOwned(comment, c.authors) {
+		if trustedComment(comment, c.authors) {
 			comments = append(comments, comment)
 		}
 	}
@@ -85,7 +85,7 @@ func (c *Controller) botComments(ctx context.Context) ([]fixer.Comment, error) {
 }
 
 func (c *Controller) receipts(ctx context.Context) (map[int64]Assignment, error) {
-	comments, err := c.botComments(ctx)
+	comments, err := c.trustedComments(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (c *Controller) receipts(ctx context.Context) (map[int64]Assignment, error)
 func Assignments(comments []fixer.Comment, authors fixer.EngineeringAuthors, repoID, pullNumber int64) (map[int64]Assignment, error) {
 	receipts := map[int64]Assignment{}
 	for _, comment := range comments {
-		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !trustedComment(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -145,13 +145,12 @@ func (a Assignment) ConsumedReviews() []int64 {
 
 func (c *Controller) post(ctx context.Context, body string) error {
 	var result fixer.Comment
-	path := fmt.Sprintf("/issues/%d/comments", c.pullNumber)
 	writer := c.authors.Writer()
-	postErr := c.cfg.Client.WriteIssue(ctx, writer, "POST", path, map[string]string{"body": body}, &result)
+	postErr := c.cfg.Client.CreateIssueComment(ctx, c.pullNumber, writer, body, &result)
 	if postErr == nil && result.ID > 0 && result.User == writer && result.Body == body {
 		return nil
 	}
-	comments, err := c.botComments(ctx)
+	comments, err := c.trustedComments(ctx)
 	for _, comment := range comments {
 		if comment.Body == body {
 			return nil
@@ -197,7 +196,7 @@ func RevisionResultRecorded(comments []fixer.Comment, authors fixer.EngineeringA
 func RevisionResultStatus(comments []fixer.Comment, authors fixer.EngineeringAuthors, a Assignment) string {
 	prefix := resultPrefix(a)
 	for _, comment := range comments {
-		if !botOwned(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
+		if !trustedComment(comment, authors) || strings.HasPrefix(comment.Body, autorequest.Prefix) {
 			continue
 		}
 		for line := range strings.SplitSeq(comment.Body, "\n") {
@@ -223,7 +222,7 @@ func RevisionResultStatus(comments []fixer.Comment, authors fixer.EngineeringAut
 }
 
 func (c *Controller) HasResult(ctx context.Context, a Assignment) (bool, error) {
-	comments, err := c.botComments(ctx)
+	comments, err := c.trustedComments(ctx)
 	if err != nil {
 		return false, err
 	}

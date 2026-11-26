@@ -115,7 +115,7 @@ func (c *controller) ledger(ctx context.Context) (ledger, error) {
 func (c *controller) post(ctx context.Context, body string) (int64, error) {
 	var comment fixer.Comment
 	writer := c.authors.Writer()
-	err := c.client.WriteIssue(ctx, writer, "POST", fmt.Sprintf("/issues/%d/comments", c.pr.Number), map[string]string{"body": body}, &comment)
+	err := c.client.CreateIssueComment(ctx, c.pr.Number, writer, body, &comment)
 	if err == nil && comment.ID > 0 && comment.User == writer && comment.Body == body {
 		return comment.ID, nil
 	}

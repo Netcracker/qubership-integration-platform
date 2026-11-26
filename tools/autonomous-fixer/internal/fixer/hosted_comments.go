@@ -62,7 +62,7 @@ func (a *GitHubAdapter) postHostedReport(ctx context.Context, effect Effect) err
 	if err != nil || comment != nil {
 		return err
 	}
-	return a.Client.WriteIssue(ctx, a.Store.authors.Writer(), "POST", fmt.Sprintf("/issues/%d/comments", a.Task.IssueNumber), map[string]string{"body": body}, nil)
+	return a.Client.CreateIssueComment(ctx, a.Task.IssueNumber, a.Store.authors.Writer(), body, nil)
 }
 
 func (a *GitHubAdapter) observeHostedReport(ctx context.Context, effect Effect) (Observation, error) {
@@ -78,8 +78,7 @@ func (a *GitHubAdapter) observeHostedReport(ctx context.Context, effect Effect) 
 	footer := body[strings.LastIndexByte(body, '\n')+1:]
 	signed := agentsignature.Strip(comment.Body) + "\n\n" + footer
 	if comment.Body != signed {
-		path := fmt.Sprintf("/issues/comments/%d", comment.ID)
-		updateErr := a.Client.WriteIssue(ctx, comment.User, "PATCH", path, map[string]string{"body": signed}, nil)
+		updateErr := a.Client.UpdateIssueComment(ctx, comment.ID, comment.User, signed)
 		receipt := effect
 		receipt.Result = &EffectResult{CommentID: comment.ID}
 		comment, err = a.findHostedReport(ctx, receipt, marker)

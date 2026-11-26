@@ -51,7 +51,7 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 					default:
 						_ = json.NewEncoder(w).Encode(GitHubUser{ID: 44, Login: "other", Type: "User"})
 					}
-				case "PATCH /repos/org/repo/issues/comments/10":
+				case "POST /repos/org/repo/issues/1/comments", "PATCH /repos/org/repo/issues/comments/10":
 					writes.Add(1)
 					if token != tc.wantWriter {
 						t.Errorf("comment write used %q, want %q", token, tc.wantWriter)
@@ -79,7 +79,11 @@ func TestEngineeringIssueWritesSelectCredentialByAuthor(t *testing.T) {
 			if err := client.Request(t.Context(), "POST", "/actions/workflows/agent-work.yaml/dispatches", nil, nil); err != nil {
 				t.Fatal(err)
 			}
-			err = client.WriteIssue(t.Context(), tc.author, "PATCH", "/issues/comments/10", nil, nil)
+			if tc.author == (GitHubUser{}) {
+				err = client.CreateIssueComment(t.Context(), 1, authors.Writer(), "new", nil)
+			} else {
+				err = client.UpdateIssueComment(t.Context(), 10, tc.author, "updated")
+			}
 			if tc.wantWriter == "" {
 				if err == nil || writes.Load() != 0 {
 					t.Fatalf("write error = %v, writes = %d", err, writes.Load())

@@ -192,18 +192,15 @@ func (s *CommentStore) WriteState(ctx context.Context, state *State) error {
 	if !reflect.DeepEqual(live, s.observed) {
 		return fmt.Errorf("task state changed before writing")
 	}
-	payload := struct {
-		Body string `json:"body"`
-	}{body}
 	if s.canonicalID == 0 {
 		var created Comment
 		author := s.authors.Writer()
-		err = s.client.WriteIssue(ctx, author, "POST", fmt.Sprintf("/issues/%d/comments", s.issue), payload, &created)
+		err = s.client.CreateIssueComment(ctx, s.issue, author, body, &created)
 		if err == nil && created.ID > 0 {
 			s.canonicalID = created.ID
 			s.canonicalAuthor = author
 		}
 		return err
 	}
-	return s.client.WriteIssue(ctx, s.canonicalAuthor, "PATCH", fmt.Sprintf("/issues/comments/%d", s.canonicalID), payload, nil)
+	return s.client.UpdateIssueComment(ctx, s.canonicalID, s.canonicalAuthor, body)
 }

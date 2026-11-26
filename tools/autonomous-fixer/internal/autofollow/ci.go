@@ -14,7 +14,7 @@ import (
 )
 
 func (c *controller) plan(ctx context.Context, book ledger, seen map[string]bool) (agentci.RepairPlan, bool, error) {
-	snapshot, err := agentci.ReadPullRequest(ctx, c.client, c.pr.Base.Ref, c.pr.Head.SHA, c.pr.MergeSHA, c.options.RequiredChecks)
+	snapshot, err := agentci.ReadPullRequestSnapshot(ctx, c.client, c.pr.Base.Ref, c.pr.Head.SHA, c.pr.MergeSHA, c.options.RequiredChecks)
 	if err != nil {
 		return agentci.RepairPlan{}, false, err
 	}

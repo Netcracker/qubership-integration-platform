@@ -226,7 +226,7 @@ func readCI(ctx context.Context, client *fixer.GitHubClient, config Config, git 
 	if !hook.Merged && git.isTestMerge(ctx, hook.MergeSHA, hook.Base.SHA, head) {
 		merge = validSHA(hook.MergeSHA)
 	}
-	snapshot, err := agentci.ReadPullRequest(ctx, client, hook.Base.Ref, head, merge, config.RequiredChecks)
+	snapshot, err := agentci.ReadPullRequestSnapshot(ctx, client, hook.Base.Ref, head, merge, config.RequiredChecks)
 	if err != nil {
 		snapshot.HeadSHA = head
 		snapshot.Status = "unknown"

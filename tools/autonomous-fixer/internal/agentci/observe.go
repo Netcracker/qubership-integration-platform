@@ -203,7 +203,7 @@ func observePullRequest(ctx context.Context, client *fixer.GitHubClient, repo fi
 			return nil, nil
 		}
 	}
-	snapshot, err := ReadPullRequest(ctx, client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, options.RequiredChecks)
+	snapshot, err := ReadPullRequestSnapshot(ctx, client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, options.RequiredChecks)
 	if err != nil {
 		return nil, err
 	}
