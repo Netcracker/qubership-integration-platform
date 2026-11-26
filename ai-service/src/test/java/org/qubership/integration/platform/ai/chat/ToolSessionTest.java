@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
@@ -60,6 +63,35 @@ class ToolSessionTest {
                 }));
     stream.collect().asList().await().indefinitely();
     assertEquals("conv-propagate", observed.get());
+  }
+
+  @Test
+  void propagatedBindingLeavesNoStateOnSubscribingOrDeliveringThreads() throws Exception {
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    try {
+      // The jboss MDC is inheritable, so a worker created while bound would copy the binding.
+      pool.submit(() -> null).get();
+      ToolSession.bind("conv-cross-thread");
+      Context context = ToolSession.attachedContext();
+      ToolSession.clear();
+      List<String> seen =
+          ToolSession.propagateBinding(
+                  context, Multi.createFrom().items("a", "b").runSubscriptionOn(pool))
+              .onItem()
+              .transform(item -> ToolSession.resolveConversationId())
+              .collect()
+              .asList()
+              .await()
+              .indefinitely();
+
+      assertEquals(List.of("conv-cross-thread", "conv-cross-thread"), seen);
+      assertNull(ToolSession.resolveConversationId());
+      assertNull(MDC.get(ChatMdc.CONVERSATION_ID));
+      assertNull(pool.submit(ToolSession::resolveConversationId).get());
+      assertNull(pool.submit(() -> MDC.get(ChatMdc.CONVERSATION_ID)).get());
+    } finally {
+      pool.shutdownNow();
+    }
   }
 
   @Test

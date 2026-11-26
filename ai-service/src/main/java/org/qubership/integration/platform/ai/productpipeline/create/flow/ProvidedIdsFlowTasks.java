@@ -13,8 +13,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
@@ -40,6 +42,7 @@ public class ProvidedIdsFlowTasks {
   private final Map<String, List<PipelineSignal>> signalsByRun;
   private final Map<String, ProvidedIdsFlow.RunContext> contextByRun;
   private final Map<String, Boolean> settledRuns;
+  private final Map<String, UserTokenStore.Hold> holdsByRun = new ConcurrentHashMap<>();
 
   @Inject
   public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, AppConfig appConfig) {
@@ -116,6 +119,11 @@ public class ProvidedIdsFlowTasks {
     return next;
   }
 
+  /** Keeps the conversation's credential for an unsettled run, past the observer that started it. */
+  void holdRun(String runId, String conversationId) {
+    holdsByRun.computeIfAbsent(runId, ignored -> UserTokenStore.pin(conversationId).orElse(null));
+  }
+
   /** A saved listen is stale when an accepted command has already advanced the run. */
   public boolean stillWaiting(ProvidedIdsFlow.RunContext input) {
     return input.decision().equals(
@@ -168,6 +176,10 @@ public class ProvidedIdsFlowTasks {
       settledRuns.remove(runId);
     } else {
       settledRuns.put(runId, true);
+      UserTokenStore.Hold hold = holdsByRun.remove(runId);
+      if (hold != null) {
+        hold.release();
+      }
     }
   }
 

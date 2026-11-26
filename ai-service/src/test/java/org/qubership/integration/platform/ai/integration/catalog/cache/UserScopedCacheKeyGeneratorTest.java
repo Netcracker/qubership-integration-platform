@@ -26,13 +26,34 @@ class UserScopedCacheKeyGeneratorTest {
   void differentCallersGetDifferentKeys() {
     long exp = Instant.now().getEpochSecond() + 600;
     ToolSession.bind("conv-alice");
-    UserTokenStore.put("conv-alice", jwt(exp, "alice"));
+    UserTokenStore.acquire("conv-alice", jwt(exp, "alice"));
     Object alice = generator.generate(null, "model-1");
     ToolSession.clear();
     ToolSession.bind("conv-bob");
-    UserTokenStore.put("conv-bob", jwt(exp, "bob"));
+    UserTokenStore.acquire("conv-bob", jwt(exp, "bob"));
 
     assertNotEquals(alice, generator.generate(null, "model-1"));
+  }
+
+  @Test
+  void schemaKeysDifferByCallerAndOperation() {
+    long exp = Instant.now().getEpochSecond() + 600;
+    Object aliceOp1 = keyAs("conv-alice", jwt(exp, "alice"), "op-1");
+
+    assertEquals(aliceOp1, keyAs("conv-alice", jwt(exp, "alice"), "op-1"));
+    assertNotEquals(aliceOp1, keyAs("conv-alice", jwt(exp, "alice"), "op-2"));
+    assertNotEquals(aliceOp1, keyAs("conv-bob", jwt(exp, "bob"), "op-1"));
+  }
+
+  private Object keyAs(String conversationId, String token, String operationId) {
+    UserTokenStore.Hold hold = UserTokenStore.acquire(conversationId, token);
+    try {
+      ToolSession.bind(conversationId);
+      return generator.generate(null, operationId);
+    } finally {
+      ToolSession.clear();
+      hold.release();
+    }
   }
 
   private static String jwt(long exp, String subject) {

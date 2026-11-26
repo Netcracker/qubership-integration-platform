@@ -13,10 +13,12 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -112,6 +114,26 @@ class ProvidedIdsFlowTasksTest {
 
     assertEquals(waiting, next);
     verifyNoInteractions(runtime, executor);
+  }
+
+  @Test
+  void durableRunKeepsTheCredentialPastTheTurnUntilItSettles() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    try {
+      tasks.holdRun(RUN_ID, "conversation-1");
+      tasks.holdRun(RUN_ID, "conversation-1");
+      turn.release();
+      assertEquals(Optional.of("caller-token"), UserTokenStore.get("conversation-1"));
+
+      when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+      when(executor.execute(RUN_ID, "design-planning"))
+          .thenReturn(Uni.createFrom().item(approval("design-planning")));
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+    } finally {
+      UserTokenStore.clear("conversation-1");
+    }
   }
 
   @Test

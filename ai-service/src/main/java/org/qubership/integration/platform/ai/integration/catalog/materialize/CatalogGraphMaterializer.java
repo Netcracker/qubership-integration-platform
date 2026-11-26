@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.NotAuthorizedException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -12,6 +13,8 @@ import java.util.Set;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.edit.CanonicalGraphDiff;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAccessDeniedException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
@@ -123,6 +126,7 @@ public class CatalogGraphMaterializer {
     RuntimeException failureCause = null;
     MaterializationAttemptContext createAttempt = new MaterializationAttemptContext();
     boolean createdInAttempt = false;
+    Set<String> existingNodeIds = Set.copyOf(nodeIdToElementId.keySet());
 
     for (String nodeId : addedNodeIds) {
       if (nodeIdToElementId.containsKey(nodeId)) {
@@ -146,12 +150,21 @@ public class CatalogGraphMaterializer {
           failureCause = e;
         }
         error = error == null ? Objects.toString(e.getMessage(), e.getClass().getSimpleName()) : error;
+        if (isAuthRejection(e)) {
+          break;
+        }
       }
     }
 
     if (failed.isEmpty() && error == null) {
-      skeletonMaterializer.seedMappedContainersForPrune(
-          desiredGraph, addedNodeIds, nodeIdToElementId, chainId, createAttempt, cache);
+      try {
+        skeletonMaterializer.seedMappedContainersForPrune(
+            desiredGraph, addedNodeIds, nodeIdToElementId, chainId, createAttempt, cache);
+      } catch (RuntimeException e) {
+        LOG.errorf(e, "Failed to read back mapped containers in chain %s", chainId);
+        failureCause = e;
+        error = Objects.toString(e.getMessage(), e.getClass().getSimpleName());
+      }
     }
     if ((createdInAttempt || !createAttempt.isEmpty()) && failed.isEmpty() && error == null) {
       try {
@@ -171,7 +184,7 @@ public class CatalogGraphMaterializer {
     written.removeAll(failed);
     List<ChainPlanNode> touched = touchedNodes(desiredGraph, written, changedKeysByNodeId);
 
-    if (!touched.isEmpty()) {
+    if (!touched.isEmpty() && !isAuthRejection(failureCause)) {
       PropertiesApplyResult applied =
           propertiesMaterializer.apply(
               new ChainPlanGraph(
@@ -284,6 +297,10 @@ public class CatalogGraphMaterializer {
       }
     }
 
+    if (isAuthRejection(failureCause)) {
+      recordRejectedBatch(addedNodeIds, existingNodeIds, nodeIdToElementId, failed, addedEdges, createdEdges, failureCause);
+    }
+
     List<String> adoptedGeneratedCatalogIds =
         adoptedGeneratedCatalogIds(createAttempt, nodeIdToElementId, written);
 
@@ -312,6 +329,35 @@ public class CatalogGraphMaterializer {
   /** Empty current graph for CREATE after chain publication. */
   public static ChainPlanGraph emptyCurrent(ChainPlanGraph desired) {
     return new ChainPlanGraph(desired.schemaVersion(), desired.chain(), List.of(), List.of());
+  }
+
+  private static boolean isAuthRejection(Throwable failure) {
+    return failure instanceof CatalogAccessDeniedException || failure instanceof NotAuthorizedException;
+  }
+
+  /** Tells the chat turn what the rejected batch did, so the client sees it before the auth error. */
+  private static void recordRejectedBatch(
+      List<String> addedNodeIds,
+      Set<String> existingNodeIds,
+      Map<String, String> nodeIdToElementId,
+      List<String> failed,
+      List<ChainPlanEdge> addedEdges,
+      List<ChainPlanEdge> createdEdges,
+      Throwable cause) {
+    List<String> succeeded =
+        addedNodeIds.stream()
+            .filter(id -> !existingNodeIds.contains(id) && nodeIdToElementId.containsKey(id) && !failed.contains(id))
+            .toList();
+    List<String> notExecuted =
+        addedNodeIds.stream()
+            .filter(id -> !existingNodeIds.contains(id) && !nodeIdToElementId.containsKey(id) && !failed.contains(id))
+            .toList();
+    long connectionsNotExecuted = addedEdges.stream().filter(edge -> !createdEdges.contains(edge)).count();
+    String summary =
+        "Catalog batch stopped by a rejected token: succeeded " + succeeded + ", failed " + failed
+            + ", not executed " + notExecuted + ", connections not executed " + connectionsNotExecuted
+            + ". Denied: " + cause.getMessage();
+    ToolInvocationSink.catalogChanges().ifPresent(changes -> changes.batchRejected(summary));
   }
 
   private static CatalogGraphMaterializeResult failedPreflight(

@@ -37,6 +37,7 @@ import org.qubership.integration.platform.ai.a2a.access.TaskIdentity;
 import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
+import org.qubership.integration.platform.ai.chat.AuthPolicy;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
@@ -61,6 +62,8 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
 
   private static final org.jboss.logging.Logger LOG =
       org.jboss.logging.Logger.getLogger(CipAssistA2aAgentExecutor.class);
+
+  static final int UNAUTHORIZED_STATUS = 401;
 
   /**
    * Matches a conversation identifier quoted in prose, label adjacent to value.
@@ -109,6 +112,12 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
     String taskId = context.getTaskId();
     String contextId = context.getContextId();
 
+    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
+    if (callerBearer == null && AuthPolicy.required()) {
+      emitRejection(emitter, taskId, contextId, UNAUTHORIZED_STATUS);
+      return;
+    }
+
     CallerContext caller = callerContextProvider.current();
     try {
       accessPolicy.check(
@@ -132,18 +141,24 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
     String callerContextId =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context)).contextId();
     ResolvedContext resolved = resolveConversationId(callerContextId, contextId, userText);
-    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
-    UserTokenStore.Turn callerTurn = null;
+    UserTokenStore.Hold callerHold = null;
     ToolSession.Handle turnBinding = null;
     if (callerBearer != null) {
-      callerTurn = UserTokenStore.put(resolved.conversationId(), callerBearer);
+      try {
+        callerHold = UserTokenStore.acquire(resolved.conversationId(), callerBearer);
+      } catch (UserTokenStore.ConversationBusyException busy) {
+        emitFailure(emitter, taskId, resolved.conversationId(), busy.getMessage());
+        return;
+      }
       turnBinding = ToolSession.open(resolved.conversationId());
     }
     TurnResult turn;
     try {
-      turn = runTurn(userText, resolved.conversationId(), callerTurn);
+      turn = runTurn(userText, resolved.conversationId(), callerHold);
     } catch (RuntimeException failure) {
-      UserTokenStore.remove(resolved.conversationId(), callerTurn);
+      if (callerHold != null) {
+        callerHold.release();
+      }
       throw failure;
     } finally {
       if (turnBinding != null) {
@@ -264,7 +279,7 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
    * durable state, and cutting the stream would abandon work the caller can still reach through
    * the conversation.
    */
-  private TurnResult runTurn(String userText, String conversationId, UserTokenStore.Turn callerTurn) {
+  private TurnResult runTurn(String userText, String conversationId, UserTokenStore.Hold callerHold) {
     ChatRequest request = new ChatRequest();
     request.setConversationId(conversationId);
     request.setMessage(userText);
@@ -290,10 +305,12 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
       } catch (RuntimeException failure) {
         error.set("Cannot save the conversation: " + failure.getMessage());
       } finally {
-        done.countDown();
-        // Read before release: the store keeps the rejection only while the turn is registered.
+        // Read before release and before the latch opens, or the waiter can miss the rejection.
         rejectedStatus.set(UserTokenStore.rejection(conversationId));
-        UserTokenStore.remove(conversationId, callerTurn);
+        if (callerHold != null) {
+          callerHold.release();
+        }
+        done.countDown();
       }
     };
 
@@ -363,9 +380,14 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
   }
 
   /** Ends the task as failed with the fixed copy, so the caller learns its token was refused. */
-  private static void emitRejection(
+  static void emitRejection(
       AgentEmitter emitter, String taskId, String contextId, int rejectedStatus) {
-    Message statusMessage = agentText(UserTokenStore.rejectionMessage(rejectedStatus));
+    emitFailure(emitter, taskId, contextId, UserTokenStore.rejectionMessage(rejectedStatus));
+  }
+
+  /** Ends the task as failed with {@code text} before any work has run. */
+  static void emitFailure(AgentEmitter emitter, String taskId, String contextId, String text) {
+    Message statusMessage = agentText(text);
     emitter.addTask(
         Task.builder()
             .id(taskId)

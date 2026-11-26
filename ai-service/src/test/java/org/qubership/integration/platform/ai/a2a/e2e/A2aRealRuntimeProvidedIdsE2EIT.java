@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.a2a.e2e;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -100,7 +101,7 @@ class A2aRealRuntimeProvidedIdsE2EIT {
     assertEquals(1, harness.runStore().loadByConversation(taskId).stream().count());
 
     String getBody =
-        io.restassured.RestAssured.given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .when()

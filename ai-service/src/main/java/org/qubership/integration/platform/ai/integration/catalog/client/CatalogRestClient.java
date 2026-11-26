@@ -63,7 +63,7 @@ import java.util.Map;
       TimeoutException.class,
       WebApplicationException.class
     },
-    abortOn = CatalogNonRetryableResponseException.class)
+    abortOn = {CatalogNonRetryableResponseException.class, NotAuthorizedException.class})
 @CircuitBreaker(
     requestVolumeThreshold = 4,
     failureRatio = 0.5,

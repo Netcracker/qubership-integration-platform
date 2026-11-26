@@ -10,6 +10,7 @@ public final class CatalogChangeTracker {
   private final Set<String> chainIds = new LinkedHashSet<>();
   private boolean broad;
   private boolean listChanged;
+  private String rejectedBatch;
 
   public synchronized void chainChanged(String chainId) {
     if (chainId == null || chainId.isBlank()) {
@@ -23,6 +24,16 @@ public final class CatalogChangeTracker {
   public synchronized void foldersChanged(boolean affectsChainPaths) {
     broad |= affectsChainPaths;
     listChanged = true;
+  }
+
+  public synchronized void batchRejected(String summary) {
+    rejectedBatch = summary;
+  }
+
+  public synchronized String drainRejectedBatch() {
+    String summary = rejectedBatch;
+    rejectedBatch = null;
+    return summary;
   }
 
   public synchronized ChatEvent.CatalogChanged drain() {

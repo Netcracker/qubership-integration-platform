@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.client;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -47,7 +48,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
       TimeoutException.class,
       WebApplicationException.class
     },
-    abortOn = CatalogNonRetryableResponseException.class)
+    abortOn = {CatalogNonRetryableResponseException.class, NotAuthorizedException.class})
 @CircuitBreaker(
     requestVolumeThreshold = 4,
     failureRatio = 0.5,

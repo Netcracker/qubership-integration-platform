@@ -4,7 +4,6 @@ import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logmanager.MDC;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 
@@ -79,50 +78,14 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    return Uni.createFrom()
-        .deferred(
-            () -> {
-              AtomicReference<ThreadState> previous =
-                  new AtomicReference<>();
-              return upstream
-                  .onSubscription()
-                  .invoke(
-                      subscription -> {
-                        previous.set(captureThreadState());
-                        installOnSubscription(context);
-                      })
-                  .onTermination()
-                  .invoke(() -> restoreIfCaptured(previous));
-            });
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static <T> Multi<T> propagateBinding(Context context, Multi<T> upstream) {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    return Multi.createFrom()
-        .deferred(
-            () -> {
-              AtomicReference<ThreadState> previous =
-                  new AtomicReference<>();
-              return upstream
-                  .onSubscription()
-                  .invoke(
-                      subscription -> {
-                        previous.set(captureThreadState());
-                        installOnSubscription(context);
-                      })
-                  .onTermination()
-                  .invoke(() -> restoreIfCaptured(previous));
-            });
-  }
-
-  private static void restoreIfCaptured(
-      AtomicReference<ThreadState> previous) {
-    ThreadState state = previous.getAndSet(null);
-    if (state != null) {
-      restoreThreadState(state);
-    }
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static void executeInBoundContext(Context context, Runnable action) {
@@ -133,12 +96,11 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return action.get();
     }
-    ThreadState previous = captureThreadState();
-    installOnSubscription(context);
+    Runnable restore = installer(context).install();
     try {
       return action.get();
     } finally {
-      restoreThreadState(previous);
+      restore.run();
     }
   }
 
@@ -159,6 +121,14 @@ public final class ToolSession {
       closed = true;
       restoreThreadState(previous);
     }
+  }
+
+  private static BindingScope.Installer installer(Context context) {
+    return () -> {
+      ThreadState previous = captureThreadState();
+      installOnSubscription(context);
+      return () -> restoreThreadState(previous);
+    };
   }
 
   private static void installOnSubscription(Context context) {

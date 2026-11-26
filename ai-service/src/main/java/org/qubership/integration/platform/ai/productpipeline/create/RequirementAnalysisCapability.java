@@ -383,8 +383,10 @@ public class RequirementAnalysisCapability implements StageCapability {
   private Multi<CapabilitySignal> continueAfterKnowledge(
       StageExecutionContext context, RequirementDraft approved,
       org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document authority) {
-    ToolSession.bind(context.conversationId());
-    Context toolSessionContext = ToolSession.attachedContext();
+    Context toolSessionContext;
+    try (ToolSession.Handle ignored = ToolSession.open(context.conversationId())) {
+      toolSessionContext = ToolSession.attachedContext();
+    }
 
     SkillWorkspace workspace = seedWorkspaceWithApprovedDraftOnly(approved);
     AtomicReference<RequirementBrief> captured = new AtomicReference<>();

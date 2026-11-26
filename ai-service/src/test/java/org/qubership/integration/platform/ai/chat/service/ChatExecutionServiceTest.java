@@ -822,16 +822,49 @@ class ChatExecutionServiceTest {
   }
 
   @Test
-  void aCatalog401MapsToTheSessionExpiredMessage() {
-    UserTokenStore.put("conv-401", "token");
-    ToolSession.bind("conv-401");
+  void aTurnOfAnotherUserIsRejectedWhileTheConversationIsHeld() {
+    UserTokenStore.clear(CONVERSATION_ID);
+    UserTokenStore.Hold alice = UserTokenStore.acquire(CONVERSATION_ID, userJwt("alice"));
     try {
+      ChatDecisionService decisions = mock(ChatDecisionService.class);
+      when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+      ChatRequest request = new ChatRequest();
+      request.setConversationId(CONVERSATION_ID);
+      request.setMessage("Deploy this chain");
+      request.setUserToken(userJwt("bob"));
+
+      org.junit.jupiter.api.Assertions.assertThrows(
+          UserTokenStore.ConversationBusyException.class,
+          () -> service(mock(ScenarioRouter.class), decisions).streamV1Sse(request));
+    } finally {
+      alice.release();
+      UserTokenStore.clear(CONVERSATION_ID);
+    }
+  }
+
+  private static String userJwt(String subject) {
+    String payload = "{\"sub\":\"" + subject + "\"}";
+    return "h."
+        + java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        + ".s";
+  }
+
+  @Test
+  void aCatalog401MapsToTheSessionExpiredMessage() {
+    UserTokenStore.acquire("conv-401", "token");
+    java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    io.smallrye.mutiny.Multi<ChatEvent> routed = io.smallrye.mutiny.Multi.createFrom().deferred(() -> {
+      ToolSession.bind("conv-401");
       UserTokenStore.rejectCurrent(401);
-      IllegalStateException failure =
-          org.junit.jupiter.api.Assertions.assertThrows(
-              IllegalStateException.class,
-              () -> ChatExecutionService.failOnCatalogRejection("conv-401"));
-      assertEquals(UserTokenStore.SESSION_EXPIRED_MESSAGE, failure.getMessage());
+      return io.smallrye.mutiny.Multi.createFrom().item(ChatEvent.token("partial"));
+    });
+    try {
+      ChatExecutionService.bindBackoffSinkForTurn(
+              routed, new java.util.concurrent.atomic.AtomicReference<>(), 2, "conv-401")
+          .subscribe().with(event -> {}, failure::set);
+      assertEquals(UserTokenStore.SESSION_EXPIRED_MESSAGE, failure.get().getMessage());
     } finally {
       ToolSession.clear();
       UserTokenStore.clear("conv-401");

@@ -727,7 +727,7 @@ class DesignInputCapabilityTest {
     attributes.put(
         ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         "evidence-design");
-    UserTokenStore.put("conv-1", "caller-token");
+    UserTokenStore.acquire("conv-1", "caller-token");
     try {
       outcome(capability, context("design-input", attributes));
 

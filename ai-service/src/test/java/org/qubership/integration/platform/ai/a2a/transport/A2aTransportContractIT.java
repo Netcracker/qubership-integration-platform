@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -130,7 +129,7 @@ class A2aTransportContractIT {
     String body = textMessageBody(messageId, null, "Build a payment chain");
 
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -155,7 +154,7 @@ class A2aTransportContractIT {
   void continueInputRequiredAdvancesSameTaskWithoutSecondCreate() {
     String createMessageId = UUID.randomUUID().toString();
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -168,7 +167,7 @@ class A2aTransportContractIT {
             .path("task.id");
 
     String continueMessageId = UUID.randomUUID().toString();
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -188,7 +187,7 @@ class A2aTransportContractIT {
   @Test
   void getTaskReturnsDurableSnapshot() throws Exception {
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -208,7 +207,7 @@ class A2aTransportContractIT {
     taskStore.delete(taskId);
     assertNull(taskStore.get(taskId));
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .when()
@@ -224,7 +223,7 @@ class A2aTransportContractIT {
   void getUnknownTaskReturnsTaskNotFoundWithoutCreatingState() {
     String missingTaskId = "missing-get-" + UUID.randomUUID();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .when()
@@ -243,7 +242,7 @@ class A2aTransportContractIT {
     String body = textMessageBody(messageId, null, "Idempotent create");
 
     String firstTaskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -258,7 +257,7 @@ class A2aTransportContractIT {
     // Lost-initial retry: same Message without taskId. Adding a client taskId is a different
     // canonical command and must conflict (covered by A2aMessageIdempotencyIT).
     String secondTaskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -279,7 +278,7 @@ class A2aTransportContractIT {
   void terminalContinuationIsRejected() {
     completeOnStart = true;
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -292,7 +291,7 @@ class A2aTransportContractIT {
             .extract()
             .path("task.id");
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -306,7 +305,7 @@ class A2aTransportContractIT {
 
   @Test
   void unknownTaskReturnsTaskNotFound() {
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -321,7 +320,7 @@ class A2aTransportContractIT {
   @Test
   void cancelReturnsTaskNotCancelableWithoutStateChange() {
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -335,7 +334,7 @@ class A2aTransportContractIT {
 
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -373,7 +372,7 @@ class A2aTransportContractIT {
         """
             .formatted(UUID.randomUUID());
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -388,7 +387,7 @@ class A2aTransportContractIT {
   @Test
   void publicImplementActionIsRejected() {
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -420,7 +419,7 @@ class A2aTransportContractIT {
         """
             .formatted(UUID.randomUUID(), taskId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)

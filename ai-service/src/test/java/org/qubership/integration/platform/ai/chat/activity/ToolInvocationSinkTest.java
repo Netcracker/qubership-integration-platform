@@ -201,13 +201,13 @@ class ToolInvocationSinkTest {
               context,
               Uni.createFrom()
                   .voidItem()
-                  .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                  .onItem()
-                  .invoke(
-                      () -> {
-                        ToolInvocationSink.onInvoke("captureSelectedPattern");
-                        ToolInvocationSink.onComplete("captureSelectedPattern");
-                      }))
+                  .runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
+          .onItem()
+          .invoke(
+              () -> {
+                ToolInvocationSink.onInvoke("captureSelectedPattern");
+                ToolInvocationSink.onComplete("captureSelectedPattern");
+              })
           .awaitUsing(context)
           .indefinitely();
     } finally {

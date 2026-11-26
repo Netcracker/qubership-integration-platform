@@ -80,7 +80,7 @@ class CatalogBearerTokenFilterTest {
     long exp = java.time.Instant.now().getEpochSecond() + 600;
     String user = jwt(exp, "alice");
     ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", user);
+    UserTokenStore.acquire("conv-1", user);
     MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
     new CatalogBearerTokenFilter("secret").filter(request(headers));
@@ -120,7 +120,7 @@ class CatalogBearerTokenFilterTest {
     try {
       String user = jwt(java.time.Instant.now().getEpochSecond() + 600, "alice");
       ToolSession.bind("conv-1");
-      UserTokenStore.put("conv-1", user);
+      UserTokenStore.acquire("conv-1", user);
       MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
       new CatalogBearerTokenFilter("secret").filter(request(headers));
@@ -141,7 +141,7 @@ class CatalogBearerTokenFilterTest {
     long exp = java.time.Instant.now().getEpochSecond() + 600;
     String user = jwt(exp, "alice");
     ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", user);
+    UserTokenStore.acquire("conv-1", user);
     try (ToolSession.Handle ignored = ToolSession.open("conv-1")) {
       assertEquals("conv-1", ToolSession.resolveConversationId());
     }

@@ -28,6 +28,8 @@ import org.a2aproject.sdk.spec.TaskState;
 import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TextPart;
 import org.a2aproject.sdk.spec.UnsupportedOperationError;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
@@ -61,6 +63,17 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 
 class A2aLifecycleExecutorTest {
+
+  // These cases cover the create-chain lifecycle, so their requests carry no caller bearer.
+  @BeforeEach
+  void authNotRequired() {
+    System.setProperty("qip.ai.auth.required", "false");
+  }
+
+  @AfterEach
+  void restoreAuthRequired() {
+    System.clearProperty("qip.ai.auth.required");
+  }
 
   @Test
   void initialApproveFailsBeforeAnyRepositoryWrite() throws Exception {

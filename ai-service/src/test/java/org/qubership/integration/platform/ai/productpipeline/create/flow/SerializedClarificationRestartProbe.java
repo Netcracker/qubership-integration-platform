@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -203,7 +204,7 @@ public class SerializedClarificationRestartProbe {
   }
 
   private static io.restassured.response.Response post(String body) {
-    return given().config(RestAssuredConfig.config().httpClient(HttpClientConfig.httpClientConfig()
+    return A2aTestAuth.givenAuthorized().config(RestAssuredConfig.config().httpClient(HttpClientConfig.httpClientConfig()
             .setParam("http.socket.timeout", 120_000)
             .setParam("http.connection.timeout", 10_000)))
         .urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)

@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.a2a.access.LocalPermitAllTaskAccess
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.a2a.transport.A2aTaskSnapshotPersister;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aAgentExecutor;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -124,6 +125,7 @@ class SharedApplicationFacadeAdaptersTest {
             .setTaskId("shared-1")
             .setContextId("ctx-1")
             .setParams(org.a2aproject.sdk.spec.MessageSendParams.builder().message(message).build())
+            .setServerCallContext(A2aTestAuth.bearerCallContext())
             .build();
     AgentEmitter emitter = mock(AgentEmitter.class);
     a2a.execute(context, emitter);

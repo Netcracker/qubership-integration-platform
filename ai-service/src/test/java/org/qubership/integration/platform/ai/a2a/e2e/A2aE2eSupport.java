@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.a2a.e2e;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +60,7 @@ final class A2aE2eSupport {
   }
 
   static String sendMessage(String body) {
-    return given()
+    return A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -73,7 +74,7 @@ final class A2aE2eSupport {
   }
 
   static Map<?, ?> getTask(String taskId) {
-    return given()
+    return A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .when()
@@ -85,7 +86,7 @@ final class A2aE2eSupport {
   }
 
   static String getTaskState(String taskId) {
-    return given()
+    return A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .when()
@@ -99,7 +100,7 @@ final class A2aE2eSupport {
   @SuppressWarnings("unchecked")
   static Map<String, Object> pendingData(String taskId) {
     Object data =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .when()
@@ -118,7 +119,7 @@ final class A2aE2eSupport {
     String type = String.valueOf(pending.get("artifactType"));
     String hash = String.valueOf(pending.get("artifactHash"));
     long revision = ((Number) pending.get("revision")).longValue();
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -171,7 +172,7 @@ final class A2aE2eSupport {
   static void assertMaterializationResult(String taskId) {
     assertEquals("TASK_STATE_COMPLETED", getTaskState(taskId));
     String body =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .when()
@@ -244,7 +245,7 @@ final class A2aE2eSupport {
   }
 
   static void cancelRejected(String taskId) {
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)

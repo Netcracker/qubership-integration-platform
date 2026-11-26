@@ -4,10 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.List;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
@@ -35,7 +37,7 @@ class CatalogResponseExceptionMapperTest {
 
   @Test
   void recordsAuthRejectionsForTheBoundTurn() {
-    UserTokenStore.put("conv-denied", "token");
+    UserTokenStore.acquire("conv-denied", "token");
     ToolSession.bind("conv-denied");
     try {
       map(404);
@@ -52,6 +54,16 @@ class CatalogResponseExceptionMapperTest {
   void bothClientsRegisterTheSharedMapperAndRetryTransientResponses() {
     assertClientFaultTolerance(CatalogRestClient.class);
     assertClientFaultTolerance(CatalogImportRestClient.class);
+  }
+
+  @Test
+  void catalogClientDoesNotRetryAuthRejections() {
+    List<Class<? extends Throwable>> abortOn =
+        Arrays.asList(CatalogRestClient.class.getAnnotation(Retry.class).abortOn());
+
+    assertTrue(abortOn.stream().anyMatch(type -> type.isInstance(map(401))));
+    assertTrue(abortOn.stream().anyMatch(type -> type.isInstance(map(403))));
+    assertTrue(abortOn.stream().anyMatch(type -> type.isInstance(new NotAuthorizedException("Bearer"))));
   }
 
   private RuntimeException map(int status) {

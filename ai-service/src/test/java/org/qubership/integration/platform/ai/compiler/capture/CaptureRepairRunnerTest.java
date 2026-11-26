@@ -9,7 +9,9 @@ import dev.langchain4j.exception.ToolArgumentsException;
 import io.smallrye.mutiny.Multi;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 @ExtendWith(MockitoExtension.class)
@@ -216,15 +219,15 @@ class CaptureRepairRunnerTest {
   }
 
   @Test
-  void repairAttemptKeepsToolBindingsOnItsSubscriptionThread() throws Exception {
+  void repairAttemptResolvesItsCaptureBindingFromTheSubscriptionThread() throws Exception {
     AtomicInteger calls = new AtomicInteger();
     AtomicBoolean captured = new AtomicBoolean(false);
     List<String> conversationIds = new ArrayList<>();
-    List<String> parentSkillIds = new ArrayList<>();
     ExecutorService worker = Executors.newSingleThreadExecutor();
     worker.submit(ToolSession::clear).get();
     ToolSession.bind("conv-1");
-    ToolInvocationSink.bind(event -> {}, "skill:cip-trigger-generator", "conv-1");
+    ProductCapabilityCaptureContext.bindDiscovery(
+        "run-1", "conv-1", null, Map.of(), Set.of(), List.of(), null, payload -> {});
     try {
       runner
           .runWithRepair(
@@ -234,9 +237,10 @@ class CaptureRepairRunnerTest {
                       .onItem()
                       .invoke(
                           ignored -> {
-                            conversationIds.add(ToolSession.resolveConversationId());
-                            parentSkillIds.add(
-                                ToolInvocationSink.currentParentSkillId().orElse(null));
+                            conversationIds.add(
+                                ProductCapabilityCaptureContext.binding("conv-1")
+                                    .map(ProductCapabilityCaptureContext.Binding::conversationId)
+                                    .orElse(null));
                             if (calls.incrementAndGet() == 1) {
                               feedbackStore.recordPatchValidationFailure(
                                   "conv-1", "cip-trigger-generator", "invalid HTTP method");
@@ -255,14 +259,12 @@ class CaptureRepairRunnerTest {
           .await()
           .indefinitely();
     } finally {
-      ToolInvocationSink.unbind();
+      ProductCapabilityCaptureContext.unbind("conv-1");
       ToolSession.clear();
       worker.shutdownNow();
     }
 
     assertEquals(List.of("conv-1", "conv-1"), conversationIds);
-    assertEquals(
-        List.of("skill:cip-trigger-generator", "skill:cip-trigger-generator"), parentSkillIds);
   }
 
   @Test

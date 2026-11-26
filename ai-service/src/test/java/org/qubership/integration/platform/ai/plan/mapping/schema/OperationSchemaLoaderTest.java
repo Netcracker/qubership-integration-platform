@@ -49,24 +49,23 @@ class OperationSchemaLoaderTest {
             mapper,
             Clock.fixed(Instant.parse("2026-07-30T09:00:00Z"), ZoneOffset.UTC));
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withJsonMaps();
-    loader = new CatalogOperationSchemaLoader(catalog, artifacts, mapper);
+    loader = SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, mapper);
   }
 
   @Test
-  void loadCallsSchemasFullOnceAndDoesNotSearch() {
+  void loadCallsSchemasFullAndDoesNotSearch() {
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withJsonMaps();
     OperationSchemaLoader localLoader =
-        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+        SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, new ObjectMapper());
 
     OperationSchemaMaps maps = localLoader.load("op-1");
-    localLoader.load("op-1");
 
     assertTrue(maps.requestByContentType().containsKey("application/json"));
     assertEquals(List.of("getOperationSchemas:op-1:full"), catalog.calls());
   }
 
   @Test
-  void freshVerificationReloadsTheCatalogWithoutDisablingOrdinaryCaching() throws Exception {
+  void freshVerificationReloadsTheCatalog() throws Exception {
     var mapper = new ObjectMapper();
     var original = mapper.readTree("""
         {"type":"object","properties":{"value":{"type":"string"}}}
@@ -79,17 +78,14 @@ class OperationSchemaLoaderTest {
     remote.put("operation", new org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient
         .OperationSchemaMapsDto("operation", java.util.Map.of("application/json", original), java.util.Map.of()));
     var catalog = RecordingCatalogRestClient.withSchemas(remote);
-    var loader = new CatalogOperationSchemaLoader(catalog, artifacts, mapper);
-    loader.load("operation");
+    var loader = SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, mapper);
+    var first = loader.load("operation");
     remote.put("operation", new org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient
         .OperationSchemaMapsDto("operation", java.util.Map.of("application/json", changed), java.util.Map.of()));
-    var cached = loader.load("operation");
     var refreshed = loader.loadFresh("operation");
-    var following = loader.load("operation");
     org.junit.jupiter.api.Assertions.assertAll(
-        () -> assertEquals(original, cached.requestByContentType().get("application/json")),
+        () -> assertEquals(original, first.requestByContentType().get("application/json")),
         () -> assertEquals(changed, refreshed.requestByContentType().get("application/json")),
-        () -> assertEquals(changed, following.requestByContentType().get("application/json")),
         () -> assertEquals(List.of("getOperationSchemas:operation:full", "getOperationSchemas:operation:full"), catalog.calls()));
   }
 
@@ -142,7 +138,7 @@ class OperationSchemaLoaderTest {
   void flatAsyncResponseStatusLoadsApplicationJson() {
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withFlatAsyncResponseSchema();
     OperationSchemaLoader localLoader =
-        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+        SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, new ObjectMapper());
 
     OperationSchemaMaps maps = localLoader.load("op-1");
 
@@ -155,7 +151,7 @@ class OperationSchemaLoaderTest {
     RecordingCatalogRestClient catalog =
         RecordingCatalogRestClient.withHttpGetDefaultAndWildcardStatuses();
     OperationSchemaLoader localLoader =
-        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+        SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, new ObjectMapper());
 
     OperationSchemaMaps maps = localLoader.load("op-1");
 
@@ -168,7 +164,7 @@ class OperationSchemaLoaderTest {
   void asyncMessagesWithEmptyRequestBecomeJsonRequestSchema() {
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withAsyncMessageSchemas();
     OperationSchemaLoader localLoader =
-        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+        SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, new ObjectMapper());
 
     OperationSchemaMaps maps = localLoader.load("op-1");
 

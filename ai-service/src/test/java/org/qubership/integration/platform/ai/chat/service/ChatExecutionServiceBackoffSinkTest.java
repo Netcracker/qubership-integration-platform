@@ -8,10 +8,12 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
@@ -50,6 +52,78 @@ class ChatExecutionServiceBackoffSinkTest {
     assertEquals(new ChatEvent.CatalogChanged(List.of("a"), true), events.getFirst());
     assertInstanceOf(ChatEvent.Error.class, events.getLast());
     assertTrue(ToolInvocationSink.catalogChanges().isEmpty());
+  }
+
+  @Test
+  void catalogRejectionMidBatchFlushesTheBatchSummaryBeforeTheAuthError() {
+    List<ChatEvent> events = new ArrayList<>();
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    AtomicInteger eventsAtFailure = new AtomicInteger(-1);
+    String conversationId = "conv-batch-403";
+    UserTokenStore.acquire(conversationId, "opaque-caller-token");
+    Multi<ChatEvent> routed = Multi.createFrom().deferred(() -> {
+      org.qubership.integration.platform.ai.chat.ToolSession.bind(conversationId);
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("chain-1");
+      ToolInvocationSink.catalogChanges().orElseThrow().batchRejected("Catalog batch stopped");
+      UserTokenStore.rejectCurrent(403);
+      return Multi.createFrom().item(ChatEvent.token("partial"));
+    });
+    try {
+      ChatExecutionService.bindBackoffSinkForTurn(routed, new AtomicReference<>(), 2, conversationId)
+          .subscribe().with(
+              events::add,
+              error -> {
+                failure.set(error);
+                eventsAtFailure.set(events.size());
+              });
+    } finally {
+      org.qubership.integration.platform.ai.chat.ToolSession.clear();
+      UserTokenStore.clear(conversationId);
+    }
+    assertEquals(
+        List.of(
+            new ChatEvent.CatalogChanged(List.of("chain-1"), true),
+            new ChatEvent.Step(
+                "catalog-batch", "catalog-batch", "failed", "Catalog batch stopped", null)),
+        events);
+    assertEquals(2, eventsAtFailure.get());
+    assertEquals(UserTokenStore.ACCESS_DENIED_MESSAGE, failure.get().getMessage());
+  }
+
+  @Test
+  void catalogRejectionThenAFailureFlushesTheBatchSummaryBeforeTheAuthError() {
+    List<ChatEvent> events = new ArrayList<>();
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    AtomicInteger eventsAtFailure = new AtomicInteger(-1);
+    String conversationId = "conv-batch-401-failure";
+    UserTokenStore.acquire(conversationId, "opaque-caller-token");
+    Multi<ChatEvent> routed = Multi.createFrom().deferred(() -> {
+      org.qubership.integration.platform.ai.chat.ToolSession.bind(conversationId);
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("chain-1");
+      ToolInvocationSink.catalogChanges().orElseThrow().batchRejected("Catalog batch stopped");
+      UserTokenStore.rejectCurrent(401);
+      return Multi.createFrom().failure(new IllegalStateException("downstream failed"));
+    });
+    try {
+      ChatExecutionService.bindBackoffSinkForTurn(routed, new AtomicReference<>(), 2, conversationId)
+          .subscribe().with(
+              events::add,
+              error -> {
+                failure.set(error);
+                eventsAtFailure.set(events.size());
+              });
+    } finally {
+      org.qubership.integration.platform.ai.chat.ToolSession.clear();
+      UserTokenStore.clear(conversationId);
+    }
+    assertEquals(
+        List.of(
+            new ChatEvent.CatalogChanged(List.of("chain-1"), true),
+            new ChatEvent.Step(
+                "catalog-batch", "catalog-batch", "failed", "Catalog batch stopped", null)),
+        events);
+    assertEquals(2, eventsAtFailure.get());
+    assertEquals(UserTokenStore.SESSION_EXPIRED_MESSAGE, failure.get().getMessage());
   }
 
   @AfterEach

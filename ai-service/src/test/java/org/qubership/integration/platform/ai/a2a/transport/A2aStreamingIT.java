@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -255,7 +254,7 @@ class A2aStreamingIT {
     assertTrue(taskRepository.findByTaskId(taskId).isPresent());
     assertEquals(
         "TASK_STATE_WORKING",
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .when()
