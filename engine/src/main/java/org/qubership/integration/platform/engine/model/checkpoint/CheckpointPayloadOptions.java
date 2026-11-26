@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.model.checkpoint;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.*;
 
 import java.util.Collections;
@@ -25,7 +26,6 @@ import javax.annotation.Nullable;
 @Getter
 @Setter
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
 public class CheckpointPayloadOptions {
 
@@ -39,4 +39,10 @@ public class CheckpointPayloadOptions {
     private Map<String, Object> properties = Collections.emptyMap();
 
     public static final CheckpointPayloadOptions EMPTY = new CheckpointPayloadOptions();
+
+    @JsonCreator
+    public CheckpointPayloadOptions() {
+        headers = Collections.emptyMap();
+        properties = Collections.emptyMap();
+    }
 }
