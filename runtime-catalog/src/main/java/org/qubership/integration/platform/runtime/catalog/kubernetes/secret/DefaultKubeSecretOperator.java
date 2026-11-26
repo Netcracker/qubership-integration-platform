@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.kubernetes.secret;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -31,6 +30,7 @@ import io.kubernetes.client.util.ProxyContentTypeRequestBody;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Request;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.io.configuration.MapperInclusion;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.SecretAlreadyExists;
@@ -68,7 +68,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         customObjectsApi = new CustomObjectsApi();
         namespace = null;
         this.objectMapper = JsonMapper.builder()
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_EMPTY))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonEmpty)
                 .build();
     }
 
@@ -87,7 +87,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
 
         this.namespace = namespace;
         this.objectMapper = JsonMapper.builder()
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_EMPTY))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonEmpty)
                 .build();
     }
 

@@ -64,7 +64,9 @@ public class MapperConfiguration {
         JsonMapper.Builder builder = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(SerializationFeature.INDENT_OUTPUT)
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(inclusion -> inclusion
+                        .withValueInclusion(JsonInclude.Include.NON_NULL)
+                        .withContentInclusion(JsonInclude.Include.NON_NULL))
                 .addModule(serializeModule);
         if (allowEmptyBeans) {
             builder.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);

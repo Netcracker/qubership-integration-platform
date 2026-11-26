@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kubernetes.client.openapi.models.V1Secret;
+import org.qubership.integration.platform.io.configuration.MapperInclusion;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.deserializer.CodeviewChainElementDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.serializer.CodeviewChainElementSerializer;
@@ -63,7 +63,7 @@ public class MapperAutoConfiguration {
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
                 .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
                 .build();
     }
@@ -73,7 +73,7 @@ public class MapperAutoConfiguration {
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
         return YAMLMapper.builder(createCustomYamlFactory())
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
                 .build();
@@ -106,7 +106,7 @@ public class MapperAutoConfiguration {
         simpleFilterProvider.addFilter("baseEntityFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
         return YAMLMapper.builder(createCustomYamlFactory())
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(simpleFilterProvider)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
@@ -120,7 +120,7 @@ public class MapperAutoConfiguration {
         serializeModule.addSerializer(ChainElement.class, new CodeviewChainElementSerializer());
         serializeModule.addDeserializer(ChainElement.class, new CodeviewChainElementDeserializer(objectMapper));
         return YAMLMapper.builder(createCustomYamlFactory())
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .build();
     }
@@ -137,7 +137,7 @@ public class MapperAutoConfiguration {
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
         return YAMLMapper.builder(createCustomYamlFactory())
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
                 .enable(YAMLWriteFeature.MINIMIZE_QUOTES)
@@ -153,7 +153,7 @@ public class MapperAutoConfiguration {
         simpleFilterProvider.addFilter("commonVariableFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
         return YAMLMapper.builder()
-                .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
                 .addModule(serializeModule)
                 .filterProvider(simpleFilterProvider)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)

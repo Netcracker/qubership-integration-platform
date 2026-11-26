@@ -27,7 +27,9 @@ class ContextStorageServiceTest {
 
     // NON_NULL as in MapperConfiguration, so a null map value would be dropped.
     private static final ObjectMapper MAPPER = JsonMapper.builder()
-            .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .changeDefaultPropertyInclusion(inclusion -> inclusion
+                    .withValueInclusion(JsonInclude.Include.NON_NULL)
+                    .withContentInclusion(JsonInclude.Include.NON_NULL))
             .build();
 
     @Mock

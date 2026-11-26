@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.io.configuration;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.core.util.Json;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -28,7 +27,7 @@ public class ObjectMapperAutoConfiguration {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
             .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-            .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
             .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
             .build();
     }
