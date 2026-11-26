@@ -276,10 +276,8 @@ func scheduleIssueBlock(ctx context.Context, c *Client, actions *fixer.GitHubCli
 			continue
 		}
 		if strings.HasPrefix(comment.Body, "<!-- qip-docs:") {
-			publication, err := decodePublicationState(comment.Body)
-			if err != nil || publication.Plan == nil || validatePublicationPlan(*publication.Plan) != nil ||
-				publication.Plan.Repository != c.Repository || publication.Plan.IssueNumber != plan.IssueNumber ||
-				publication.PlanID != publication.Plan.ID || !strings.HasPrefix(comment.Body, marker(*publication.Plan)+"\n") {
+			publication, err := readPublicationRecord(comment.Body, c.Repository, plan.IssueNumber)
+			if err != nil {
 				return "", false, fmt.Errorf("invalid owned documentation publication state")
 			}
 			if publication.Status == "superseded" {

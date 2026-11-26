@@ -222,19 +222,15 @@ func readCI(ctx context.Context, client *fixer.GitHubClient, config Config, git 
 	if head == "" {
 		return agentci.Snapshot{Status: "unknown", Diagnostics: []string{"The final pull request head is unavailable."}}
 	}
-	required, diagnostics := agentci.Required(ctx, client, hook.Base.Ref, config.RequiredChecks)
 	merge := ""
 	if !hook.Merged && git.isTestMerge(ctx, hook.MergeSHA, hook.Base.SHA, head) {
 		merge = validSHA(hook.MergeSHA)
 	}
-	snapshot, err := agentci.Read(ctx, client, head, merge, required)
-	snapshot.Diagnostics = append(diagnostics, snapshot.Diagnostics...)
+	snapshot, err := agentci.ReadPullRequest(ctx, client, hook.Base.Ref, head, merge, config.RequiredChecks)
 	if err != nil {
 		snapshot.HeadSHA = head
 		snapshot.Status = "unknown"
 		snapshot.Diagnostics = append(snapshot.Diagnostics, "GitHub could not return checks for the final pull request head.")
-	} else if len(diagnostics) != 0 && snapshot.Status == "passed" {
-		snapshot.Status = "unknown"
 	}
 	return snapshot
 }

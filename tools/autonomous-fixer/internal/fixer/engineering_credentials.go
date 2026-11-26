@@ -39,6 +39,15 @@ func (a EngineeringAuthors) Writer() GitHubUser {
 	return a.Actions
 }
 
+func organizationPublisher() (login string, enabled bool) {
+	return os.Getenv("AGENT_ORG_BOT_LOGIN"), os.Getenv("AGENT_USE_ORG_BOT") == "true"
+}
+
+func EngineeringClientFromEnv(repository, token, baseURL string) (*GitHubClient, error) {
+	login, enabled := organizationPublisher()
+	return NewEngineeringGitHubClient(repository, token, os.Getenv("GH_ACCESS_TOKEN"), login, enabled, nil, baseURL)
+}
+
 func NewEngineeringGitHubClient(repository, token, orgToken, orgLogin string, orgMode bool, httpClient *http.Client, baseURL string) (*GitHubClient, error) {
 	if orgMode {
 		if err := validateOrganizationBotLogin(orgLogin); err != nil {
@@ -78,7 +87,8 @@ func (c *GitHubClient) EngineeringAuthors(ctx context.Context) (EngineeringAutho
 
 // PublicationToken returns the credential for creating a draft PR or pushing a revision.
 func PublicationToken(ctx context.Context, repository string) (string, error) {
-	if os.Getenv("AGENT_USE_ORG_BOT") != "true" {
+	login, enabled := organizationPublisher()
+	if !enabled {
 		token := os.Getenv("AGENT_PUBLICATION_TOKEN")
 		if token == "" {
 			return "", fmt.Errorf("AGENT_PUBLICATION_TOKEN is required")
@@ -93,7 +103,7 @@ func PublicationToken(ctx context.Context, repository string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := publisher.verifyOrganizationBot(ctx, os.Getenv("AGENT_ORG_BOT_LOGIN"), 0); err != nil {
+	if err := publisher.verifyOrganizationBot(ctx, login, 0); err != nil {
 		return "", err
 	}
 	return token, nil

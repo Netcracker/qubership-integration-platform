@@ -168,6 +168,24 @@ func decodePublicationState(body string) (Publication, error) {
 	return state, nil
 }
 
+func readPublicationRecord(body, repository string, issue int) (Publication, error) {
+	state, err := decodePublicationState(body)
+	if err != nil {
+		return Publication{}, err
+	}
+	if state.Plan == nil {
+		return Publication{}, fmt.Errorf("owned documentation state has no recoverable plan")
+	}
+	plan := *state.Plan
+	if err := validatePublicationPlan(plan); err != nil {
+		return Publication{}, err
+	}
+	if plan.Repository != repository || plan.IssueNumber != issue || state.PlanID != plan.ID || !strings.HasPrefix(body, marker(plan)+"\n") {
+		return Publication{}, fmt.Errorf("owned documentation state has another identity")
+	}
+	return state, nil
+}
+
 func (p *publisher) readState(ctx context.Context) (bool, error) {
 	var viewer struct {
 		Viewer struct {
@@ -214,11 +232,11 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 		if found {
 			return false, fmt.Errorf("duplicate documentation state comments")
 		}
-		state, e := decodePublicationState(comment.Body)
+		state, e := readPublicationRecord(comment.Body, p.plan.Repository, p.plan.IssueNumber)
 		if e != nil {
 			return false, e
 		}
-		if state.PlanID != p.plan.ID || state.Plan == nil || state.Plan.Validate() != nil || Digest(*state.Plan) != Digest(p.plan) {
+		if Digest(*state.Plan) != Digest(p.plan) {
 			return false, fmt.Errorf("documentation state belongs to another plan")
 		}
 		state.CommentID = comment.ID

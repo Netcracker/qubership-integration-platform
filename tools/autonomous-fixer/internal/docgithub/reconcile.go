@@ -358,20 +358,11 @@ func RecoverPlan(ctx context.Context, c *Client, issue int) (Plan, error) {
 		if comment.User.ID != author.ID || !strings.HasPrefix(comment.Body, "<!-- qip-docs:") {
 			continue
 		}
-		state, err := decodePublicationState(comment.Body)
+		state, err := readPublicationRecord(comment.Body, c.Repository, issue)
 		if err != nil {
 			return Plan{}, err
 		}
-		if state.Plan == nil {
-			return Plan{}, fmt.Errorf("owned documentation state has no recoverable plan")
-		}
 		plan := *state.Plan
-		if err = validatePublicationPlan(plan); err != nil {
-			return Plan{}, err
-		}
-		if plan.Repository != c.Repository || plan.IssueNumber != issue || state.PlanID != plan.ID || !strings.HasPrefix(comment.Body, marker(plan)+"\n") {
-			return Plan{}, fmt.Errorf("owned documentation state has another identity")
-		}
 		if !state.terminal() {
 			active = append(active, plan)
 		}

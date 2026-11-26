@@ -127,12 +127,10 @@ func (c *Controller) currentFailures(ctx context.Context, pr agentpr.PullRequest
 	if err != nil && !notFound(err) {
 		return nil, err
 	}
-	required, diagnostics := agentci.Required(ctx, c.cfg.Client, pr.Base.Ref, configured)
-	snapshot, err := agentci.Read(ctx, c.cfg.Client, pr.Head.SHA, pr.MergeSHA, required)
+	snapshot, err := agentci.ReadPullRequest(ctx, c.cfg.Client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, configured)
 	if err != nil {
 		return nil, err
 	}
-	snapshot.Diagnostics = append(snapshot.Diagnostics, diagnostics...)
 	return agentci.RecheckFailures(ctx, c.cfg.Client, snapshot, requested, consumed)
 }
 

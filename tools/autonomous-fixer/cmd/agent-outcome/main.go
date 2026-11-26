@@ -40,8 +40,7 @@ func run(ctx context.Context) error {
 	if err = json.Unmarshal(eventData, &event); err != nil {
 		return err
 	}
-	client, err := fixer.NewEngineeringGitHubClient(config.Repository, config.Token, os.Getenv("GH_ACCESS_TOKEN"),
-		os.Getenv("AGENT_ORG_BOT_LOGIN"), os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, "")
+	client, err := fixer.EngineeringClientFromEnv(config.Repository, config.Token, "")
 	if err != nil {
 		return err
 	}

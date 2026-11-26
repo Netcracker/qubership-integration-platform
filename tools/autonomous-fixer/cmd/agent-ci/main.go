@@ -30,8 +30,7 @@ func run(ctx context.Context, args []string) error {
 	if token == "" {
 		return fmt.Errorf("GITHUB_TOKEN is required")
 	}
-	client, err := fixer.NewEngineeringGitHubClient(repository, token, os.Getenv("GH_ACCESS_TOKEN"),
-		os.Getenv("AGENT_ORG_BOT_LOGIN"), os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, "")
+	client, err := fixer.EngineeringClientFromEnv(repository, token, "")
 	if err != nil {
 		return err
 	}

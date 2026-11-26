@@ -24,8 +24,7 @@ func controller(ctx context.Context) (*hostedrevision.Controller, error) {
 		return nil, fmt.Errorf("the revision requires GITHUB_TOKEN and AGENT_VARIABLES_READ_TOKEN")
 	}
 	repo := os.Getenv("GITHUB_REPOSITORY")
-	client, err := fixer.NewEngineeringGitHubClient(repo, token, os.Getenv("GH_ACCESS_TOKEN"),
-		os.Getenv("AGENT_ORG_BOT_LOGIN"), os.Getenv("AGENT_USE_ORG_BOT") == "true", nil, "")
+	client, err := fixer.EngineeringClientFromEnv(repo, token, "")
 	if err != nil {
 		return nil, err
 	}
