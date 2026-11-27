@@ -21,6 +21,7 @@ type ConfirmAndRunOptions = Pick<
 
 export function confirmAndRun({ onOk, ...props }: ConfirmAndRunOptions) {
   modal.confirm({
+    centered: true,
     ...props,
     onOk: async () => onOk(),
   });
