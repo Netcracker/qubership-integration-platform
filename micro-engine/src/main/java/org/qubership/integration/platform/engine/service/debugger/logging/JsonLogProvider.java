@@ -26,7 +26,8 @@ public class JsonLogProvider implements JsonProvider {
             Map.entry("chainId", "chain_id"),
             Map.entry("chainName", "chain"),
             Map.entry("elementId", "chain_element_id"),
-            Map.entry("elementName", "chain_element"));
+            Map.entry("elementName", "chain_element"),
+            Map.entry("x_channel_request_id", "x_channel_request_id"));
 
     @Override
     public void writeTo(JsonGenerator generator, ExtLogRecord event) throws IOException {

@@ -64,6 +64,7 @@ class JsonLogProviderTest {
                 "businessIdentifiers", "bi-1",
                 "originating-bi-id", "obi-1",
                 "chainId", "chain-789",
+                "x_channel_request_id", "xcri-1",
                 "X-B3-TraceId", "should-be-ignored",
                 "unknownKey", "should-be-ignored"));
 
@@ -76,6 +77,7 @@ class JsonLogProviderTest {
         verify(jsonGenerator).writeStringField("business_identifiers", "bi-1");
         verify(jsonGenerator).writeStringField("originating_bi_id", "obi-1");
         verify(jsonGenerator).writeStringField("chain_id", "chain-789");
+        verify(jsonGenerator).writeStringField("x_channel_request_id", "xcri-1");
         verify(jsonGenerator, never()).writeStringField(anyString(), eq("should-be-ignored"));
     }
 
