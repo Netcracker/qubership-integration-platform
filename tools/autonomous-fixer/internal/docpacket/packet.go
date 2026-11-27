@@ -337,9 +337,11 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	}
 
 	landedDiffComplete := p.Complete
+	var screenMappings []DocMapping
 	docPaths := append([]string{}, c.DocsPaths...)
 	if c.AutoRetrieve {
-		for _, candidate := range autoDocumentationCandidates(p.ChangedPaths) {
+		screenMappings = autoDocumentationCandidates(p.ChangedPaths)
+		for _, candidate := range screenMappings {
 			docPaths = append(docPaths, candidate.CurrentPath)
 		}
 	}
@@ -364,7 +366,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			}
 		}
 		mapped := map[string]bool{}
-		for _, candidate := range autoDocumentationCandidates(p.ChangedPaths) {
+		for _, candidate := range screenMappings {
 			mapped[candidate.ChangedPath] = true
 		}
 		for _, changed := range p.ChangedPaths {
@@ -477,7 +479,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	p.Complete = p.Complete && helpComplete
 	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
 	if p.PartialContext {
-		p.HelpExcerpts = selectHelpSections(c.Issue, p.ChangedPaths, r.DocumentationMappings, p.Documentation)
+		p.HelpExcerpts = selectHelpSections(c.Issue, p.Diff, screenMappings, r.DocumentationMappings, p.Documentation)
 	}
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)
 	return p, r, nil

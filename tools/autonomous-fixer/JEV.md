@@ -31,8 +31,8 @@ Provide a JSON packet containing:
 - `documentation`: current help pages in the same form;
 - `search_evidence`: searches actually performed and their results;
 - `limitations`: missing context, narrow scope, or synthetic modifications;
-- `partial_context` (optional): the builder verified the patch and current help, but supplementary retrieval is incomplete. Jev may classify a bounded packet.
-- `help_excerpts` (optional): selected current Markdown sections with their paths. On the partial-context path they replace whole pages in the classifier request.
+- `partial_context` (optional): the builder verified the patch and current help, but supplementary retrieval is incomplete. Set `complete` to `false` in this mode.
+- `help_excerpts` (optional): up to three current Markdown sections with their paths, each up to 16 KiB (16384 bytes). On the partial-context path they replace whole pages in the classifier request.
 - `complete`: whether the input contains the evidence needed for its declared scope.
 
 The classifier does not fetch or verify Git objects itself. The caller must assemble the packet from recorded
@@ -75,13 +75,13 @@ Additive mappings from changed Snapshots, Deployments, Domains, and Variables UI
 These mappings add candidates; they do not claim exhaustive coverage or decide that documentation is needed.
 Help image and SVG bodies are not sent as text; conclusions requiring their visual contents need a separate check.
 
-The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes
+The default extraction limits are 160 kB (160000 bytes) of behavior diff, 80 kB (80000 bytes) of current help, and 64 kB (64000 bytes)
 of selected current source. These bound packet extraction, not task execution. Every behavior or documentation
 truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send
 the issue to full assessment. Hosted routing skips packets with gaps in the implementing PRs, behavior diff,
-or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB of
-landed diff and 128 KiB of whole help pages in retrieval order. For a changed help page or a mapped screen
-named in the issue title, the classifier can receive up to three matching Markdown sections. For changes without a mapped screen or an edited help page, it ranks sections across the retrieved pages by issue terms.
+or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB (131072 bytes) each of
+landed diff and whole help pages in retrieval order. For a changed help page or a mapped screen
+named in the issue title, the classifier can receive up to three matching Markdown sections. For changes without a mapped screen or an edited help page, it ranks sections across the retrieved pages by issue terms. It keeps the best issue match and prefers headings that match changed identifiers for the remaining places.
 It falls back to whole pages when no section qualifies. The full packet remains available to the author.
 
 `packet.json` preserves the evidence and revision identities. The classifier request excludes archive IDs and top-level revision metadata; `packet_sha256` binds the full archived packet separately from `input_sha256`, which binds the actual API request. The caller still supplies relevant-page selection and correct issue/PR linkage; this command does not discover them from GitHub.

@@ -132,3 +132,29 @@ func TestRequestRejectsIncompleteHelpExcerpts(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestValidatesPartialContextLimits(t *testing.T) {
+	doc := Document{Path: "help/docs/current.md", Content: "text"}
+	for _, tc := range []struct {
+		name     string
+		complete bool
+		excerpts []Document
+		valid    bool
+	}{
+		{"both modes", true, nil, false},
+		{"too many sections", false, []Document{doc, doc, doc, doc}, false},
+		{"oversized section", false, []Document{{Path: doc.Path, Content: strings.Repeat("x", 16385)}}, false},
+		{"boundary", false, []Document{doc, doc, {Path: doc.Path, Content: strings.Repeat("x", 16384)}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := packet()
+			p.PartialContext = true
+			p.Complete = tc.complete
+			p.HelpExcerpts = tc.excerpts
+			_, err := Request(p, jev.DefaultModel)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, err=%v", tc.valid, err)
+			}
+		})
+	}
+}

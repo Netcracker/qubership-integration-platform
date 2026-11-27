@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -57,6 +58,8 @@ func (p Packet) CanClassify() bool {
 }
 
 const classifierContextBytes = 128 * 1024
+const MaxHelpSections = 3
+const MaxHelpSectionBytes = 16 * 1024
 
 func hasClassifierPage(pages []Document) bool {
 	for _, page := range pages {
@@ -113,6 +116,17 @@ type Report struct {
 func Request(packet Packet, model string) (jev.Request, error) {
 	if packet.ID == "" || packet.Scope == "" || packet.Repository == "" || len(packet.Issue) == 0 || !json.Valid(packet.Issue) {
 		return jev.Request{}, errors.New("packet requires ID, scope, repository, and issue context")
+	}
+	if packet.PartialContext && packet.Complete {
+		return jev.Request{}, errors.New("a complete packet cannot declare partial context")
+	}
+	if len(packet.HelpExcerpts) > MaxHelpSections {
+		return jev.Request{}, fmt.Errorf("help excerpts exceed the limit of %d sections", MaxHelpSections)
+	}
+	for _, excerpt := range packet.HelpExcerpts {
+		if len(excerpt.Content) > MaxHelpSectionBytes {
+			return jev.Request{}, fmt.Errorf("help excerpt in %s exceeds %d bytes", excerpt.Path, MaxHelpSectionBytes)
+		}
 	}
 	if packet.Complete && (packet.BaseSHA == "" || packet.HeadSHA == "" || packet.DocsSHA == "" || len(packet.ChangedPaths) == 0) {
 		return jev.Request{}, errors.New("complete packet requires source and documentation revisions and changed paths")

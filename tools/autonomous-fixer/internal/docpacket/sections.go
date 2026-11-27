@@ -1,6 +1,7 @@
 package docpacket
 
 import (
+	"iter"
 	"math"
 	"slices"
 	"sort"
@@ -10,9 +11,9 @@ import (
 )
 
 // selectHelpSections prefers mapped screens and changed pages. Otherwise it ranks the retrieved sections by issue terms.
-func selectHelpSections(issue Issue, paths []string, resolved []DocMapping, pages []doctriage.Document) []doctriage.Document {
+func selectHelpSections(issue Issue, diff string, screens, resolved []DocMapping, pages []doctriage.Document) []doctriage.Document {
 	relevant := make(map[string]bool)
-	for _, mapping := range autoDocumentationCandidates(paths) {
+	for _, mapping := range screens {
 		relevant[mapping.CurrentPath] = true
 	}
 	changedHelp := make(map[string]bool)
@@ -23,12 +24,15 @@ func selectHelpSections(issue Issue, paths []string, resolved []DocMapping, page
 		}
 	}
 	type passage struct {
-		doc   doctriage.Document
-		score int
+		doc                   doctriage.Document
+		score                 int
+		implementationHeading bool
 	}
 	title, body := terms(issue.Title), terms(issue.Body)
 	var weights map[string]int
+	var phrases map[[2]string]bool
 	if len(relevant) == 0 {
+		phrases = changedIdentifierPhrases(diff)
 		body, weights = contentQuery(issue.Body, title, body, pages)
 	}
 	var matches []passage
@@ -74,14 +78,33 @@ func selectHelpSections(issue Issue, paths []string, resolved []DocMapping, page
 			if len(relevant) == 0 {
 				score = int(float64(score) * 100 / math.Log2(float64(len(text)+2)))
 			}
-			if score > 0 && len(text) <= classifierSectionBytes {
-				matches = append(matches, passage{doctriage.Document{Path: page.Path, Content: text}, score})
+			matched := false
+			if len(phrases) > 0 {
+				for pair := range wordPairs(words.FindAllString(heading, -1)) {
+					if phrases[pair] {
+						matched = true
+						break
+					}
+				}
+			}
+			if (score > 0 || matched) && len(text) <= doctriage.MaxHelpSectionBytes {
+				matches = append(matches, passage{doctriage.Document{Path: page.Path, Content: text}, score, matched})
 			}
 		}
 	}
-	sort.SliceStable(matches, func(i, j int) bool { return matches[i].score > matches[j].score })
+	sort.SliceStable(matches, func(i, j int) bool {
+		return matches[i].score > matches[j].score
+	})
+	limit := min(doctriage.MaxHelpSections, len(matches))
+	// Keep the best issue match and prefer headings from the patch for the remaining places.
+	if len(matches) > 1 {
+		rest := matches[1:]
+		sort.SliceStable(rest, func(i, j int) bool {
+			return rest[i].implementationHeading && !rest[j].implementationHeading
+		})
+	}
 	var selected []doctriage.Document
-	for _, m := range matches[:min(3, len(matches))] {
+	for _, m := range matches[:limit] {
 		selected = append(selected, m.doc)
 	}
 	return selected
@@ -124,7 +147,34 @@ func contentQuery(description string, title, body []string, pages []doctriage.Do
 	return body, weights
 }
 
-const classifierSectionBytes = 16 * 1024
+// Match help headings such as "Import Instructions" to changed names such as chainImportInstructionResults.
+func changedIdentifierPhrases(diff string) map[[2]string]bool {
+	pairs := make(map[[2]string]bool)
+	for line := range strings.SplitSeq(diff, "\n") {
+		if !(strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")) || strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") {
+			continue
+		}
+		for _, identifier := range words.FindAllString(line, -1) {
+			for pair := range wordPairs(strings.Fields(splitIdentifierWords(identifier))) {
+				pairs[pair] = true
+			}
+		}
+	}
+	return pairs
+}
+
+func wordPairs(tokens []string) iter.Seq[[2]string] {
+	return func(yield func([2]string) bool) {
+		var previous string
+		for _, token := range tokens {
+			word := strings.TrimSuffix(strings.ToLower(token), "s")
+			if previous != "" && !yield([2]string{previous, word}) {
+				return
+			}
+			previous = word
+		}
+	}
+}
 
 func markdownSections(content string) []string {
 	var sections []string
