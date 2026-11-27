@@ -24,8 +24,7 @@
  * - `getSpecificationModelSource` answering nothing, as before the #1214 fix: the mapper's schema
  *   stayed empty.
  *
- * Shown failing: the HTTP trigger form before autocomplete did not show `application/json` for
- * `json`.
+ * Shown failing: The previous picker in `CustomArrayField.tsx` left the response code field read-only.
  */
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
@@ -169,6 +168,27 @@ test.describe("element forms", () => {
     expect(messages.answered()).toEqual(
       expect.arrayContaining(["getServices", "getService", "getEnvironments", "getApiSpecifications", "getOperations", "getLatestApiSpecification"]),
     );
+  });
+
+  test("a service call saves a custom response code", async ({ vscode }) => {
+    await vscode.open();
+    await vscode.openFile(SERVICES_CHAIN);
+    const graph = new ChainGraphPage(vscode.webview);
+
+    const form = await graph.openElement(SERVICE_CALL);
+    await form.getByRole("tab", { name: "Handle Response" }).click();
+    const codeInput = form.getByRole("combobox");
+    await expect(codeInput).toBeEditable();
+    await codeInput.fill("418");
+    await codeInput.press("Enter");
+    await expect(form.getByRole("listitem").getByText("418", { exact: true })).toBeVisible();
+    await form.getByRole("button", { name: "Save" }).click();
+    await expect(form).toBeHidden();
+
+    const text = await vscode.readAsText((each) => Array.isArray(element(parseChain(each), SERVICE_CALL)?.properties?.after));
+    expect(element(parseChain(text), SERVICE_CALL)?.properties?.after).toEqual([
+      { code: "418", id: "418", label: "418", type: "none", wildcard: false },
+    ]);
   });
 
   test("an implemented service shows its address in an HTTP trigger", async ({ vscode, messages }) => {

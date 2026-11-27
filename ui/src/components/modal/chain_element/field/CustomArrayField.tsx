@@ -1,5 +1,5 @@
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Checkbox, Select, List } from "antd";
+import { AutoComplete, Button, Checkbox, Select, List } from "antd";
 import type { FieldProps, RJSFSchema } from "@rjsf/utils";
 import type { MappingDescription } from "../../../../mapper/model/model.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
@@ -137,10 +137,10 @@ const CustomArrayField: FC<
   );
 
   const protocol = formContext?.integrationOperationProtocolType as string;
+  const allowsCustomCode =
+    !readOnlyMode && (isHttpProtocol(protocol) || isGraphqlProtocol(protocol));
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
-    readOnlyMode || !(isHttpProtocol(protocol) || isGraphqlProtocol(protocol))
-      ? []
-      : defaultCodeOptions,
+    allowsCustomCode ? defaultCodeOptions : [],
   );
 
   const [selectedCode, setSelectedCode] = useState<string | undefined>();
@@ -233,26 +233,38 @@ const CustomArrayField: FC<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operationId, readOnlyMode, responseSchemas]);
 
-  const handleAdd = () => {
-    if (!selectedCode) return;
-    if (formData.some((f) => f.label === selectedCode)) return;
+  const code = (allowsCustomCode ? selectedCode?.trim() : selectedCode) ?? "";
+  const responseCodeValue = CAMEL_LABEL_TO_CODE[code] ?? code;
+  const isCodePickerDisabled =
+    disabled || readonly || (!allowsCustomCode && availableCodes.length === 0);
+  const canAdd =
+    !isCodePickerDisabled &&
+    code !== "" &&
+    (availableCodes.some((option) => option.value === code) ||
+      (allowsCustomCode && /^[1-5]\d{2}$/.test(code))) &&
+    !formData.some(
+      (item) =>
+        item.label === code ||
+        (!readOnlyMode && item.code === responseCodeValue),
+    );
 
-    const responseCodeValue = CAMEL_LABEL_TO_CODE[selectedCode] || selectedCode;
+  const handleAdd = () => {
+    if (!canAdd) return;
     let newItem: ArrayItem;
     if (readOnlyMode) {
-      const source = validationSchemas[selectedCode];
+      const source = validationSchemas[code];
       if (elementType === "async-api-trigger") {
         newItem = {
           code: source.code,
-          label: selectedCode,
+          label: code,
           schema: source.schema,
         };
       } else {
         const vs = source as ResponseValidation;
         newItem = {
           code: vs.code,
-          id: selectedCode,
-          label: selectedCode,
+          id: code,
+          label: code,
           type: "responseValidation",
           contentType: vs.contentType,
           schema: vs.schema,
@@ -262,7 +274,7 @@ const CustomArrayField: FC<
       newItem = {
         code: responseCodeValue,
         id: responseCodeValue,
-        label: selectedCode,
+        label: code,
         type: "none",
         wildcard: WILDCARD_CODES.has(responseCodeValue),
       };
@@ -272,7 +284,7 @@ const CustomArrayField: FC<
     onChange(newArray, fieldPathId.path);
     setSelectedIndex(newArray.length - 1);
     setSelectedCode(undefined);
-    setAvailableCodes(availableCodes.filter((c) => c.value !== selectedCode));
+    setAvailableCodes(availableCodes.filter((c) => c.value !== code));
   };
 
   const handleDelete = (index: number) => {
@@ -354,23 +366,42 @@ const CustomArrayField: FC<
     <div className={styles.container}>
       <div className={styles.leftColumn}>
         <div className={styles.leftToolbar}>
-          <Select
-            value={selectedCode}
-            onChange={setSelectedCode}
-            disabled={disabled || readonly || availableCodes.length === 0}
-            placeholder="Select code"
-            options={availableCodes}
-          />
+          {allowsCustomCode ? (
+            <AutoComplete<string>
+              aria-label="Response code"
+              value={selectedCode ?? ""}
+              onChange={setSelectedCode}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.defaultPrevented &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  handleAdd();
+                }
+              }}
+              disabled={isCodePickerDisabled}
+              placeholder="Select or enter code"
+              options={availableCodes}
+              showSearch={{ filterOption: true }}
+              suffixIcon={<OverridableIcon name="down" />}
+              style={{ flex: 1 }}
+            />
+          ) : (
+            <Select
+              value={selectedCode}
+              onChange={setSelectedCode}
+              disabled={isCodePickerDisabled}
+              placeholder="Select code"
+              options={availableCodes}
+            />
+          )}
           <Button
             type="primary"
             icon={<OverridableIcon name="plus" />}
             onClick={handleAdd}
-            disabled={
-              !selectedCode ||
-              disabled ||
-              readonly ||
-              availableCodes.length === 0
-            }
+            disabled={!canAdd}
           >
             Add
           </Button>

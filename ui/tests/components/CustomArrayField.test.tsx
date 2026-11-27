@@ -496,26 +496,70 @@ describe("CustomArrayField", () => {
       );
     });
 
-    it("does not add duplicate items", async () => {
+    it.each(["Add", "Enter"])(
+      "adds a code missing from the specification with %s",
+      (action) => {
+        const onChange = jest.fn();
+        const props = makeProps({
+          onChange,
+          formContext: {
+            integrationOperationId: "op-123",
+            operationResponseSchemas: { "200": null },
+          },
+        });
+        render(<CustomArrayField {...props} />);
+
+        const input = screen.getByRole("combobox");
+        fireEvent.change(input, { target: { value: "418" } });
+        if (action === "Enter") {
+          fireEvent.keyDown(input, { key: "Enter" });
+        } else {
+          fireEvent.click(screen.getByRole("button", { name: "Add" }));
+        }
+
+        expect(onChange).toHaveBeenCalledWith(
+          [
+            {
+              code: "418",
+              id: "418",
+              label: "418",
+              type: "none",
+              wildcard: false,
+            },
+          ],
+          "root_after",
+        );
+        expect(input).toHaveValue("");
+      },
+    );
+
+    it("disables Add when the typed value is not a response code", () => {
+      render(<CustomArrayField {...makeProps()} />);
+
+      const input = screen.getByRole("combobox");
+      fireEvent.change(input, { target: { value: "20" } });
+
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    });
+
+    it("does not add a typed code that already has a handler", () => {
       const onChange = jest.fn();
-      const existing = makeResponseHandler({ code: "2xx", label: "2xx" });
+      const existing = makeResponseHandler({
+        code: "418",
+        label: "418",
+        id: "418",
+      });
       const props = makeProps({
         formData: [existing],
         onChange,
-        formContext: { integrationOperationProtocolType: "http" },
       });
+      render(<CustomArrayField {...props} />);
 
-      const { container } = render(<CustomArrayField {...props} />);
+      const input = screen.getAllByRole("combobox")[0];
+      fireEvent.change(input, { target: { value: "418" } });
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+      fireEvent.keyDown(input, { key: "Enter" });
 
-      // Try to select "2xx" again — it should be filtered from available codes
-      openSelect(container);
-
-      await waitFor(() => {
-        // "2xx" should still appear in the dropdown since it's in defaultCodeOptions
-        // but the duplicate check in handleAdd prevents adding
-      });
-
-      // onChange should not have been called (no add action happened)
       expect(onChange).not.toHaveBeenCalled();
     });
   });
