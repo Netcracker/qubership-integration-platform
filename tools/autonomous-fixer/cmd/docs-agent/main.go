@@ -212,6 +212,7 @@ func run(ctx context.Context, args []string) error {
 			return e
 		}
 		if !intake.Complete {
+			packet.PartialContext = false
 			packet.Complete = false
 			packet.Limitations = append(packet.Limitations, intake.Limitations...)
 		}
@@ -445,7 +446,7 @@ func validateActor(ctx context.Context, c *docgithub.Client, actor string) error
 }
 
 func classifyPacket(ctx context.Context, packet doctriage.Packet, keyFile string) (doctriage.Report, error) {
-	if !packet.Complete {
+	if !packet.CanClassify() {
 		report := doctriage.SkipIncomplete(packet, jev.DefaultModel)
 		return report, doctriage.ValidateReport(packet, report)
 	}

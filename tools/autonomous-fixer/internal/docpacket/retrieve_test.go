@@ -55,8 +55,8 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if p.Complete {
-		t.Fatal("automatic retrieval claimed complete coverage")
+	if p.Complete || !p.CanClassify() {
+		t.Fatal("a complete landed change with partial retrieval should reach the classifier")
 	}
 	joined := func(v any) string { b, _ := json.Marshal(v); return string(b) }
 	docs := joined(p.Documentation)
@@ -92,9 +92,15 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if err != nil || !complete.Complete {
 		t.Fatalf("complete documentation plan: %+v %v", complete.Limitations, err)
 	}
+	c.MaxDiffBytes = 60
+	p, _, e = Build(context.Background(), c)
+	if e != nil || p.CanClassify() {
+		t.Fatal("sent an incomplete implementation diff to the classifier", e)
+	}
+	c.MaxDiffBytes = 0
 	c.MaxDocBytes = 4
 	p, _, e = Build(context.Background(), c)
-	if e != nil || p.Complete || !strings.Contains(joined(p.Limitations), "budget truncated") {
+	if e != nil || p.CanClassify() || !strings.Contains(joined(p.Limitations), "budget truncated") {
 		t.Fatal("documentation truncation not reported")
 	}
 }

@@ -158,7 +158,7 @@ func ValidateReport(packet Packet, report Report) error {
 		return fmt.Errorf("classifier report does not match the evidence packet")
 	}
 	if report.Mode == "preflight" {
-		if packet.Complete || !IsPreflightSkip(report) {
+		if packet.CanClassify() || !IsPreflightSkip(report) {
 			return fmt.Errorf("invalid incomplete-input preflight report")
 		}
 		return nil

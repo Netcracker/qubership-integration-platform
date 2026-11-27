@@ -36,6 +36,36 @@ type Packet struct {
 	SearchEvidence []string        `json:"search_evidence"`
 	Limitations    []string        `json:"limitations"`
 	Complete       bool            `json:"complete"`
+	PartialContext bool            `json:"partial_context,omitempty"`
+}
+
+// CanClassify also accepts a landed diff with gaps confined to supplementary retrieval.
+func (p Packet) CanClassify() bool {
+	return p.Complete || (p.PartialContext && p.BaseSHA != "" && p.HeadSHA != "" && p.DocsSHA != "" &&
+		len(p.ChangedPaths) > 0 && len(p.Diff) <= classifierContextBytes && strings.Contains(p.Diff, "diff --git ") && hasClassifierPage(p.Documentation))
+}
+
+const classifierContextBytes = 128 * 1024
+
+func hasClassifierPage(pages []Document) bool {
+	for _, page := range pages {
+		if len(page.Content) > 0 && len(page.Content) <= classifierContextBytes {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseAutomationOnly(paths []string) bool {
+	for _, path := range paths {
+		switch {
+		case strings.HasPrefix(path, ".github/workflows/"), path == ".github/release-drafter-config.yml",
+			path == "scripts/build-bom.sh":
+		default:
+			return false
+		}
+	}
+	return len(paths) > 0
 }
 
 type Classifier interface {
@@ -89,6 +119,24 @@ func Request(packet Packet, model string) (jev.Request, error) {
 		{"situation": "A later help update already documents the new behavior and limitations, although the original implementation diff contains no help edit.", "action": "no_change", "reason": "already_covered"},
 		{"situation": "A necessary source or help page is missing from the supplied evidence.", "action": "investigate", "reason": "insufficient_evidence"},
 	}}
+	if packet.PartialContext {
+		// Send whole help pages in retrieval order. The author retains the full evidence packet.
+		var pages []Document
+		var omitted []string
+		remaining := classifierContextBytes
+		for _, page := range packet.Documentation {
+			if len(page.Content) > remaining {
+				omitted = append(omitted, page.Path)
+				continue
+			}
+			pages = append(pages, page)
+			remaining -= len(page.Content)
+		}
+		state["documentation"] = pages
+		state["omitted_help_pages"] = omitted
+		delete(state, "sources")
+		delete(state, "search_evidence")
+	}
 	return jev.Request{Model: model, State: state, Questions: map[string]jev.Question{
 		"documentation_action": {
 			Type:         "choice",
@@ -211,7 +259,8 @@ func normalize(packet Packet, response jev.Response) (Recommendation, []string, 
 	if !attributionOK {
 		record(RouteAnswersConflict, answersConflictNote)
 	}
-	if !packet.Complete || strings.TrimSpace(packet.Diff) == "" {
+	if !packet.CanClassify() || strings.TrimSpace(packet.Diff) == "" ||
+		(!packet.Complete && rec.Action == "no_change" && !releaseAutomationOnly(packet.ChangedPaths)) {
 		record(RouteIncompleteEvidence, incompleteEvidenceNote)
 	}
 	if len(packet.Documentation) == 0 && (rec.Action == "needed" || rec.Reason == "already_covered" || rec.Reason == "restored_behavior" || rec.Reason == "preexisting_only" || rec.Reason == "no_explanation_needed") {

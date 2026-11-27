@@ -64,7 +64,7 @@ Additive mappings from changed Snapshots, Deployments, Domains, and Variables UI
 These mappings add candidates; they do not claim exhaustive coverage or decide that documentation is needed.
 Help image and SVG bodies are not sent as text; conclusions requiring their visual contents need a separate check.
 
-The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes of selected current source. These bound packet extraction, not task execution. Every behavior or documentation truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send the issue to full assessment. A live batch should skip known-incomplete packets instead of paying a model to rediscover the missing context.
+The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes of selected current source. These bound packet extraction, not task execution. Every behavior or documentation truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send the issue to full assessment. Hosted routing skips packets with gaps in the implementing PRs, behavior diff, or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB of landed diff and 128 KiB of whole help pages in retrieval order. The full packet remains available to the author.
 
 `packet.json` preserves the evidence and revision identities. The classifier request excludes archive IDs and top-level revision metadata; `packet_sha256` binds the full archived packet separately from `input_sha256`, which binds the actual API request. The caller still supplies relevant-page selection and correct issue/PR linkage; this command does not discover them from GitHub.
 
@@ -100,7 +100,7 @@ Each new output directory stores the exact `request.json` and a `report.json` wi
 | `no_change` | `already_covered`, `restored_behavior`, `no_explanation_needed`, `internal_only`, `outside_help_scope`, `preexisting_only` |
 | `investigate` | `insufficient_evidence`, `scope_unclear` |
 
-Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. An incomplete packet or a missing current help page cannot support a claim that the page already covers the behavior.
+Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. With partial retrieval, a negative recommendation can close an issue only for recognized release tooling. Other negative recommendations go to assessment.
 
 `recommendation` contains the validated action, reason, and attribution. `assessment_notes` explains conflicts or missing evidence. The raw answers, probabilities, hashes, and provider usage remain available for evaluation. The selected branch is recorded with its evidence and policy. Negative outcomes need no mandatory second reviewer. A documentation patch retains the existing independent review and final checks.
 

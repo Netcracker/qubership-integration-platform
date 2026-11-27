@@ -124,7 +124,7 @@ func autoDocumentationCandidates(paths []string) []DocMapping {
 			page = "help/docs/04__Dev_Tools/2__Diagnostic/readme.md"
 		case strings.Contains(source, "service-call") && (strings.HasPrefix(source, "schemas/") || strings.HasPrefix(source, "integration-build-pipeline/")):
 			page = "help/docs/01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md"
-		case source == "ui/src/pages/Snapshots.tsx":
+		case source == "ui/src/pages/Snapshots.tsx" || source == "ui/src/components/modal/SaveAndDeploy.tsx":
 			page = "help/docs/01__Chains/2__Snapshots/readme.md"
 		case source == "ui/src/pages/Deployments.tsx":
 			page = "help/docs/01__Chains/3__Deployments/readme.md"
@@ -322,6 +322,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Omitted body PR #%d path %q: %s; %d bytes; SHA256 %s.", o.PRNumber, o.Path, o.Reason, o.Bytes, o.SHA256))
 	}
 
+	landedDiffComplete := p.Complete
 	docPaths := append([]string{}, c.DocsPaths...)
 	if c.AutoRetrieve {
 		for _, candidate := range autoDocumentationCandidates(p.ChangedPaths) {
@@ -364,6 +365,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Documentation retrieval candidate %s selected by known UI screen mapping from changed source %s; additive retrieval only, not a documentation verdict or exhaustive coverage claim.", candidate.CurrentPath, candidate.ChangedPath))
 	}
 
+	helpComplete := true
 	changedDocs := make([]string, 0, len(autoDocs))
 	for changed := range autoDocs {
 		changedDocs = append(changedDocs, changed)
@@ -374,7 +376,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if _, e := git("cat-file", "-e", p.DocsSHA+":"+current); e != nil {
 			current = pathpkg.Join(pathpkg.Dir(changed), "readme.md")
 			if _, e = git("cat-file", "-e", p.DocsSHA+":"+current); e != nil {
-				p.Complete = false
+				helpComplete = false
 				p.Limitations = append(p.Limitations, "Changed documentation "+changed+" has no current page or same-directory readme.md; resolve its current location and rebuild.")
 				r.DocumentationMappings = append(r.DocumentationMappings, DocMapping{ChangedPath: changed})
 				continue
@@ -385,7 +387,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	}
 	remaining := c.MaxDocBytes
 	if len(docPaths) == 0 && !(c.AutoRetrieve && buildOnly(p.ChangedPaths)) {
-		p.Complete = false
+		helpComplete = false
 		p.Limitations = append(p.Limitations, "No current documentation pages selected; retrieve relevant help/docs pages and rebuild.")
 	}
 	seenDocs := map[string]bool{}
@@ -399,18 +401,18 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		}
 		b, e := git("show", p.DocsSHA+":"+path)
 		if e != nil {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, fmt.Sprintf("Selected documentation %s is missing at %s; select an existing page.", path, p.DocsSHA))
 			continue
 		}
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Selected current documentation %s at %s; %d bytes; SHA256 %s.", path, p.DocsSHA, len(b), digest(b)))
 		if !utf8.Valid(b) || strings.Contains(string(b), "\x00") {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Inspect binary documentation "+path+" separately.")
 			continue
 		}
 		if len(b) > remaining {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Documentation budget truncated "+path+"; increase MaxDocBytes and rebuild.")
 		}
 		content := bounded(b, remaining)
@@ -418,7 +420,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if content != "" {
 			p.Documentation = append(p.Documentation, doctriage.Document{Path: path, Content: content})
 		} else {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Selected documentation has no included content: "+path)
 		}
 	}
@@ -458,6 +460,8 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			p.Limitations = append(p.Limitations, "Selected source has no included content: "+source)
 		}
 	}
+	p.Complete = p.Complete && helpComplete
+	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)
 	return p, r, nil
 }
