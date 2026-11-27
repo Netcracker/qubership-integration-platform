@@ -117,9 +117,11 @@ func Request(packet Packet, model string) (jev.Request, error) {
 	if packet.Complete && (packet.BaseSHA == "" || packet.HeadSHA == "" || packet.DocsSHA == "" || len(packet.ChangedPaths) == 0) {
 		return jev.Request{}, errors.New("complete packet requires source and documentation revisions and changed paths")
 	}
-	for _, doc := range append(append([]Document{}, packet.Sources...), packet.Documentation...) {
-		if strings.TrimSpace(doc.Path) == "" || strings.TrimSpace(doc.Content) == "" {
-			return jev.Request{}, errors.New("source and documentation entries require a path and content")
+	for _, documents := range [][]Document{packet.Sources, packet.Documentation, packet.HelpExcerpts} {
+		for _, doc := range documents {
+			if strings.TrimSpace(doc.Path) == "" || strings.TrimSpace(doc.Content) == "" {
+				return jev.Request{}, errors.New("sources, documentation, and help excerpts require a path and content")
+			}
 		}
 	}
 	state := map[string]any{"repository": packet.Repository, "scope": packet.Scope, "issue": packet.Issue, "changed_paths": packet.ChangedPaths, "diff": packet.Diff, "sources": packet.Sources, "documentation": packet.Documentation, "search_evidence": packet.SearchEvidence, "limitations": packet.Limitations, "complete": packet.Complete, "decision_examples": []map[string]string{

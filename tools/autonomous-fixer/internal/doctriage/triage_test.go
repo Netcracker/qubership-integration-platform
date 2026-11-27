@@ -115,3 +115,20 @@ func TestArchiveIdentifiersDoNotHintAtExpectedOutcome(t *testing.T) {
 		t.Fatal("evidence change did not affect input")
 	}
 }
+
+func TestRequestRejectsIncompleteHelpExcerpts(t *testing.T) {
+	for name, excerpt := range map[string]Document{
+		"blank path":    {Path: " ", Content: "Logging settings"},
+		"blank content": {Path: "help/docs/logging.md", Content: "\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := packet()
+			p.Complete = false
+			p.PartialContext = true
+			p.HelpExcerpts = []Document{p.Documentation[0], excerpt}
+			if _, err := Request(p, jev.DefaultModel); err == nil {
+				t.Fatal("accepted an incomplete help excerpt")
+			}
+		})
+	}
+}
