@@ -6,14 +6,12 @@ import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 
 import java.util.Collections;
 import java.util.List;
 
 @Data
-@NoArgsConstructor(onConstructor_ = @JsonCreator)
 @AllArgsConstructor
 @Builder
 public class DeployWithSnapshotCreationRequest {
@@ -30,4 +28,11 @@ public class DeployWithSnapshotCreationRequest {
 
     @Builder.Default
     private DeployMode mode = DeployMode.REWRITE;
+
+    @JsonCreator
+    public DeployWithSnapshotCreationRequest() {
+        this.chainIds = Collections.emptyList();
+        this.snapshotAction = BulkDeploymentSnapshotAction.CREATE_NEW;
+        this.mode = DeployMode.REWRITE;
+    }
 }
