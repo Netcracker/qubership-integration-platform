@@ -1,0 +1,267 @@
+name: QIP agent execution
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: boolean
+    secrets:
+      AGENT_VARIABLES_READ_TOKEN:
+        required: true
+      OPENROUTER_API_KEY:
+        required: false
+      QIP_AGENT_MAVEN_TOKEN:
+        required: false
+
+permissions: {}
+
+env:
+  REVISION: ${{ inputs.revision }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      statuses: read
+      issues: read
+      pull-requests: read
+    outputs:
+      base_sha: ${{ steps.revision.outputs.base_sha || steps.work.outputs.base_sha }}
+      issue: ${{ steps.revision.outputs.issue || github.event.inputs.issue }}
+    env:
+      AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
+      AGENT_SCOPE_PATHS: ${{ vars.AGENT_SCOPE_PATHS }}
+      AGENT_MODE: ${{ vars.AGENT_MODE || 'fake' }}
+      INPUT_ISSUE: ${{ github.event.inputs.issue }}
+      INPUT_EXECUTION: ${{ github.event.inputs.execution }}
+      INPUT_GENERATION: ${{ github.event.inputs.generation }}
+      INPUT_CONTRACT_VERSION: ${{ github.event.inputs.contract_version }}
+      INPUT_TRUSTED_SHA: ${{ github.event.inputs.trusted_sha }}
+      INPUT_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build the worker controller
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          if [[ "$REVISION" == true ]]; then
+            go build -trimpath -o "$RUNNER_TEMP/qip-agent-revise" ./cmd/agent-revise
+          else
+            go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          fi
+      - id: work
+        if: ${{ !inputs.revision }}
+        run: '"$RUNNER_TEMP/qip-agent" work'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+      - id: revision
+        if: inputs.revision
+        run: '"$RUNNER_TEMP/qip-agent-revise" work'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          AGENT_REVISION_ASSIGNMENT_PATH: ${{ runner.temp }}/qip-hosted/revision.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: inputs.mode == 'fake'
+        with:
+          name: agent-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          if-no-files-found: error
+      - name: Save the hosted assignment
+        if: inputs.mode == 'hosted'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-assignment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/
+          if-no-files-found: error
+
+  author:
+    needs: prepare
+    if: inputs.mode == 'hosted'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      issues: read
+      packages: read
+    steps:
+      - name: Set the work directory
+        run: printf 'HOSTED_DIR=%s/qip-hosted\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: trusted/tools/autonomous-fixer/go.mod
+          cache: false
+      - name: Build the hosted tools
+        working-directory: trusted/tools/autonomous-fixer
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/qip-agent" ./cmd/agent
+          go build -trimpath -o "$RUNNER_TEMP/qip-work" ./cmd/work
+          go build -trimpath -o "$RUNNER_TEMP/work-metrics" ./cmd/work-metrics
+          go build -trimpath -o "$RUNNER_TEMP/agent-candidate" ./cmd/agent-candidate
+      - name: Download the assignment for this attempt
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: agent-assignment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Freeze the issue and attachments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORK_ISSUE: ${{ needs.prepare.outputs.issue }}
+        run: |
+          [[ "$WORK_ISSUE" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/issues/$WORK_ISSUE" > "$HOSTED_DIR/issue.json"
+          revision_args=()
+          if [[ "$REVISION" == true ]]; then
+            revision_args=(--revision "$HOSTED_DIR/revision.json")
+          fi
+          python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_issue.py" \
+            "$HOSTED_DIR/checkpoint.json" "$HOSTED_DIR/issue.json" "$HOSTED_DIR/assignment" "${revision_args[@]}"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Restore the Maven repository
+        if: ${{ !inputs.revision }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('candidate/**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
+      - name: Restore the Maven repository for the revision
+        if: inputs.revision
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/qip-revision-maven-repository
+          key: maven-${{ runner.os }}-agent-revision-${{ hashFiles('trusted/**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-agent-revision-
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+      - name: Install OpenCode
+        shell: bash
+        run: |
+          opencode_archive="$RUNNER_TEMP/opencode-linux-x64.tar.gz"
+          curl --fail --location --silent --show-error --output "$opencode_archive" \
+            https://github.com/anomalyco/opencode/releases/download/v2.2.6/opencode-linux-x64.tar.gz
+          printf '%s  %s\n' 08bb21d6326ce740d91cce7ebe88a6536933f6e1e30353b91a06b01f25da306c "$opencode_archive" | sha256sum --check
+          tar -xzf "$opencode_archive" -C "$RUNNER_TEMP" opencode
+          "$RUNNER_TEMP/opencode" --version
+      - name: Prepare the product environment
+        if: ${{ !inputs.revision }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ vars.QIP_AGENT_MAVEN_USERNAME || github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.QIP_AGENT_MAVEN_TOKEN || github.token }}
+        run: |
+          bash "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_prepare.sh" \
+            "$GITHUB_WORKSPACE/trusted" "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR"
+      - name: Prepare the revision environment
+        if: inputs.revision
+        run: |
+          bash "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_prepare_revision.sh" \
+            "$GITHUB_WORKSPACE/trusted" "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR"
+      - name: Run the author and reviewer
+        id: author
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          QIP_AGENT_MODEL: ${{ vars.QIP_AGENT_MODEL || 'openrouter/openai/gpt-6-luna' }}
+          QIP_AGENT_EFFORT: ${{ vars.QIP_AGENT_EFFORT || 'high' }}
+          QIP_AGENT_REVIEW_MODEL: ${{ vars.QIP_AGENT_REVIEW_MODEL || 'openrouter/openai/gpt-6-luna' }}
+          QIP_AGENT_REVIEW_EFFORT: ${{ vars.QIP_AGENT_REVIEW_EFFORT || 'xhigh' }}
+        run: |
+          python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_launch.py" \
+            "$GITHUB_WORKSPACE/candidate" "$HOSTED_DIR/assignment" "$HOSTED_DIR" \
+            "$RUNNER_TEMP/qip-work" "$RUNNER_TEMP/opencode"
+      - name: Stage hosted evidence
+        if: always()
+        run: |
+          if [[ -d "$HOSTED_DIR" ]]; then
+            python3 "$GITHUB_WORKSPACE/trusted/tools/autonomous-fixer/scripts/hosted_evidence.py" \
+              "$HOSTED_DIR" "$RUNNER_TEMP/qip-hosted-evidence"
+          fi
+      - name: Summarize staged measurements
+        if: always()
+        continue-on-error: true
+        run: |
+          staged="$RUNNER_TEMP/qip-hosted-evidence"
+          if [[ -f "$staged/result/config.json" ]]; then
+            "$RUNNER_TEMP/work-metrics" --output "$RUNNER_TEMP/qip-hosted-metrics.json" "$staged/result"
+          fi
+      - name: Package the author result
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          AUTHOR_OUTCOME: ${{ steps.author.outcome }}
+          AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/qip-hosted/checkpoint.json
+          AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/qip-hosted/artifact
+          AGENT_HOSTED_USAGE_DIR: ${{ runner.temp }}/qip-hosted/result
+        run: |
+          mkdir -m 700 "$AGENT_HOSTED_ARTIFACT_DIR"
+          cp "$RUNNER_TEMP/qip-hosted-evidence/result/report.json" "$AGENT_HOSTED_ARTIFACT_DIR/report.json"
+          outcome=$(jq -er '.status' "$AGENT_HOSTED_ARTIFACT_DIR/report.json")
+          if [[ "$outcome" == author-reported-fixed ]]; then
+            [[ "$AUTHOR_OUTCOME" == success ]]
+            "$RUNNER_TEMP/agent-candidate" pack --workspace "$GITHUB_WORKSPACE/candidate" \
+              --base "$BASE_SHA" --output "$AGENT_HOSTED_ARTIFACT_DIR/candidate.json"
+          fi
+          "$RUNNER_TEMP/qip-agent" seal
+      - name: Save the author result
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted/artifact/
+          if-no-files-found: error
+      - name: Save hosted evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted-evidence/
+          if-no-files-found: ignore
+      - name: Save hosted metrics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: agent-hosted-metrics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qip-hosted-metrics.json
+          if-no-files-found: ignore

@@ -28,7 +28,7 @@ on:
         type: string
     secrets:
       AGENT_VARIABLES_READ_TOKEN:
-        required: true
+        required: false
       AGENT_PUBLICATION_TOKEN:
         required: false
       GH_ACCESS_TOKEN:
@@ -88,7 +88,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" route-publish'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
       - if: steps.route.outputs.download == 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
@@ -102,7 +102,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" publish'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
       - name: Publish the selected draft pull request
         if: steps.authorize.outputs.process == 'true'
         env:
@@ -129,4 +129,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}

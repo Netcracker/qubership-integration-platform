@@ -39,7 +39,7 @@ on:
   workflow_call:
     secrets:
       AGENT_VARIABLES_READ_TOKEN:
-        required: true
+        required: false
       GH_ACCESS_TOKEN:
         required: false
   schedule:
@@ -174,7 +174,7 @@ jobs:
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
           AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
           AGENT_MODE: ${{ vars.AGENT_MODE }}
           AGENT_CI_REQUIRED_CHECKS: ${{ vars.AGENT_CI_REQUIRED_CHECKS }}

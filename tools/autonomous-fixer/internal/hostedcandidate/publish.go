@@ -308,7 +308,7 @@ func controllerOnlyAdvance(ctx context.Context, workspace, base, next string) bo
 	}
 	for _, path := range strings.Split(strings.TrimSuffix(string(diff), "\x00"), "\x00") {
 		switch path {
-		case ".github/workflows/agent-control.yaml", ".github/workflows/agent-work.yaml", ".github/workflows/agent-publish.yaml",
+		case ".github/workflows/agent-control.yaml", ".github/workflows/agent-work.yaml", ".github/workflows/agent-execute.yaml", ".github/workflows/agent-publish.yaml",
 			".github/workflows/agent-outcome.yaml", ".github/workflows/agent-ci.yaml", ".github/workflows/agent-revision-cache.yaml",
 			".github/workflows/agent-review-submitted.yaml":
 		default:

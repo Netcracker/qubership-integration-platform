@@ -39,32 +39,10 @@ func TestWorkflowsBuildGoBeforeTokenUse(t *testing.T) {
 				}
 			}
 			if name == "work" {
-				for _, required := range []string{"group: qip-agent-work", "qip-agent\" admit", "qip-agent\" work", "needs.admit.outputs.admitted == 'true'", "INPUT_TRUSTED_SHA:", "if: inputs.mode == 'fake'", "if: inputs.mode == 'hosted'"} {
+				for _, required := range []string{"group: qip-agent-work", "qip-agent\" admit", "needs.admit.outputs.admitted == 'true'", "uses: ./.github/workflows/agent-execute.yaml", "needs: [admit-revision, work]", "agent-hosted-${{ github.run_id }}-1"} {
 					if !strings.Contains(source, required) {
 						t.Errorf("missing %q", required)
 					}
-				}
-				if strings.Count(source, "name: Build agent") != 2 {
-					t.Fatal("each work job must build its binary")
-				}
-				for _, setup := range []string{"actions/setup-node@", "actions/setup-java@", "name: Run the author and reviewer"} {
-					_, rest, found := strings.Cut(source, setup)
-					step, _, _ := strings.Cut(rest, "\n      - ")
-					if !found || !strings.Contains(step, "\n        if: inputs.mode == 'hosted'") {
-						t.Errorf("product step %q must run only in hosted mode", setup)
-					}
-				}
-				worker, publisher, _ := strings.Cut(source, "\n  publish-revision:")
-				_, author, _ := strings.Cut(worker, "- name: Run the author and reviewer")
-				author, _, _ = strings.Cut(author, "- name: Stage hosted evidence")
-				if !strings.Contains(author, "if: inputs.mode == 'hosted'") || !strings.Contains(author, "OPENROUTER_API_KEY:") || strings.Contains(author, "github.token") || strings.Contains(author, "AGENT_VARIABLES_READ_TOKEN") || strings.Contains(worker, "AGENT_PUBLICATION_TOKEN") {
-					t.Fatal("hosted execution must receive only its model credential")
-				}
-				if !strings.Contains(publisher, "AGENT_PUBLICATION_TOKEN:") || strings.Contains(publisher, "OPENROUTER_API_KEY:") ||
-					!strings.Contains(publisher, "needs: [admit-revision, work]") || !strings.Contains(publisher, "ref: ${{ github.sha }}") ||
-					!strings.Contains(publisher, "agent-hosted-${{ github.run_id }}-1") ||
-					!strings.Contains(worker, "needs.admit-revision.outputs.admitted == 'true' && github.run_attempt == 1") {
-					t.Fatal("the revision publisher must use the admitted workflow and its own credentials")
 				}
 			}
 			if name == "publish" && (!strings.Contains(source, "workflow_call:") || !strings.Contains(source, "steps.authorize.outputs.process == 'true'") || strings.Contains(source, "OPENROUTER_API_KEY")) {
@@ -84,15 +62,15 @@ func TestRevisionPreparationUsesTheTrustedMavenCacheWithoutCredentials(t *testin
 		}
 		return string(data)
 	}
-	work := read("agent-work.yaml")
+	work := read("agent-execute.yaml")
 	_, prepare, _ := strings.Cut(work, "- name: Prepare the product environment")
 	initial, revision, _ := strings.Cut(prepare, "- name: Prepare the revision environment")
 	revision, _, _ = strings.Cut(revision, "- name: Run the author and reviewer")
-	if !strings.Contains(initial, "needs.admit.outputs.admitted == 'true' && inputs.mode == 'hosted'") ||
+	if !strings.Contains(initial, "!inputs.revision") ||
 		!strings.Contains(initial, "MAVEN_GITHUB_PASSWORD:") {
 		t.Fatal("initial hosted preparation needs its Maven authentication")
 	}
-	if !strings.Contains(revision, "needs.admit-revision.outputs.admitted == 'true'") || !strings.Contains(revision, "hosted_prepare_revision.sh") ||
+	if !strings.Contains(revision, "if: inputs.revision") || !strings.Contains(revision, "hosted_prepare_revision.sh") ||
 		strings.Contains(revision, "env:") || strings.Contains(revision, "github.token") || strings.Contains(revision, "secrets.") {
 		t.Fatal("revision preparation must run in its own step without credentials")
 	}
@@ -129,7 +107,6 @@ func TestAutomaticRevisionUsesTheExistingRevisionWorkflow(t *testing.T) {
 		"github.event.sender.login == 'github-actions[bot]'",
 		"github.event.sender.type == 'Bot'",
 		"needs.admit-revision.outputs.admitted == 'true' && github.run_attempt == 1",
-		"if: needs.admit-revision.outputs.admitted == 'true'\n        run: '\"$RUNNER_TEMP/qip-agent-revise\" work'",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("missing %q", required)
@@ -140,24 +117,48 @@ func TestAutomaticRevisionUsesTheExistingRevisionWorkflow(t *testing.T) {
 	}
 }
 
+func TestTrustedJobsSelectTheVariablesCredential(t *testing.T) {
+	const selection = "secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN']"
+	for _, name := range []string{"control", "work", "publish", "ci"} {
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-"+name+".yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := false
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.HasPrefix(line, "          AGENT_VARIABLES_READ_TOKEN:") {
+				continue
+			}
+			seen = true
+			if !strings.Contains(line, selection) {
+				t.Errorf("%s uses the wrong credential for variable reads", name)
+			}
+		}
+		if !seen {
+			t.Errorf("%s has no variable reads", name)
+		}
+	}
+}
+
 func TestEngineeringWorkerHasNoWriteCredentials(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-work.yaml"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-execute.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, jobs, found := strings.Cut(string(source), "\n  work:\n")
-	worker, _, ended := strings.Cut(jobs, "\n  notify:\n")
-	if !found || !ended {
-		t.Fatal("cannot identify the hosted worker job")
+	prepare, author, found := strings.Cut(string(data), "\n  author:\n")
+	if !found || !strings.Contains(prepare, "AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}") ||
+		!strings.Contains(author, "needs: prepare") || !strings.Contains(author, "if: inputs.mode == 'hosted'") {
+		t.Fatal("only a hosted assignment can start the author")
 	}
-	for _, forbidden := range []string{"GH_ACCESS_TOKEN", "AGENT_PUBLICATION_TOKEN", ": write\n"} {
-		if strings.Contains(worker, forbidden) {
-			t.Errorf("worker job has %q", forbidden)
+	for _, forbidden := range []string{"GH_ACCESS_TOKEN", "AGENT_VARIABLES_READ_TOKEN", "AGENT_PUBLICATION_TOKEN", ": write\n"} {
+		if strings.Contains(author, forbidden) {
+			t.Errorf("author job has %q", forbidden)
 		}
 	}
-	if !strings.Contains(worker, "AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}") ||
-		!strings.Contains(worker, "AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}") {
-		t.Fatal("worker needs organization bot identity to read admitted receipts")
+	for _, command := range []string{`qip-agent" work`, `qip-agent-revise" work`} {
+		if !strings.Contains(prepare, command) {
+			t.Errorf("assignment preparation lacks %s", command)
+		}
 	}
 }
 
