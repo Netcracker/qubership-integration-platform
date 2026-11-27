@@ -12,6 +12,7 @@ type ConfirmAndRunOptions = Pick<
   | "cancelButtonProps"
   | "icon"
   | "width"
+  | "centered"
 > & {
   title: ReactNode;
   /** Runs on confirm. A returned promise keeps the dialog in its loading state. */

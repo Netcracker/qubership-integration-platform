@@ -730,6 +730,7 @@ export const ImportInstructions: React.FC = () => {
                     content: `Are you sure you want to delete ${selectedRowKeys.length} instruction(s)?`,
                     onOk: handleDelete,
                     okText: "Delete",
+                    centered: true,
                   });
                 }
               },
