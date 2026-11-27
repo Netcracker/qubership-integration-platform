@@ -9,14 +9,16 @@ Snapshot represents a chain state in the particular moment. In a nutshell, snaps
 ## Process Initialization
 
 ---
-Snapshot shall be created manually via CIP UI (navigate to "**Snapshots**" tab, available for each chain).
+To create a snapshot without deploying it, use the **Snapshots** tab. To create and deploy a snapshot from the chain
+graph, click **Save and Deploy**, select one or more **Domains**, optionally enter a **Snapshot name**, and click
+**Deploy**. If you leave **Snapshot name** blank, the platform assigns the next automatically generated name.
 
 ## User Interface
 
 ---
 ### Snapshot Table View
 There is a **"Snapshots"** tab, available for each particular chain. By navigating to this tab user will be presented with a table, that contains next info and control elements:
-- **Name** - snapshot's name. First snapshot is automatically named "**V1**". Every subsequent snapshot will be named with incremented number (**V2**, **V3**, etc).
+- **Name** - snapshot's name. When you do not enter a custom name, the platform assigns sequential names (**V1**, **V2**, **V3**, etc.).
     > ℹ️ To change a snapshot's name, click its **Name** cell, enter a new name, and press **`Enter`** or click outside the cell.
 - **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed by clicking the cell. Click outside the cell to submit the changes. **Technical** labels cannot be updated manually.
 - **Created By** - username of snapshot creation.
