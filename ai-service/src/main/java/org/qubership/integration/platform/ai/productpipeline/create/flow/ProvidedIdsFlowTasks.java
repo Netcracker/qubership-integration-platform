@@ -73,6 +73,7 @@ public class ProvidedIdsFlowTasks {
     if (input.waitForActivation()) {
       return input;
     }
+    rockySkills.requireAvailable();
     holdRun(input.runId());
     try {
       return runCurrentStage(input);
@@ -84,7 +85,6 @@ public class ProvidedIdsFlowTasks {
   }
 
   private ProvidedIdsFlow.RunContext runCurrentStage(ProvidedIdsFlow.RunContext input) {
-    rockySkills.requireAvailable();
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
     int used = runSupport.restoreTechnicalRetryCount(input.runId(), stageId);
