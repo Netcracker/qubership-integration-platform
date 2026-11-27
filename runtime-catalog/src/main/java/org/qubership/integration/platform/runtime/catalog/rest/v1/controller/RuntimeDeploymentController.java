@@ -21,6 +21,9 @@ import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
@@ -56,7 +59,12 @@ public class RuntimeDeploymentController {
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(description = "Get deployment statuses for all chains on all available engine pods")
+    @Operation(description = "Get deployment statuses for all chains on all available engine pods",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Deployments by chain ID, one per engine pod the chain is deployed on",
+                content = @Content(schema = @Schema(type = "object", additionalPropertiesSchema = ChainRuntimeDeployment[].class))),
+            @ApiResponse(responseCode = "204", description = "No chain is deployed on any engine pod", content = @Content)
+        })
     public ResponseEntity<MappingJacksonValue> findChainRuntimeDeployments(
             @RequestParam(value = "fields", required = false) @Parameter(description = "Fields to include in the response") String[] fields
     ) {

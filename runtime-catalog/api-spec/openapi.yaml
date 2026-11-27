@@ -1848,8 +1848,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MappingJacksonValue"
-          description: OK
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ChainRuntimeDeployment"
+          description: "Deployments by chain ID, one per engine pod the chain is deployed\
+            \ on"
+        "204":
+          description: No chain is deployed on any engine pod
       tags:
       - runtime-deployment-controller
   /v1/catalog/validation/findRouteDeployments:
@@ -6964,6 +6971,31 @@ components:
           description: Chain roles object
           items:
             $ref: "#/components/schemas/ChainRolesDTO"
+    ChainRuntimeDeployment:
+      type: object
+      description: Chain deployment status on engine pod
+      properties:
+        deploymentInfo:
+          $ref: "#/components/schemas/DeploymentInfo"
+          description: Information about particular deployment applied on engine pod
+        errorMessage:
+          type: string
+          description: Error message (if any)
+        host:
+          type: string
+          description: Host (ip address) of particular engine pod in k8s network
+        status:
+          type: string
+          description: Status of the deployment
+          enum:
+          - DEPLOYED
+          - REMOVED
+          - FAILED
+          - PROCESSING
+          - DRAFT
+        suspended:
+          type: boolean
+          description: Whether deployment is waiting for pod initialization
     ChainSearchRequestDTO:
       type: object
       description: Folder search request object
@@ -8552,7 +8584,6 @@ components:
         lastEventId:
           type: string
           description: Last event id sent in this bulk
-    FilterProvider: {}
     FilterRequestDTO:
       type: object
       description: Filter request object
@@ -9536,12 +9567,6 @@ components:
           format: int64
         name:
           type: string
-    MappingJacksonValue:
-      type: object
-      properties:
-        filters:
-          $ref: "#/components/schemas/FilterProvider"
-        value: {}
     MaskedField:
       type: object
       properties:
