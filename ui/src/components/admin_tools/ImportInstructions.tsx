@@ -1047,6 +1047,7 @@ export const UploadInstructionsModal: React.FC<
   return (
     <Modal
       title="Upload Instructions (yaml, yml)"
+      centered
       open
       destroyOnHidden
       onCancel={onClose}
