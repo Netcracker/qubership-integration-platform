@@ -125,6 +125,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
 
   return (
     <Modal
+      centered
       title="Import Services from file (zip)"
       open={true}
       onCancel={handleCancel}

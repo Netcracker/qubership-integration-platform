@@ -624,6 +624,7 @@ const AddSpecificationModal: React.FC<Props> = ({
 
   return (
     <Modal
+      centered
       title={isGroupMode ? "Add Specification Group" : "Add Specification"}
       open={true}
       onCancel={handleCancel}

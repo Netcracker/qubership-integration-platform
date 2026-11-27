@@ -147,6 +147,7 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
 
   return (
     <Modal
+      centered
       title="Deploy chains"
       open={true}
       onCancel={closeContainingModal}

@@ -106,6 +106,7 @@ export const Filter = (props: FilterProps) => {
 
   return (
     <Modal
+      centered
       title="Filter"
       open={true}
       onCancel={closeContainingModal}

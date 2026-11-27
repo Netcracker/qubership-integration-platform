@@ -81,6 +81,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
 
   return (
     <Modal
+      centered
       title={"Save and deploy"}
       open={true}
       onCancel={closeContainingModal}

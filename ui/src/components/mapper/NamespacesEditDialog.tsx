@@ -29,6 +29,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
   return (
     <Modal
       title="Edit namespaces"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

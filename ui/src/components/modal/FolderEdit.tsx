@@ -38,6 +38,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
 
   return (
     <Modal
+      centered
       title={!mode || mode === "create" ? "New Folder" : "Edit Folder"}
       open={true}
       onCancel={closeContainingModal}

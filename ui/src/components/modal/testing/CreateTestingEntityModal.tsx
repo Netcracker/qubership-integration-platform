@@ -78,6 +78,7 @@ export function CreateTestingEntityModal<T>({
 
   return (
     <Modal
+      centered
       title={title}
       open={true}
       onCancel={closeContainingModal}

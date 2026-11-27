@@ -24,6 +24,7 @@ export const AbacAttributesPopUp: React.FC<AbacAttributesPopUpProps> = ({
   return (
     <Modal
       title="ABAC Parameters"
+      centered
       open={true}
       onCancel={closeContainingModal}
       footer={[

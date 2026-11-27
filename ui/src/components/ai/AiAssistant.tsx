@@ -1369,6 +1369,7 @@ export const AiAssistant: React.FC = () => {
         okText: "Dismiss and build",
         cancelText: "Cancel",
         onOk: () => runBuild(),
+        centered: true,
       });
       return;
     }

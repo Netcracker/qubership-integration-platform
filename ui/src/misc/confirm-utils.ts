@@ -12,6 +12,7 @@ type ConfirmAndRunOptions = Pick<
   | "cancelButtonProps"
   | "icon"
   | "width"
+  | "centered"
 > & {
   title: ReactNode;
   /** Runs on confirm. A returned promise keeps the dialog in its loading state. */
@@ -20,6 +21,7 @@ type ConfirmAndRunOptions = Pick<
 
 export function confirmAndRun({ onOk, ...props }: ConfirmAndRunOptions) {
   modal.confirm({
+    centered: true,
     ...props,
     onOk: async () => onOk(),
   });

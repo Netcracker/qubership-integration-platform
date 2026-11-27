@@ -30,6 +30,7 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
 
   return (
     <Modal
+      centered
       title={
         <Space>
           <OverridableIcon name={"exclamationCircle"} />
