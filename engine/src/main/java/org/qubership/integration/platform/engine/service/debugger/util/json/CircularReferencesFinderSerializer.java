@@ -40,7 +40,7 @@ class CircularReferencesFinderSerializer extends DelegatingSerializerBase {
             consumer.accept(value);
         } else {
             scope.add(value);
-            getSerializer(value, serializers).serialize(value, gen, serializers);
+            getSerializer(value).serialize(value, gen, serializers);
             scope.remove(value);
         }
     }

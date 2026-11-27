@@ -18,12 +18,16 @@ package org.qubership.integration.platform.engine.service.debugger.util.json;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.ValueSerializer;
-
-
+import tools.jackson.databind.json.JsonMapper;
 
 abstract class DelegatingSerializerBase extends ValueSerializer<Object> {
-    protected ValueSerializer<Object> getSerializer(Object value, SerializationContext context) throws JacksonException {
-        return context.findTypedValueSerializer(value.getClass(), true);
+    private final SerializationContext delegateContext = JsonMapper.builder()
+            .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+            .build()._serializationContext();
+
+    protected ValueSerializer<Object> getSerializer(Object value) throws JacksonException {
+        return delegateContext.findTypedValueSerializer(value.getClass(), true);
     }
 }

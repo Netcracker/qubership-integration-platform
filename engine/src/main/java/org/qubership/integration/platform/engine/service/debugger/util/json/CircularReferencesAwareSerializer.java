@@ -46,11 +46,11 @@ class CircularReferencesAwareSerializer extends DelegatingSerializerBase {
                 UUID identifier = UUID.randomUUID();
                 idMap.put(value, identifier);
                 gen.writeRaw("{\"@json-id\":\"" + identifier.toString() + "\",\"reference\":");
-                getSerializer(value, serializers).serialize(value, gen, serializers);
+                getSerializer(value).serialize(value, gen, serializers);
                 gen.writeRaw("}");
             }
         } else {
-            getSerializer(value, serializers).serialize(value, gen, serializers);
+            getSerializer(value).serialize(value, gen, serializers);
         }
     }
 }
