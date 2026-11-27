@@ -1,6 +1,7 @@
 package docpacket
 
 import (
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -8,15 +9,17 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/doctriage"
 )
 
-// selectHelpSections searches pages tied to changed screens or edited by the implementing PR.
-func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document) []doctriage.Document {
+// selectHelpSections prefers mapped screens and changed pages. Otherwise it ranks the retrieved sections by issue terms.
+func selectHelpSections(issue Issue, paths []string, resolved []DocMapping, pages []doctriage.Document) []doctriage.Document {
 	relevant := make(map[string]bool)
 	for _, mapping := range autoDocumentationCandidates(paths) {
 		relevant[mapping.CurrentPath] = true
 	}
-	for _, path := range paths {
-		if strings.HasPrefix(path, "help/docs/") {
-			relevant[path] = true
+	changedHelp := make(map[string]bool)
+	for _, mapping := range resolved {
+		if mapping.CurrentPath != "" {
+			relevant[mapping.CurrentPath] = true
+			changedHelp[mapping.CurrentPath] = true
 		}
 	}
 	type passage struct {
@@ -24,9 +27,13 @@ func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document)
 		score int
 	}
 	title, body := terms(issue.Title), terms(issue.Body)
+	var weights map[string]int
+	if len(relevant) == 0 {
+		body, weights = contentQuery(issue.Body, title, body, pages)
+	}
 	var matches []passage
 	for _, page := range pages {
-		if !relevant[page.Path] {
+		if len(relevant) > 0 && !relevant[page.Path] {
 			continue
 		}
 		pathWords := terms(page.Path)
@@ -37,7 +44,7 @@ func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document)
 				break
 			}
 		}
-		if !named && !slices.Contains(paths, page.Path) {
+		if len(relevant) > 0 && !named && !changedHelp[page.Path] {
 			continue
 		}
 		for _, text := range markdownSections(page.Content) {
@@ -50,7 +57,7 @@ func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document)
 			score := 0
 			for _, term := range title {
 				if strings.Contains(lower, term) {
-					score += 2
+					score += 2 + weights[term]
 				}
 				if strings.Contains(heading, term) {
 					score += 4
@@ -61,8 +68,11 @@ func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document)
 			}
 			for _, term := range body {
 				if strings.Contains(lower, term) {
-					score++
+					score += 1 + weights[term]
 				}
+			}
+			if len(relevant) == 0 {
+				score = int(float64(score) * 100 / math.Log2(float64(len(text)+2)))
 			}
 			if score > 0 && len(text) <= classifierSectionBytes {
 				matches = append(matches, passage{doctriage.Document{Path: page.Path, Content: text}, score})
@@ -75,6 +85,43 @@ func selectHelpSections(issue Issue, paths []string, pages []doctriage.Document)
 		selected = append(selected, m.doc)
 	}
 	return selected
+}
+
+// contentQuery weights terms by inverse page frequency and preserves mixed-case identifiers.
+func contentQuery(description string, title, body []string, pages []doctriage.Document) ([]string, map[string]int) {
+	weights := make(map[string]int)
+	lowerPages := make([]string, len(pages))
+	for i, page := range pages {
+		lowerPages[i] = strings.ToLower(page.Content)
+	}
+	// Keep identifiers such as TraceMe and DEBUG intact alongside prose search terms.
+	seen := map[string]bool{}
+	for _, term := range body {
+		seen[term] = true
+	}
+	for _, token := range words.FindAllString(description, -1) {
+		if token[1:] != strings.ToLower(token[1:]) {
+			term := strings.ToLower(token)
+			if !seen[term] {
+				body = append(body, term)
+				seen[term] = true
+			}
+			weights[term] = 5
+		}
+	}
+	for _, term := range title {
+		seen[term] = true
+	}
+	for term := range seen {
+		count := 0
+		for _, page := range lowerPages {
+			if strings.Contains(page, term) {
+				count++
+			}
+		}
+		weights[term] = (1 + weights[term]) * len(pages) / max(1, count)
+	}
+	return body, weights
 }
 
 const classifierSectionBytes = 16 * 1024

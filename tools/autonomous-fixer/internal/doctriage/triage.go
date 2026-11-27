@@ -13,7 +13,8 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
 
-const PolicyVersion = "docs-impact-v5"
+const PolicyVersion = "docs-impact-v6"
+const previousPolicyVersion = "docs-impact-v5"
 
 const HelpScope = "The target is help/docs, the existing QIP product help for integration designers and users of the product's administration screens. It covers product workflows, element options, user-facing limits, and runtime concepts already explained there. Installation, Kubernetes/Helm provisioning, service accounts, secret mounts, cluster audiences, environment wiring, CI/build tools, and developer testing instructions belong to deployment or developer documentation, not automatically to help. A new environment variable or the absence of a Kubernetes term does not by itself require a help page. Do not expand the help's audience just because the implementation changed. However, if the change makes an existing help statement about product behavior inaccurate, classify the minimal correction to that statement as needed even when the underlying mechanism is infrastructure-related. Existing help topics such as retention or token processing are not excluded merely because configuration is involved. This is an assessment of REMAINING help work NOW, not whether the feature historically deserved documentation: supplied current pages take precedence over deleted lines or old descriptions in a historical diff. General accurate instructions need not enumerate every confirmation dialog, tooltip, or cosmetic improvement. A new internal enum, DTO field, host API discriminator, or source module does not by itself create a new task or concept for a help reader. Require an actual missing reader-facing capability or materially false instruction before recommending more help text. Tie required work to the implementing change: compare the before and after contract. An independent documentation error that was already present and is unaffected by this change is a separate finding, not a reason to expand this issue. Read whole sections and cross-references before treating wording as false. A visible change can require no additional explanation; do not call it internal merely because no help edit is needed."
 
@@ -38,6 +39,14 @@ type Packet struct {
 	Limitations    []string        `json:"limitations"`
 	Complete       bool            `json:"complete"`
 	PartialContext bool            `json:"partial_context,omitempty"`
+}
+
+// MarkImplementationIncomplete records missing PR evidence and requires assessment.
+func (p *Packet) MarkImplementationIncomplete(reasons ...string) {
+	p.Complete = false
+	p.PartialContext = false
+	p.HelpExcerpts = nil
+	p.Limitations = append(p.Limitations, reasons...)
 }
 
 // CanClassify also accepts a landed diff with gaps confined to supplementary retrieval.

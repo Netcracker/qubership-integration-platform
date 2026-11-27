@@ -212,9 +212,7 @@ func run(ctx context.Context, args []string) error {
 			return e
 		}
 		if !intake.Complete {
-			packet.PartialContext = false
-			packet.Complete = false
-			packet.Limitations = append(packet.Limitations, intake.Limitations...)
+			packet.MarkImplementationIncomplete(intake.Limitations...)
 		}
 		intake.Plan.PacketSHA256 = docgithub.Digest(packet)
 		intake.Plan.ID = ""

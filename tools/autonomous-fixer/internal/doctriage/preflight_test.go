@@ -87,3 +87,29 @@ func TestPartialRetrievalRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestRoutingVersionsDuringReplay(t *testing.T) {
+	p := packet()
+	current, err := Evaluate(context.Background(), p, jev.DefaultModel, &fake{action: "needed", reason: "missing_guidance", attribution: "change_related"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []struct {
+		classifier, routing string
+		valid               bool
+	}{
+		{"docs-impact-v5", "docs-routing-v1", true},
+		{"docs-impact-v5", "docs-routing-v2", true},
+		{"docs-impact-v6", "docs-routing-v3", true},
+		{"docs-impact-v6", "docs-routing-v2", false},
+		{"docs-impact-v6", "docs-routing-v1", false},
+		{"docs-impact-v5", "docs-routing-v3", false},
+	} {
+		report := current
+		report.PolicyVersion = v.classifier
+		route, err := ReplayRoute(p, report, DefaultRoutingPolicy(), v.routing)
+		if (err == nil) != v.valid || v.valid && (route.Route != "docs-write" || route.Version != v.routing) {
+			t.Errorf("%s/%s: route %s version %s error %v", v.classifier, v.routing, route.Route, route.Version, err)
+		}
+	}
+}

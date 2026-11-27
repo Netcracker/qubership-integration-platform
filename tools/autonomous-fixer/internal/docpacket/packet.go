@@ -219,12 +219,13 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if _, e = git("merge-base", "--is-ancestor", merge, p.DocsSHA); e != nil {
 			return fail(fmt.Errorf("documentation revision %s does not contain PR #%d merge %s: %w", p.DocsSHA, pr.Number, merge, e))
 		}
-		base, tip, evidence, e := landedRange(ctx, git, c.ResolvePRHead, pr, merge)
+		change, evidence, e := landedRange(ctx, git, c.ResolvePRHead, pr, merge)
 		if e != nil {
 			return fail(fmt.Errorf("resolve landed changes for PR #%d: %w", pr.Number, e))
 		}
+		base, tip := change.base, change.tip
 		if tip != merge {
-			retained, err := projectionMatches(git, base, tip, merge, merge)
+			retained, err := projectionMatches(git, change, commitRange{base: merge, tip: merge})
 			if err != nil {
 				return fail(fmt.Errorf("verify nested PR #%d: %w", pr.Number, err))
 			}
@@ -476,7 +477,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	p.Complete = p.Complete && helpComplete
 	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
 	if p.PartialContext {
-		p.HelpExcerpts = selectHelpSections(c.Issue, p.ChangedPaths, p.Documentation)
+		p.HelpExcerpts = selectHelpSections(c.Issue, p.ChangedPaths, r.DocumentationMappings, p.Documentation)
 	}
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)
 	return p, r, nil

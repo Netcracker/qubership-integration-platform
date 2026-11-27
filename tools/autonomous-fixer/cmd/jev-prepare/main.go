@@ -108,9 +108,7 @@ func run(ctx context.Context, args []string) error {
 			continue
 		}
 		if !item.TimelineComplete {
-			p.PartialContext = false
-			p.Complete = false
-			p.Limitations = append(p.Limitations, "The issue timeline is incomplete; linked implementing pull requests may be missing.")
+			p.MarkImplementationIncomplete("The issue timeline is incomplete; linked implementing pull requests may be missing.")
 		}
 		if e = save(filepath.Join(dir, "packet.json"), p); e != nil {
 			return e

@@ -277,7 +277,7 @@ func ValidateCandidate(ctx context.Context, plan Plan, runDir, sourcePath string
 		return c, e
 	}
 	c.jev = proof.Report.Response
-	routing, e := doctriage.SelectRoute(packet, proof.Report, proof.Routing.Policy)
+	routing, e := doctriage.ReplayRoute(packet, proof.Report, proof.Routing.Policy, proof.Routing.Version)
 	if e != nil {
 		return c, e
 	}
