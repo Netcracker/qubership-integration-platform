@@ -25,14 +25,13 @@ Install the workflows, controller, product source, and agent skills on the repos
 | Repository secret | Where it is used |
 | --- | --- |
 | `OPENROUTER_API_KEY` | Model calls in the worker. A dedicated key lets you track its usage and revoke it independently. |
-| `AGENT_VARIABLES_READ_TOKEN` | Trusted controller steps. Grant repository Variables read access so the controller can recheck the allowlist and enable flag. |
+| `AGENT_VARIABLES_READ_TOKEN` | Required only outside organization account mode. Grant Variables read access on this repository. |
 | `AGENT_PUBLICATION_TOKEN` | Required for publication only when `AGENT_USE_ORG_BOT` is unset or disabled. Grant Contents and Pull requests write and Issues read on this repository. The publisher creates a branch and draft PR and reads the issue to confirm eligibility. |
 
 With `AGENT_USE_ORG_BOT=true`, trusted jobs use the organization secret `GH_ACCESS_TOKEN`
 for new issue comments, labels, branches, and PRs. Existing GitHub Actions comments keep their
 original author when the fixer edits them. Actions still uses its workflow token to dispatch
-work. Keep a separate read-only `AGENT_VARIABLES_READ_TOKEN` for the worker to recheck
-the allowlist after it leaves the queue. Finish active engineering runs and their PRs
+work. Grant the organization token Variables read access. After the work leaves the queue, a trusted job checks the current settings and prepares the assignment. The model runs on a separate runner. Finish active engineering runs and their PRs
 before changing the organization login or turning organization mode off. Model jobs receive neither the organization's publication credential nor the project PAT.
 See [documentation credentials](DOCS-GITHUB.md#repository-setup) before changing the publisher.
 

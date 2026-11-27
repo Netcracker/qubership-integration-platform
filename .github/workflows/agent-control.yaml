@@ -141,7 +141,7 @@ jobs:
         run: '"$RUNNER_TEMP/qip-agent" route'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
       - if: steps.route.outputs.download == 'true'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
@@ -156,7 +156,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
           AGENT_CHECKPOINT_PATH: ${{ runner.temp }}/agent-checkpoint/checkpoint.json
           AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-checkpoint
 
