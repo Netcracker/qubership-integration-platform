@@ -20,6 +20,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
@@ -160,9 +164,16 @@ public class ContextSystemController {
 
     @PostMapping(value = "/import")
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-            description = "Import service from a file")
-    public ResponseEntity<List<ImportSystemResult>> importSystems(@RequestParam("file") @Parameter(description = "File") MultipartFile file,
-                                                                  @RequestParam(required = false) @Parameter(description = "List of context ids, separated by comma") List<String> systemIds) {
+            description = "Import service from a file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = {
+                    @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
+                    @SchemaProperty(name = "systemIds", array = @ArraySchema(arraySchema = @Schema(description = "List of context ids, separated by comma"), schema = @Schema(type = "string")))
+                })))
+    public ResponseEntity<List<ImportSystemResult>> importSystems(@RequestParam("file") MultipartFile file,
+                                                                  @RequestParam(required = false) @Parameter(hidden = true) List<String> systemIds) {
         List<ImportSystemResult> result = contextExportImportService.importContextSystemRequest(file, systemIds);
         if (result.isEmpty()) {
             return ResponseEntity.noContent().build();
@@ -175,8 +186,12 @@ public class ContextSystemController {
     }
 
     @PostMapping(value = "/import/preview")
-    @Operation(description = "Get preview on what will be imported from file")
-    public ResponseEntity<List<ImportSystemResult>> getSystemsImportPreview(@RequestParam("file") @Parameter(description = "File") MultipartFile file) {
+    @Operation(description = "Get preview on what will be imported from file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")))))
+    public ResponseEntity<List<ImportSystemResult>> getSystemsImportPreview(@RequestParam("file") MultipartFile file) {
         List<ImportSystemResult> result = contextExportImportService.getSystemsImportPreviewRequest(file);
         return result.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok().body(result);
     }

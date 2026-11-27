@@ -18,12 +18,16 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.StringResponse;
 import org.qubership.integration.platform.runtime.catalog.service.variables.SecuredVariableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -79,9 +83,13 @@ public class SecuredVariableController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(description = "Import secured variables from a file")
+    @Operation(description = "Import secured variables from a file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File to import")))))
     @PostMapping(value = "/import")
-    public ResponseEntity<Set<String>> importVariables(@RequestParam("file") @Parameter(description = "File to import") MultipartFile file) {
+    public ResponseEntity<Set<String>> importVariables(@RequestParam("file") MultipartFile file) {
         log.info("Request to import secured variables");
         Set<String> result = securedVariableService.importVariablesRequest(file);
         return result.isEmpty()

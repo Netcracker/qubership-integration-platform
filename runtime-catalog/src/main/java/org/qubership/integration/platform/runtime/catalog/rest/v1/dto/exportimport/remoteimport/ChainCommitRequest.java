@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -31,6 +32,7 @@ import java.util.List;
 @NoArgsConstructor
 public class ChainCommitRequest {
 
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
     private String id;
 
     @Deprecated(since = "2023.4")

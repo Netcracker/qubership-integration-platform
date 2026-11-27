@@ -4,6 +4,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
@@ -135,15 +139,21 @@ public class MCPSystemController {
             extensions = @Extension(
                     properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}
             ),
-            description = "Import MCP services from a file"
+            description = "Import MCP services from a file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = {
+                    @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
+                    @SchemaProperty(name = "ids", array = @ArraySchema(arraySchema = @Schema(description = "List of system IDs"), schema = @Schema(type = "string")))
+                }))
     )
     public ResponseEntity<List<ImportSystemResult>> importSystems(
         @RequestParam("file")
-        @Parameter(description = "File")
         MultipartFile file,
 
         @RequestParam(required = false)
-        @Parameter(description = "List of system IDs")
+        @Parameter(hidden = true)
         List<String> ids
     ) {
         List<ImportSystemResult> result = mcpSystemImportExportService.importSystems(file, ids);
@@ -158,10 +168,13 @@ public class MCPSystemController {
     }
 
     @PostMapping("/import/preview")
-    @Operation(description = "Get preview on what will be imported from file")
+    @Operation(description = "Get preview on what will be imported from file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")))))
     public ResponseEntity<List<ImportSystemResult>> getImportPreview(
             @RequestParam("file")
-            @Parameter(description = "File")
             MultipartFile file
     ) {
         List<ImportSystemResult> result = mcpSystemImportExportService.getImportPreview(file);

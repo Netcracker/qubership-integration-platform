@@ -20,6 +20,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -133,13 +137,20 @@ public class CommonVariablesController {
 
     @Deprecated(since = "24.4")
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-    description = "Import common variables from file")
+    description = "Import common variables from file",
+    requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+        mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+        schema = @Schema(type = "object", requiredProperties = {"file"}),
+        schemaProperties = {
+            @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File to import")),
+            @SchemaProperty(name = "variablesNames", array = @ArraySchema(arraySchema = @Schema(description = "Variables names. If set, only these variables will be imported"), uniqueItems = true, schema = @Schema(type = "string", pattern = ENTITY_NAME_REGEXP)))
+        })))
     @PostMapping(value = "/import")
     public ResponseEntity<List<ImportVariableResult>> importVariables(
-            @RequestParam @Parameter(description = "File to import") MultipartFile file,
+            @RequestParam MultipartFile file,
             @Valid
             @RequestParam(required = false)
-            @Parameter(description = "Variables names. If set, only these variables will be imported")
+            @Parameter(hidden = true)
             Set<@Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"") String> variablesNames
     ) {
         log.info("Request to import common variables");
@@ -149,9 +160,13 @@ public class CommonVariablesController {
                 : ResponseEntity.ok().body(importedVariables);
     }
 
-    @Operation(description = "Get common variables from file without saving")
+    @Operation(description = "Get common variables from file without saving",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                schema = @Schema(type = "object", requiredProperties = {"file"}),
+                schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File to import")))))
     @PostMapping(value = "/preview")
-    public ResponseEntity<List<ImportVariablePreview>> importPreview(@RequestParam @Parameter(description = "File to import") MultipartFile file) {
+    public ResponseEntity<List<ImportVariablePreview>> importPreview(@RequestParam MultipartFile file) {
         log.debug("Request to import common variables preview");
         return ResponseEntity.ok(commonVariablesService.importVariablePreview(file));
     }

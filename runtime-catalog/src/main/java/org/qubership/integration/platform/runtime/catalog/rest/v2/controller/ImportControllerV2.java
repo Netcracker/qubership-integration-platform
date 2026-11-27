@@ -19,6 +19,11 @@ package org.qubership.integration.platform.runtime.catalog.rest.v2.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
@@ -79,9 +84,28 @@ public class ImportControllerV2 {
     }
 
     @PostMapping()
-    @Operation(description = "Import chains from file asynchronously")
-    public ResponseEntity<ImportAsyncAcknowledge> importFileAsync(@RequestParam("file") @Parameter(description = "File") MultipartFile file,
-                                                                  @RequestParam(required = false) @Parameter(description = "Import requests") String chainCommitRequests,
+    @Operation(description = "Import chains from file asynchronously",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    schema = @Schema(type = "object", requiredProperties = {"file"}),
+                    schemaProperties = {
+                        @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
+                        @SchemaProperty(name = "chainCommitRequests", schema = @Schema(
+                                type = "string",
+                                description = "Import requests, as a JSON array of ChainCommitRequest objects",
+                                contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                                contentSchema = ChainCommitRequest[].class))
+                    })),
+            responses = @ApiResponse(responseCode = "202", description = "Accepted",
+                    headers = {
+                        @Header(name = HttpHeaders.LOCATION, description = "URL of the import status, /v2/import/status/{importId}",
+                                schema = @Schema(type = "string", format = "uri")),
+                        @Header(name = HttpHeaders.RETRY_AFTER, description = "Seconds to wait before requesting the import status, always 60",
+                                schema = @Schema(implementation = Integer.class))
+                    },
+                    content = @Content(schema = @Schema(implementation = ImportAsyncAcknowledge.class))))
+    public ResponseEntity<ImportAsyncAcknowledge> importFileAsync(@RequestParam("file") MultipartFile file,
+                                                                  @RequestParam(required = false) @Parameter(hidden = true) String chainCommitRequests,
                                                                   @RequestHeader Map<String, String> headers,
                                                                   @RequestHeader(required = false, value = "chain-labels") @Parameter(description = "List of labels to add on chains") List<String> technicalLabels,
                                                                   @RequestHeader(required = false, value = ImportControllerV3.SR_PACKAGE_NAME_HEADER) @Parameter(description = "Package name samples repository header") String packageName,

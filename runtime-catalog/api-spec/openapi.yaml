@@ -739,18 +739,9 @@ paths:
     post:
       description: Import service from a file
       operationId: importSystems_2
-      parameters:
-      - description: "List of context ids, separated by comma"
-        in: query
-        name: systemIds
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -758,8 +749,14 @@ paths:
                   type: string
                   format: binary
                   description: File
+                systemIds:
+                  type: array
+                  description: "List of context ids, separated by comma"
+                  items:
+                    type: string
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -778,7 +775,7 @@ paths:
       operationId: getSystemsImportPreview_1
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -788,6 +785,7 @@ paths:
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -1275,12 +1273,6 @@ paths:
       description: Import chains from file
       operationId: importFile
       parameters:
-      - description: Import requests
-        in: query
-        name: chainCommitRequests
-        required: false
-        schema:
-          type: string
       - description: List of labels to add on chains
         in: header
         name: chain-labels
@@ -1309,16 +1301,26 @@ paths:
           type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
+                chainCommitRequests:
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChainCommitRequest"
+                  description: "Import requests, as a JSON array of ChainCommitRequest\
+                    \ objects"
                 file:
                   type: string
                   format: binary
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -1490,7 +1492,7 @@ paths:
       operationId: importFileAsPreview
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -1500,6 +1502,7 @@ paths:
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -1711,18 +1714,9 @@ paths:
     post:
       description: Import MCP services from a file
       operationId: importSystems_1
-      parameters:
-      - description: List of system IDs
-        in: query
-        name: ids
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -1730,8 +1724,14 @@ paths:
                   type: string
                   format: binary
                   description: File
+                ids:
+                  type: array
+                  description: List of system IDs
+                  items:
+                    type: string
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -1750,7 +1750,7 @@ paths:
       operationId: getImportPreview
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -1760,6 +1760,7 @@ paths:
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -3233,20 +3234,9 @@ paths:
       deprecated: true
       description: Import common variables from file
       operationId: importVariables_1
-      parameters:
-      - description: "Variables names. If set, only these variables will be imported"
-        in: query
-        name: variablesNames
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
-            pattern: "^[-._a-zA-Z0-9]+$"
-          uniqueItems: true
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -3254,8 +3244,17 @@ paths:
                   type: string
                   format: binary
                   description: File to import
+                variablesNames:
+                  type: array
+                  description: "Variables names. If set, only these variables will\
+                    \ be imported"
+                  items:
+                    type: string
+                    pattern: "^[-._a-zA-Z0-9]+$"
+                  uniqueItems: true
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -3274,7 +3273,7 @@ paths:
       operationId: importPreview
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -3284,6 +3283,7 @@ paths:
                   description: File to import
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -3867,15 +3867,21 @@ paths:
         required: true
         schema:
           type: string
-      - description: Array of specification files
-        in: query
-        name: files
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  description: Array of specification files
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - files
         required: true
-        schema:
-          type: array
-          items:
-            type: string
-            format: binary
       responses:
         "200":
           content:
@@ -3890,21 +3896,6 @@ paths:
       description: Import service from a file
       operationId: importSystems
       parameters:
-      - description: "List of service ids, separated by comma"
-        in: query
-        name: systemIds
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
-      - description: "If specified, all environments with specified label will be\
-          \ set as active"
-        in: query
-        name: deployLabel
-        required: false
-        schema:
-          type: string
       - description: Package name samples repository header
         in: header
         name: X-SR-Package-Name
@@ -3925,16 +3916,26 @@ paths:
           type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
+                deployLabel:
+                  type: string
+                  description: "If specified, all environments with specified label\
+                    \ will be set as active"
                 file:
                   type: string
                   format: binary
                   description: File
+                systemIds:
+                  type: array
+                  description: "List of service ids, separated by comma"
+                  items:
+                    type: string
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -3953,7 +3954,7 @@ paths:
       operationId: getSystemsImportPreview
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -3963,6 +3964,7 @@ paths:
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -4607,7 +4609,7 @@ paths:
       operationId: importVariables
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -4617,6 +4619,7 @@ paths:
                   description: File to import
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -4718,15 +4721,21 @@ paths:
         required: false
         schema:
           type: string
-      - description: Array of specification files
-        in: query
-        name: files
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  description: Array of specification files
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - files
         required: true
-        schema:
-          type: array
-          items:
-            type: string
-            format: binary
       responses:
         "200":
           content:
@@ -5260,26 +5269,26 @@ paths:
     post:
       description: Import common variable
       operationId: importVariablesInternal
-      parameters:
-      - in: query
-        name: variablesNames
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
                 file:
                   type: string
                   format: binary
+                  description: File to import
+                variablesNames:
+                  type: array
+                  description: "Variables names. If set, only these variables will\
+                    \ be imported"
+                  items:
+                    type: string
+                  uniqueItems: true
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -5483,12 +5492,6 @@ paths:
       description: Import chains from file asynchronously
       operationId: importFileAsync
       parameters:
-      - description: Import requests
-        in: query
-        name: chainCommitRequests
-        required: false
-        schema:
-          type: string
       - description: List of labels to add on chains
         in: header
         name: chain-labels
@@ -5517,23 +5520,47 @@ paths:
           type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
+                chainCommitRequests:
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChainCommitRequest"
+                  description: "Import requests, as a JSON array of ChainCommitRequest\
+                    \ objects"
                 file:
                   type: string
                   format: binary
                   description: File
               required:
               - file
+        required: true
       responses:
-        "200":
+        "202":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportAsyncAcknowledge"
-          description: OK
+          description: Accepted
+          headers:
+            Location:
+              description: "URL of the import status, /v2/import/status/{importId}"
+              schema:
+                type: string
+                format: uri
+              style: simple
+            Retry-After:
+              description: "Seconds to wait before requesting the import status, always\
+                \ 60"
+              schema:
+                type: integer
+                format: int32
+              style: simple
       tags:
       - import-controller-v-2
   /v2/import/preview/{importId}/status:
@@ -5782,19 +5809,6 @@ paths:
         archive file
       operationId: importFile_1
       parameters:
-      - description: Import request object
-        in: query
-        name: importRequest
-        required: false
-        schema:
-          type: string
-      - description: Check chain hash during import
-        in: query
-        name: validateByHash
-        required: false
-        schema:
-          type: boolean
-          default: false
       - description: List of chain labels that should be added on importing chains
         in: header
         name: chain-labels
@@ -5823,7 +5837,7 @@ paths:
           type: string
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -5831,15 +5845,26 @@ paths:
                   type: string
                   format: binary
                   description: Archive file
+                importRequest:
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    $ref: "#/components/schemas/ImportRequest"
+                  description: "Import request, as a JSON-encoded ImportRequest object"
+                validateByHash:
+                  type: boolean
+                  default: false
+                  description: Check chain hash during import
               required:
               - file
+        required: true
       responses:
-        "200":
+        "202":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportCommitResponse"
-          description: OK
+          description: Accepted
       tags:
       - import-controller-v-3
       x-api-kind: bwc
@@ -5855,19 +5880,22 @@ paths:
               type: object
               properties:
                 diffRequest:
-                  type: object
-                  description: Chain difference request object
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    $ref: "#/components/schemas/ChainDifferenceRequest"
+                  description: "Chain difference request, as a JSON-encoded ChainDifferenceRequest\
+                    \ object"
                   examples:
                   - "{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"\
                     rightChainId\":\"string\"}"
-                  required:
-                  - leftChainId
-                  - rightChainId
                 file:
                   type: string
+                  format: binary
                   description: Archive file
-                  examples:
-                  - (binary)
+              required:
+              - diffRequest
+              - file
         required: true
       responses:
         "200":
@@ -5893,9 +5921,11 @@ paths:
                   description: Chain ID
                 file:
                   type: string
+                  format: binary
                   description: Archive file
-                  examples:
-                  - (binary)
+              required:
+              - chainId
+              - file
         required: true
       responses:
         "200":
@@ -5912,7 +5942,7 @@ paths:
       operationId: preview
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -5922,6 +5952,7 @@ paths:
                   description: File
               required:
               - file
+        required: true
       responses:
         "200":
           content:
@@ -6397,6 +6428,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ValidationChainAlert"
+    ChainCommitRequest:
+      type: object
+      properties:
+        archiveName:
+          type: string
+          deprecated: true
+        deployAction:
+          type: string
+          description: Applied action
+          enum:
+          - NONE
+          - SNAPSHOT
+          - DEPLOY
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportDomainDTO"
+        id:
+          type: string
+      required:
+      - id
     ChainDTO:
       type: object
       description: Full (with elements) response object for a single chain
@@ -8934,6 +8986,13 @@ components:
         errorMessage:
           type: string
           description: Global error message (if any)
+    ImportDomainDTO:
+      type: object
+      properties:
+        errorMessage:
+          type: string
+        name:
+          type: string
     ImportInstructionDTO:
       type: object
       description: Import instruction response object
@@ -9089,6 +9148,17 @@ components:
           description: List of results by each variable
           items:
             $ref: "#/components/schemas/ImportVariablePreviewResult"
+    ImportRequest:
+      type: object
+      properties:
+        chainCommitRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChainCommitRequest"
+        systemsCommitRequest:
+          $ref: "#/components/schemas/SystemsCommitRequest"
+        variablesCommitRequest:
+          $ref: "#/components/schemas/VariablesCommitRequest"
     ImportResult:
       type: object
       description: Import preview result
@@ -10412,6 +10482,21 @@ components:
         version:
           type: string
           description: 'Version of the specified service specification '
+    SystemsCommitRequest:
+      type: object
+      properties:
+        deployLabel:
+          type: string
+        importMode:
+          type: string
+          enum:
+          - FULL
+          - PARTIAL
+          - NONE
+        systemIds:
+          type: array
+          items:
+            type: string
     TransferElementRequest:
       type: object
       description: Transfer element request object
@@ -10618,6 +10703,19 @@ components:
           - NOT_STARTED
           - IN_PROGRESS
           - FAILED
+    VariablesCommitRequest:
+      type: object
+      properties:
+        importMode:
+          type: string
+          enum:
+          - FULL
+          - PARTIAL
+          - NONE
+        variablesNames:
+          type: array
+          items:
+            type: string
   securitySchemes:
     BearerAuth:
       bearerFormat: JWT

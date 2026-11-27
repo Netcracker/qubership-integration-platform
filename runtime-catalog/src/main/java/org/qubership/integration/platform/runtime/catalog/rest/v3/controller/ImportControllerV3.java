@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.SchemaProperty;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -89,8 +90,13 @@ public class ImportControllerV3 {
     }
 
     @PostMapping(value = "/preview")
-    @Operation(description = "Get preview on what will be imported from file")
-    public ResponseEntity<ImportPreviewResponse> preview(@RequestParam("file") @Parameter(description = "File") MultipartFile file) {
+    @Operation(description = "Get preview on what will be imported from file",
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(type = "object", requiredProperties = {"file"}),
+            schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File"))
+        )))
+    public ResponseEntity<ImportPreviewResponse> preview(@RequestParam("file") MultipartFile file) {
         log.info("Request to preview file: {}", file.getOriginalFilename());
 
         ImportPreviewResponse response = importService.getImportPreview(file);
@@ -99,12 +105,36 @@ public class ImportControllerV3 {
     }
 
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-        description = "Import chains and related to them services and variables from an archive file")
+        description = "Import chains and related to them services and variables from an archive file",
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(type = "object", requiredProperties = {"file"}),
+            schemaProperties = {
+                @SchemaProperty(name = "file", schema = @Schema(
+                    type = "string",
+                    format = "binary",
+                    description = "Archive file"
+                )),
+                @SchemaProperty(name = "importRequest", schema = @Schema(
+                    type = "string",
+                    description = "Import request, as a JSON-encoded ImportRequest object",
+                    contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                    contentSchema = ImportRequest.class
+                )),
+                @SchemaProperty(name = "validateByHash", schema = @Schema(
+                    implementation = Boolean.class,
+                    defaultValue = "false",
+                    description = "Check chain hash during import"
+                ))
+            }
+        )),
+        responses = @ApiResponse(responseCode = "202", description = "Accepted",
+            content = @Content(schema = @Schema(implementation = ImportCommitResponse.class))))
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ImportCommitResponse> importFile(
-        @RequestParam("file") @Parameter(description = "Archive file") MultipartFile file,
-        @RequestParam(name = "importRequest", required = false) @Parameter(description = "Import request object") String importRequest,
-        @RequestParam(name = "validateByHash", required = false, defaultValue = "false") @Parameter(description = "Check chain hash during import") boolean validateByHash,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(name = "importRequest", required = false) @Parameter(hidden = true) String importRequest,
+        @RequestParam(name = "validateByHash", required = false, defaultValue = "false") @Parameter(hidden = true) boolean validateByHash,
         @RequestHeader(required = false, value = "chain-labels") @Parameter(description = "List of chain labels that should be added on importing chains") List<String> technicalLabels,
         @RequestHeader(required = false, value = SR_PACKAGE_NAME_HEADER) @Parameter(description = "Package name samples repository header") String packageName,
         @RequestHeader(required = false, value = SR_PACKAGE_VERSION_HEADER) @Parameter(description = "Package version samples repository header") String packageVersion,
@@ -158,17 +188,18 @@ public class ImportControllerV3 {
     @Operation(description = "Find differences between the chain stored in the CIP database and the imported one",
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
             mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(type = "object", requiredProperties = {"file", "diffRequest"}),
             schemaProperties = {
                 @SchemaProperty(name = "file", schema = @Schema(
-                    description = "Archive file",
-                    requiredMode = Schema.RequiredMode.REQUIRED,
-                    examples = {"(binary)"}
+                    type = "string",
+                    format = "binary",
+                    description = "Archive file"
                 )),
                 @SchemaProperty(name = "diffRequest", schema = @Schema(
-                    type = "object",
-                    description = "Chain difference request object",
-                    requiredMode = Schema.RequiredMode.REQUIRED,
-                    requiredProperties = {"leftChainId", "rightChainId"},
+                    type = "string",
+                    description = "Chain difference request, as a JSON-encoded ChainDifferenceRequest object",
+                    contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                    contentSchema = ChainDifferenceRequest.class,
                     examples = {"{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"}
                 ))
             }
@@ -203,16 +234,16 @@ public class ImportControllerV3 {
     @Operation(description = "Extracts end returns chain from the archive",
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
             mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(type = "object", requiredProperties = {"file", "chainId"}),
             schemaProperties = {
                 @SchemaProperty(name = "file", schema = @Schema(
-                    description = "Archive file",
-                    requiredMode = Schema.RequiredMode.REQUIRED,
-                    examples = {"(binary)"}
+                    type = "string",
+                    format = "binary",
+                    description = "Archive file"
                 )),
                 @SchemaProperty(name = "chainId", schema = @Schema(
                     type = "string",
-                    description = "Chain ID",
-                    requiredMode = Schema.RequiredMode.REQUIRED
+                    description = "Chain ID"
                 ))
             }
         )))

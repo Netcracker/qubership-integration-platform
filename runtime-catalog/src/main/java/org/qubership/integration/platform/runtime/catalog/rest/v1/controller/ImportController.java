@@ -19,6 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportDTO;
@@ -64,9 +67,20 @@ public class ImportController {
     }
 
     @PostMapping()
-    @Operation(description = "Import chains from file")
-    public ResponseEntity<ImportDTO> importFile(@RequestParam("file") @Parameter(description = "File") MultipartFile file,
-                                                @RequestParam(required = false) @Parameter(description = "Import requests") String chainCommitRequests,
+    @Operation(description = "Import chains from file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    schema = @Schema(type = "object", requiredProperties = {"file"}),
+                    schemaProperties = {
+                        @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
+                        @SchemaProperty(name = "chainCommitRequests", schema = @Schema(
+                                type = "string",
+                                description = "Import requests, as a JSON array of ChainCommitRequest objects",
+                                contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                                contentSchema = ChainCommitRequest[].class))
+                    })))
+    public ResponseEntity<ImportDTO> importFile(@RequestParam("file") MultipartFile file,
+                                                @RequestParam(required = false) @Parameter(hidden = true) String chainCommitRequests,
                                                 @RequestHeader(required = false, value = "chain-labels") @Parameter(description = "List of labels to add on chains") List<String> technicalLabels,
                                                 @RequestHeader(required = false, value = ImportControllerV3.SR_PACKAGE_NAME_HEADER) @Parameter(description = "Package name samples repository header") String packageName,
                                                 @RequestHeader(required = false, value = ImportControllerV3.SR_PACKAGE_VERSION_HEADER) @Parameter(description = "Package version samples repository header") String packageVersion,
@@ -89,8 +103,12 @@ public class ImportController {
     }
 
     @PostMapping("/preview")
-    @Operation(description = "Get preview on what will be imported from file")
-    public ResponseEntity<ImportPreviewDTO> importFileAsPreview(@RequestParam("file") @Parameter(description = "File") MultipartFile file) {
+    @Operation(description = "Get preview on what will be imported from file",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    schema = @Schema(type = "object", requiredProperties = {"file"}),
+                    schemaProperties = @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")))))
+    public ResponseEntity<ImportPreviewDTO> importFileAsPreview(@RequestParam("file") MultipartFile file) {
         log.info("Request to preview file: {}", file.getOriginalFilename());
         ImportPreviewDTO importDTO = importService.importFileAsPreview(file);
 
