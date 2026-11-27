@@ -14,6 +14,8 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
@@ -129,6 +131,55 @@ class CatalogBearerTokenFilterTest {
     } finally {
       System.clearProperty("qip.ai.auth.required");
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"true", "false"})
+  void expiredUserTokenIsRecordedAs401AndNeverReplacedByTheServiceToken(String authRequired) {
+    System.setProperty("qip.ai.auth.required", authRequired);
+    try {
+      ToolSession.bind("conv-1");
+      UserTokenStore.acquire("conv-1", jwt(java.time.Instant.now().getEpochSecond() - 10, "alice"));
+      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+      assertThrows(
+          NotAuthorizedException.class,
+          () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
+
+      assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
+      assertEquals(401, UserTokenStore.rejection("conv-1"));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
+  void absentConversationTokenWithAuthNotRequiredUsesServiceToken() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+      new CatalogBearerTokenFilter("secret").filter(request(headers));
+
+      assertEquals("Bearer secret", headers.getFirst(HttpHeaders.AUTHORIZATION));
+      assertEquals(UserTokenStore.Status.ABSENT, UserTokenStore.currentStatus());
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
+  void liveUserTokenIsAttachedAndReadsLive() {
+    String user = jwt(java.time.Instant.now().getEpochSecond() + 600, "alice");
+    ToolSession.bind("conv-1");
+    UserTokenStore.acquire("conv-1", user);
+    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+    new CatalogBearerTokenFilter("secret").filter(request(headers));
+
+    assertEquals("Bearer " + user, headers.getFirst(HttpHeaders.AUTHORIZATION));
+    assertEquals(UserTokenStore.Status.LIVE, UserTokenStore.currentStatus());
+    assertEquals(0, UserTokenStore.rejection("conv-1"));
   }
 
 

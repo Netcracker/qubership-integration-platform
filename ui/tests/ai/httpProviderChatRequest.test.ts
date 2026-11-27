@@ -438,9 +438,9 @@ describe("HttpAiModelProvider auth failures and token renewal", () => {
       );
 
       token = "t2";
-      await jest.advanceTimersByTimeAsync(15_000);
+      await jest.advanceTimersByTimeAsync(5_000);
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      await jest.advanceTimersByTimeAsync(15_000);
+      await jest.advanceTimersByTimeAsync(5_000);
       endStream();
       await streaming;
 

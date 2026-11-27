@@ -220,6 +220,39 @@ class UserTokenStoreTest {
     turn.release();
   }
 
+  @Test
+  void statusReadsAbsentLiveAndExpiredWithoutDroppingTheSlot() {
+    assertEquals(UserTokenStore.Status.ABSENT, UserTokenStore.status("conv-exp"));
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conv-exp", jwtExpiring("alice", 100));
+    try {
+      setNow(99);
+      assertEquals(UserTokenStore.Status.LIVE, UserTokenStore.status("conv-exp"));
+
+      setNow(100);
+      assertEquals(UserTokenStore.Status.EXPIRED, UserTokenStore.status("conv-exp"));
+      assertEquals(UserTokenStore.Status.EXPIRED, UserTokenStore.status("conv-exp"));
+      UserTokenStore.Hold run = UserTokenStore.pin("conv-exp").orElseThrow();
+      run.release();
+    } finally {
+      turn.release();
+    }
+    assertEquals(UserTokenStore.Status.ABSENT, UserTokenStore.status("conv-exp"));
+  }
+
+  @Test
+  void currentStatusFollowsTheConversationBoundToThisThread() {
+    assertEquals(UserTokenStore.Status.ABSENT, UserTokenStore.currentStatus());
+    ToolSession.bind("conv-exp");
+    assertEquals(UserTokenStore.Status.ABSENT, UserTokenStore.currentStatus());
+
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conv-exp", jwt("alice", 1));
+    try {
+      assertEquals(UserTokenStore.Status.LIVE, UserTokenStore.currentStatus());
+    } finally {
+      turn.release();
+    }
+  }
+
   private static String jwt(String subject, int version) {
     return jwtWithClaims("{\"sub\":\"" + subject + "\",\"v\":" + version + "}");
   }

@@ -73,6 +73,17 @@ public class ProvidedIdsFlowTasks {
     if (input.waitForActivation()) {
       return input;
     }
+    holdRun(input.runId());
+    try {
+      return runCurrentStage(input);
+    } catch (RuntimeException | Error failure) {
+      // A thrown stage records no decision to reenter with, so the hold cannot outlive it.
+      releaseRun(input.runId());
+      throw failure;
+    }
+  }
+
+  private ProvidedIdsFlow.RunContext runCurrentStage(ProvidedIdsFlow.RunContext input) {
     rockySkills.requireAvailable();
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
@@ -119,8 +130,13 @@ public class ProvidedIdsFlowTasks {
     return next;
   }
 
-  /** Keeps the conversation's credential for an unsettled run, past the observer that started it. */
-  void holdRun(String runId, String conversationId) {
+  /**
+   * Keeps the conversation's credential while a stage of an unsettled run executes, past the turn
+   * that started it. Empty when the conversation has no credential: the stage then runs without one
+   * and the catalog filter fails it honestly.
+   */
+  private void holdRun(String runId) {
+    String conversationId = runSupport.currentRunSnapshot(runId).conversationId();
     holdsByRun.computeIfAbsent(runId, ignored -> UserTokenStore.pin(conversationId).orElse(null));
   }
 
@@ -176,10 +192,14 @@ public class ProvidedIdsFlowTasks {
       settledRuns.remove(runId);
     } else {
       settledRuns.put(runId, true);
-      UserTokenStore.Hold hold = holdsByRun.remove(runId);
-      if (hold != null) {
-        hold.release();
-      }
+      releaseRun(runId);
+    }
+  }
+
+  private void releaseRun(String runId) {
+    UserTokenStore.Hold hold = holdsByRun.remove(runId);
+    if (hold != null) {
+      hold.release();
     }
   }
 

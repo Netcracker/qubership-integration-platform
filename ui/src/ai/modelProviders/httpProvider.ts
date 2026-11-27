@@ -15,7 +15,7 @@ import axios, { AxiosError } from "axios";
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";
 
 /** How often a streaming turn checks whether the host app renewed the user's token. */
-const TOKEN_RENEW_CHECK_MS = 15_000;
+const TOKEN_RENEW_CHECK_MS = 5_000;
 
 const capabilities: ProviderCapabilities = {
   supportsStreaming: true,

@@ -30,6 +30,9 @@ public final class UserTokenStore {
   public static final String ACCESS_DENIED_MESSAGE =
       "You don't have permission to perform this action.";
 
+  /** ABSENT: no slot. EXPIRED: a slot whose token has lapsed but which still has holders. LIVE: usable. */
+  public enum Status { ABSENT, EXPIRED, LIVE }
+
   private static final Map<String, Slot> SLOTS = new ConcurrentHashMap<>();
   private static final ObjectMapper JSON = new ObjectMapper();
   /** Epoch seconds; tests replace it to move past a token's expiry. */
@@ -195,6 +198,20 @@ public final class UserTokenStore {
   public static Optional<String> get(String conversationId) {
     Slot slot = slotOf(conversationId);
     return slot == null || slot.expired() ? Optional.empty() : Optional.of(slot.token);
+  }
+
+  /** The credential state of the conversation bound to the current thread. */
+  public static Status currentStatus() {
+    return status(ToolSession.resolveConversationId());
+  }
+
+  /** The credential state of a conversation; reads only, so it never drops or renews a slot. */
+  public static Status status(String conversationId) {
+    Slot slot = slotOf(conversationId);
+    if (slot == null) {
+      return Status.ABSENT;
+    }
+    return slot.expired() ? Status.EXPIRED : Status.LIVE;
   }
 
   /** The value of an {@code Authorization: Bearer} header, or {@code null} when it is absent. */

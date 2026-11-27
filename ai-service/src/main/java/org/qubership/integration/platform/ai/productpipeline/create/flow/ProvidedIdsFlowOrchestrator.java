@@ -65,7 +65,6 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   @Override
   public Multi<PipelineSignal> startOrResume(StartOrResumeCommand command) {
-    tasks.holdRun(command.runId(), command.conversationId());
     Optional<ProductPipelineRunDocument> existing =
         runStore.loadByConversation(command.conversationId());
     if (existing.isEmpty()) {
@@ -83,7 +82,6 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   @Override
   public Multi<PipelineSignal> restart(RestartRunCommand command) {
-    tasks.holdRun(command.childRunId(), command.conversationId());
     return streamWhileSettling(
         command.childRunId(),
         () -> {
@@ -246,7 +244,6 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         .equals(org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text()))) {
       return Multi.createFrom().empty();
     }
-    tasks.holdRun(command.runId(), document.run().conversationId());
     return resumeBoundInstance(
         runSupport.recordInput(command),
         command.runId(),
@@ -264,7 +261,6 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     rejectUnboundManualRun(document);
     boolean alreadyApplied =
         document.appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent();
-    tasks.holdRun(command.runId(), document.run().conversationId());
     return resumeBoundInstance(
         runSupport.recordApprove(command),
         command.runId(),
@@ -280,7 +276,6 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     rejectUnboundManualRun(document);
     boolean alreadyApplied =
         document.appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent();
-    tasks.holdRun(command.runId(), document.run().conversationId());
     return resumeBoundInstance(
         runSupport.recordImplement(command),
         command.runId(),
