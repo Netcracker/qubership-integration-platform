@@ -144,7 +144,7 @@ public class MaasService {
 
         return MaasRabbitmqConfig.builder()
                 .spec(Spec.builder()
-                        .classifier(new Classifier(vhost, Classifier.NAMESPACE, namespace))
+                        .classifier(new Classifier(vhost, Classifier.NAMESPACE, namespace).toMap())
                         .entities(Entities.builder()
                                 .exchanges(buildRabbitmqExchangeConfig(exchange))
                                 .queues(buildRabbitmqQueueConfig(queue))
@@ -157,7 +157,7 @@ public class MaasService {
     private MaasKafkaConfig buildKafkaConfig(@NotEmpty String namespace, @NotEmpty String topicClassifierName) {
         return MaasKafkaConfig.builder().spec(
                         Spec.builder().classifier(
-                                        new Classifier(topicClassifierName, Classifier.NAMESPACE, namespace))
+                                        new Classifier(topicClassifierName, Classifier.NAMESPACE, namespace).toMap())
                                 .build())
                 .build();
     }
