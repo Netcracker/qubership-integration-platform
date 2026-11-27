@@ -8694,14 +8694,10 @@ components:
         chainsWithHttpTriggers:
           type: boolean
           description: Whether to show only chains with http trigger in them
-        empty:
-          type: boolean
         externalRoutesOnly:
           type: boolean
           description: Whether to show only chains with at least one external service
             used
-        specification:
-          $ref: "#/components/schemas/SpecificationChain"
     FolderItem:
       type: object
       description: Folder item response object
@@ -10094,7 +10090,6 @@ components:
         xmlDefinition:
           type: string
           description: Generated xml data of chain
-    SpecificationChain: {}
     SpecificationGroupCreationRequestDTO:
       type: object
       description: Specification group create request object
