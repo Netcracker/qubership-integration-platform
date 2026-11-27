@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
@@ -12,7 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Data
-@NoArgsConstructor
+@NoArgsConstructor(onConstructor_ = @JsonCreator)
 @AllArgsConstructor
 @Builder
 public class DeployWithSnapshotCreationRequest {
