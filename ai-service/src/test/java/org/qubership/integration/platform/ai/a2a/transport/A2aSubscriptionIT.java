@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -174,7 +173,7 @@ class A2aSubscriptionIT {
     // Mutate durable snapshot while no subscriber is attached.
     persistState(taskId, A2aTaskState.INPUT_REQUIRED);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .when()
@@ -261,7 +260,7 @@ class A2aSubscriptionIT {
 
   @Test
   void unknownAndTerminalSubscribeAreRejected() throws Exception {
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -286,7 +285,7 @@ class A2aSubscriptionIT {
   @Test
   void transportDisconnectDoesNotCancelPipeline() throws Exception {
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)

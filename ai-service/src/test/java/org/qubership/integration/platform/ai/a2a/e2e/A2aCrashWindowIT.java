@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.a2a.e2e;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -131,7 +132,7 @@ class A2aCrashWindowIT {
 
     crashGate.arm(point);
     int firstStatus =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -170,7 +171,7 @@ class A2aCrashWindowIT {
 
     crashGate.clear();
     String recovered =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)

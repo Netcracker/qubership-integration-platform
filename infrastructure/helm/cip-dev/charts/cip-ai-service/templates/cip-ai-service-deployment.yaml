@@ -110,6 +110,11 @@ spec:
                 configMapKeyRef:
                   name: {{ .Release.Name }}-ai-service-env
                   key: QIP_AI_A2A_PUBLIC_BASE_URL
+            - name: QIP_AI_AUTH_REQUIRED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QIP_AI_AUTH_REQUIRED
             - name: LLM_API_KEY
               value: {{ .Values.global.qip.ai.llmApiKey | default "placeholder" | quote }}
             - name: LLM_BASE_URL

@@ -82,6 +82,7 @@ class BrowserCreateChainRegressionIT {
 
     String createResponse =
         given()
+            .header("Authorization", "Bearer test-token")
             .contentType(ContentType.JSON)
             .body(createBody)
             .when()
@@ -109,6 +110,7 @@ class BrowserCreateChainRegressionIT {
 
     String approveResponse =
         given()
+            .header("Authorization", "Bearer test-token")
             .contentType(ContentType.JSON)
             .body(approveBody)
             .when()
@@ -149,6 +151,7 @@ class BrowserCreateChainRegressionIT {
 
     String response =
         given()
+            .header("Authorization", "Bearer test-token")
             .contentType(ContentType.JSON)
             .body(body)
             .when()

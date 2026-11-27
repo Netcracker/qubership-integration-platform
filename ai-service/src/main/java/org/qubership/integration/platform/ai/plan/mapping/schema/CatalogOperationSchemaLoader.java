@@ -14,11 +14,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationSchemasReadCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 
@@ -30,17 +29,16 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
   static final String PRODUCER_VERSION = "1";
   private static final String JSON_CONTENT_TYPE = "application/json";
 
-  private final CatalogRestClient catalogRestClient;
+  private final CatalogOperationSchemasReadCache schemasReadCache;
   private final CompilationArtifacts artifacts;
   private final ObjectMapper objectMapper;
-  private final ConcurrentHashMap<String, OperationSchemaMaps> cache = new ConcurrentHashMap<>();
 
   @Inject
   CatalogOperationSchemaLoader(
-      @RestClient CatalogRestClient catalogRestClient,
+      CatalogOperationSchemasReadCache schemasReadCache,
       CompilationArtifacts artifacts,
       ObjectMapper objectMapper) {
-    this.catalogRestClient = Objects.requireNonNull(catalogRestClient, "catalogRestClient");
+    this.schemasReadCache = Objects.requireNonNull(schemasReadCache, "schemasReadCache");
     this.artifacts = Objects.requireNonNull(artifacts, "artifacts");
     this.objectMapper = canonicalMapper(Objects.requireNonNull(objectMapper, "objectMapper"));
   }
@@ -48,13 +46,14 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
   @Override
   public OperationSchemaMaps load(String operationId) {
     String opId = requireText(operationId, "operationId");
-    return cache.computeIfAbsent(opId, this::fetchSchemas);
+    return mapSchemas(opId, schemasReadCache.getOperationSchemas(opId));
   }
 
   @Override
   public OperationSchemaMaps loadFresh(String operationId) {
     String opId = requireText(operationId, "operationId");
-    return cache.compute(opId, (id, prior) -> fetchSchemas(id));
+    schemasReadCache.invalidate(opId);
+    return mapSchemas(opId, schemasReadCache.getOperationSchemas(opId));
   }
 
   @Override
@@ -142,9 +141,8 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
     return side;
   }
 
-  private OperationSchemaMaps fetchSchemas(String operationId) {
-    CatalogRestClient.OperationSchemaMapsDto dto =
-        catalogRestClient.getOperationSchemas(operationId, "full");
+  private OperationSchemaMaps mapSchemas(
+      String operationId, CatalogRestClient.OperationSchemaMapsDto dto) {
     Map<String, JsonNode> requestByContentType = new LinkedHashMap<>();
     if (dto.requestSchema() != null) {
       for (Map.Entry<String, JsonNode> entry : dto.requestSchema().entrySet()) {

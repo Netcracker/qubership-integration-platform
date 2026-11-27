@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -195,7 +194,7 @@ class A2aApprovalTest {
     String taskId = createWaitingTask();
 
     Map<?, ?> body =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .when()
@@ -224,7 +223,7 @@ class A2aApprovalTest {
     String taskId = createWaitingTask();
     approveOutcome.set(null);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -261,7 +260,7 @@ class A2aApprovalTest {
     approveOutcome.set(new ApproveCreateChainOutcome.DuplicateApproval());
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -292,7 +291,7 @@ class A2aApprovalTest {
             null,
             ""));
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -313,7 +312,7 @@ class A2aApprovalTest {
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
     CreateChainExecutionSnapshot beforeSnap = snapshot.get();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -343,7 +342,7 @@ class A2aApprovalTest {
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
 
     String status =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -372,7 +371,7 @@ class A2aApprovalTest {
   void approvalTokenTextApprovesWhenExtensionIsNotActivated() {
     String taskId = createWaitingTask();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -390,7 +389,7 @@ class A2aApprovalTest {
   void approvalTokenTextIsRefusedWhenExtensionIsActivated() {
     String taskId = createWaitingTask();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .header("A2A-Extensions", A2aProtocolConstants.EXACT_APPROVAL_EXTENSION_URI)
@@ -411,7 +410,7 @@ class A2aApprovalTest {
     String taskId = createWaitingTask();
 
     String status =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -452,7 +451,7 @@ class A2aApprovalTest {
     String taskId = createWaitingTask();
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -479,7 +478,7 @@ class A2aApprovalTest {
                 7L)));
 
     Map<?, ?> pending =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -516,7 +515,7 @@ class A2aApprovalTest {
             ""));
     // Re-seed persisted task pending through a no-op continue is awkward; set outcome for next
     // approve attempt against clarify pending.
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -550,7 +549,7 @@ class A2aApprovalTest {
   }
 
   private String createWaitingTask() {
-    return given()
+    return A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -584,11 +583,11 @@ class A2aApprovalTest {
         : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
     try {
       if ("interrupted".equals(delivery)) { crashGate.arm(A2aDispatchCrashGate.Point.AFTER_FIRST_PERSIST); }
-      var first = given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+      var first = A2aTestAuth.givenAuthorized().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
           .body(body).post(URI.create("/message:send"));
       assertEquals("interrupted".equals(delivery) ? 500 : 200, first.statusCode(), first.asString());
     } finally { crashGate.clear(); }
-    var replay = given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+    var replay = A2aTestAuth.givenAuthorized().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
         .body(body).post(URI.create("/message:send"));
     assertEquals(200, replay.statusCode(), replay.asString());
     assertEquals(taskId, replay.jsonPath().getString("task.id"));
@@ -701,7 +700,7 @@ class A2aApprovalTest {
   }
 
   private static io.restassured.response.Response post(String body) {
-    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+    return A2aTestAuth.givenAuthorized().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
         .body(body).post(URI.create("/message:send"));
   }
 

@@ -1,0 +1,43 @@
+package org.qubership.integration.platform.ai.a2a.transport;
+
+import static io.restassured.RestAssured.given;
+
+import io.restassured.specification.RequestSpecification;
+import java.util.Map;
+import java.util.Set;
+import org.a2aproject.sdk.server.ServerCallContext;
+import org.a2aproject.sdk.server.auth.UnauthenticatedUser;
+import org.a2aproject.sdk.transport.rest.context.RestContextKeys;
+
+/** Bearer token sent by A2A integration tests when exercising catalog-backed skills. */
+public final class A2aTestAuth {
+
+  public static final String BEARER = "test-a2a-caller-token";
+  public static final String AUTHORIZATION_HEADER = "Bearer " + BEARER;
+
+  private A2aTestAuth() {}
+
+  /** RestAssured request with caller Bearer and A2A protocol version. */
+  public static RequestSpecification givenA2a() {
+    return given()
+        .urlEncodingEnabled(false)
+        .header("Authorization", AUTHORIZATION_HEADER)
+        .header("A2A-Version", "1.0");
+  }
+
+  /**
+   * RestAssured request with caller Bearer only — for helpers that set {@code A2A-Version}
+   * separately (or omit it).
+   */
+  public static RequestSpecification givenAuthorized() {
+    return given().urlEncodingEnabled(false).header("Authorization", AUTHORIZATION_HEADER);
+  }
+
+  /** A2A call context carrying the caller Bearer, as the transport supplies it. */
+  public static ServerCallContext bearerCallContext() {
+    return new ServerCallContext(
+        UnauthenticatedUser.INSTANCE,
+        Map.of(RestContextKeys.HEADERS_KEY, Map.of("Authorization", AUTHORIZATION_HEADER)),
+        Set.of());
+  }
+}

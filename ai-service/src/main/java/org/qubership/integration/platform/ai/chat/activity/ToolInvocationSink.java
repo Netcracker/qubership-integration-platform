@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.BindingScope;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 
@@ -37,6 +38,8 @@ public final class ToolInvocationSink {
   private static final ThreadLocal<String> REGISTERED_CONVERSATION_ID = new ThreadLocal<>();
   private static final ThreadLocal<ArrayDeque<Binding>> NESTED_PREVIOUS = new ThreadLocal<>();
   private static final ConcurrentHashMap<String, Binding> BY_CONVERSATION = new ConcurrentHashMap<>();
+  static final String CATALOG_BATCH_STEP_ID = "catalog-batch";
+  static final String CATALOG_BATCH_STEP_KIND = "catalog-batch";
 
   private ToolInvocationSink() {}
 
@@ -169,16 +172,14 @@ public final class ToolInvocationSink {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    Binding binding = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installBinding(binding, context));
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static <T> Multi<T> propagateBinding(Context context, Multi<T> upstream) {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    Binding binding = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installBinding(binding, context));
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static Context attachedContext() {
@@ -190,18 +191,14 @@ public final class ToolInvocationSink {
   }
 
   public static <T> T callInBoundContext(Context context, Supplier<T> action) {
-    Binding binding = context.getOrElse(CONTEXT_KEY, () -> null);
-    if (binding == null) {
+    if (!context.contains(CONTEXT_KEY)) {
       return action.get();
     }
-    Binding previousBinding = THREAD_BINDING.get();
-    Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
-    Context previousThreadContext = THREAD_CONTEXT.get();
-    installBinding(binding, context);
+    Runnable restore = installer(context).install();
     try {
       return action.get();
     } finally {
-      restoreThreadState(previousBinding, previousSubscribeContext, previousThreadContext);
+      restore.run();
     }
   }
 
@@ -219,12 +216,17 @@ public final class ToolInvocationSink {
 
   private static void flushCatalogChanges(Binding binding) {
     ChatEvent.CatalogChanged changed = binding.changes().drain();
-    if (changed != null) {
-      try {
+    String rejectedBatch = binding.changes().drainRejectedBatch();
+    try {
+      if (changed != null) {
         binding.emit().accept(changed);
-      } catch (RuntimeException e) {
-        Logger.getLogger(ToolInvocationSink.class).debug("Catalog change delivery is unavailable", e);
       }
+      if (rejectedBatch != null) {
+        binding.emit().accept(new ChatEvent.Step(
+            CATALOG_BATCH_STEP_ID, CATALOG_BATCH_STEP_KIND, "failed", rejectedBatch, null));
+      }
+    } catch (RuntimeException e) {
+      Logger.getLogger(ToolInvocationSink.class).debug("Catalog change delivery is unavailable", e);
     }
   }
 
@@ -329,6 +331,17 @@ public final class ToolInvocationSink {
       return Optional.empty();
     }
     return Optional.of(context.get(CONTEXT_KEY));
+  }
+
+  private static BindingScope.Installer installer(Context context) {
+    Binding binding = context.get(CONTEXT_KEY);
+    return () -> {
+      Binding previousBinding = THREAD_BINDING.get();
+      Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
+      Context previousThreadContext = THREAD_CONTEXT.get();
+      installBinding(binding, context);
+      return () -> restoreThreadState(previousBinding, previousSubscribeContext, previousThreadContext);
+    };
   }
 
   private static void installBinding(Binding binding, Context context) {

@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
@@ -31,12 +32,18 @@ class SpecificationImportBoundaryTest {
 
   @BeforeEach
   void reset() {
+    System.setProperty("qip.ai.auth.required", "false");
     Endpoint.upload = "";
     Endpoint.query = "";
     Endpoint.contentType = "";
     Endpoint.importPath = "";
     Endpoint.wrongReadback = false;
     Endpoint.mcpArguments = "";
+  }
+
+  @AfterEach
+  void restoreAuth() {
+    System.clearProperty("qip.ai.auth.required");
   }
 
   @Test

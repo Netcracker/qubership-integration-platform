@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
+import io.smallrye.mutiny.subscription.MultiEmitter;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +18,7 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurnStore;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
@@ -299,8 +302,26 @@ public class ChatExecutionService {
     // The coordinator reads this field. Only a matched requirement offer may remain set.
     request.setClarificationOfferId(matchedOffer);
 
+    UserTokenStore.Hold tokenTurn =
+        request.getUserToken() == null ? null : UserTokenStore.acquire(conversationId, request.getUserToken());
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    try {
+      return startTurn(request, conversationId, matchedOffer, tokenTurn);
+    } catch (RuntimeException setupFailure) {
+      // onTermination never runs when setup throws, so the hold is released here.
+      releaseHold(tokenTurn);
+      throw setupFailure;
+    }
+  }
 
+  private static void releaseHold(UserTokenStore.Hold hold) {
+    if (hold != null) {
+      hold.release();
+    }
+  }
+
+  private Multi<String> startTurn(
+      ChatRequest request, String conversationId, String matchedOffer, UserTokenStore.Hold tokenTurn) {
     Map<String, Object> submitted = new LinkedHashMap<>();
     submitted.put("attachment", request.getAttachment() == null ? "" : request.getAttachment());
     submitted.put(
@@ -448,6 +469,7 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
+              releaseHold(tokenTurn);
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,
@@ -534,21 +556,46 @@ public class ChatExecutionService {
               Cancellable subscription =
                   routed.subscribe().with(
                       event -> {
+                        if (isCatalogRejected(conversationId)) {
+                          endTurn(conversationId, context, emitter);
+                          return;
+                        }
                         if (event instanceof ChatEvent.Error) {
                           ToolInvocationSink.flushCatalogChanges(context);
                         }
                         emitter.emit(event);
                       },
                       failure -> {
+                        if (isCatalogRejected(conversationId)) {
+                          endTurn(conversationId, context, emitter);
+                          return;
+                        }
                         ToolInvocationSink.flushCatalogChanges(context);
                         emitter.fail(failure);
                       },
-                      () -> {
-                        ToolInvocationSink.flushCatalogChanges(context);
-                        emitter.complete();
-                      });
+                      () -> endTurn(conversationId, context, emitter));
               routedCancellation.set(subscription::cancel);
             });
+  }
+
+  private static boolean isCatalogRejected(String conversationId) {
+    int status = UserTokenStore.rejection(conversationId);
+    return status == 401 || status == 403;
+  }
+
+  /**
+   * Flushes the turn's catalog batch, then ends the stream: with the fixed copy when the catalog
+   * rejected the turn bearer, which the UI matches, and complete otherwise.
+   */
+  private static void endTurn(
+      String conversationId, Context context, MultiEmitter<? super ChatEvent> emitter) {
+    ToolInvocationSink.flushCatalogChanges(context);
+    if (isCatalogRejected(conversationId)) {
+      emitter.fail(new IllegalStateException(
+          UserTokenStore.rejectionMessage(UserTokenStore.rejection(conversationId))));
+    } else {
+      emitter.complete();
+    }
   }
 
   private void logAiTurnStart(String conversationId) {

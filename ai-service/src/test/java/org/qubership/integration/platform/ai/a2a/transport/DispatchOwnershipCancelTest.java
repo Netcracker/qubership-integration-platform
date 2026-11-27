@@ -26,6 +26,7 @@ import org.a2aproject.sdk.server.tasks.AgentEmitter;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.TextPart;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
 import org.qubership.integration.platform.ai.a2a.access.CallerContextProvider;
@@ -45,8 +46,15 @@ class DispatchOwnershipCancelTest {
 
   private DispatchLeaseHeartbeat heartbeat;
 
+  // The dispatch cases cover ownership, not caller auth, so their requests carry no bearer.
+  @BeforeEach
+  void authNotRequired() {
+    System.setProperty("qip.ai.auth.required", "false");
+  }
+
   @AfterEach
   void tearDown() {
+    System.clearProperty("qip.ai.auth.required");
     if (heartbeat != null) {
       heartbeat.shutdown();
     }

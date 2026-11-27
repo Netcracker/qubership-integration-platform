@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.client;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -30,6 +31,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
  * not JSON.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@RegisterProvider(CatalogBearerTokenFilter.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Produces(MediaType.APPLICATION_JSON)
@@ -46,8 +48,13 @@ import org.jboss.resteasy.reactive.MultipartForm;
       TimeoutException.class,
       WebApplicationException.class
     },
-    abortOn = CatalogNonRetryableResponseException.class)
-@CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 2, delayUnit = ChronoUnit.SECONDS)
+    abortOn = {CatalogNonRetryableResponseException.class, NotAuthorizedException.class})
+@CircuitBreaker(
+    requestVolumeThreshold = 4,
+    failureRatio = 0.5,
+    delay = 2,
+    delayUnit = ChronoUnit.SECONDS,
+    skipOn = CatalogAccessDeniedException.class)
 public interface CatalogImportRestClient {
 
   @POST

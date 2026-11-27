@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,12 +13,17 @@ import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -112,6 +119,172 @@ class ProvidedIdsFlowTasksTest {
 
     assertEquals(waiting, next);
     verifyNoInteractions(runtime, executor);
+  }
+
+  @Test
+  void stageHoldsTheCredentialPastTheTurnAndReleasesItWhenItSettles() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    AtomicReference<Optional<String>> duringStage = new AtomicReference<>();
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning")).thenAnswer(invocation -> {
+      turn.release();
+      duringStage.set(UserTokenStore.get("conversation-1"));
+      return Uni.createFrom().item(approval("design-planning"));
+    });
+    try {
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.of("caller-token"), duringStage.get());
+      assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void retryKeepsTheCredentialForTheNextAttempt() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(executor.execute(RUN_ID, "work")).thenAnswer(invocation -> {
+      turn.release();
+      return Uni.createFrom().item(
+          new StageExecutionResult(new StageDecision.Retry("work", Duration.ofMillis(100L), true), List.of()));
+    });
+    try {
+      ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
+
+      assertEquals("RETRY", next.decision());
+      assertEquals(Optional.of("caller-token"), UserTokenStore.get("conversation-1"));
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void aThrownStageReleasesTheCredential() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    when(runtime.currentStageId(RUN_ID)).thenThrow(new IllegalStateException("stage broke"));
+    try {
+      assertThrows(IllegalStateException.class, () -> tasks.executeCurrentStage(context()));
+
+      turn.release();
+      assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void aSettledStageLeavesNoHoldThatBlocksAnotherUser() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", tokenOf("alice"));
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning"))
+        .thenReturn(Uni.createFrom().item(approval("design-planning")));
+    try {
+      tasks.executeCurrentStage(context());
+      turn.release();
+
+      assertDoesNotThrow(() -> UserTokenStore.acquire("conversation-1", tokenOf("bob")).release());
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void aCommandThatRunsNoStageLeavesNoHoldThatBlocksAnotherUser() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", tokenOf("alice"));
+    try {
+      turn.release();
+
+      assertDoesNotThrow(() -> UserTokenStore.acquire("conversation-1", tokenOf("bob")).release());
+    } finally {
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void acceptedCommandKeepsTheCredentialAfterADisconnectUntilTheStageStarts() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+    AtomicReference<Optional<String>> atStageStart = new AtomicReference<>();
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning")).thenAnswer(invocation -> {
+      atStageStart.set(UserTokenStore.get("conversation-1"));
+      return Uni.createFrom().item(approval("design-planning"));
+    });
+    try {
+      turn.release();
+      command.dispatched();
+
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.of("caller-token"), atStageStart.get());
+      assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void acceptedCommandThatDoesNotDispatchReleasesItsCredential() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", tokenOf("alice"));
+    try {
+      ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+      turn.release();
+
+      command.close();
+
+      assertDoesNotThrow(() -> UserTokenStore.acquire("conversation-1", tokenOf("bob")).release());
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void nonDispatchingCommandWhileAStageHoldsTheRunLeavesThatHoldInPlace() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    AtomicReference<Optional<String>> duringStage = new AtomicReference<>();
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning")).thenAnswer(invocation -> {
+      turn.release();
+      ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+      command.close();
+      duringStage.set(UserTokenStore.get("conversation-1"));
+      return Uni.createFrom().item(approval("design-planning"));
+    });
+    try {
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.of("caller-token"), duringStage.get());
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void stageRunsWithoutACredentialWhenTheConversationHasNone() {
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning"))
+        .thenReturn(Uni.createFrom().item(approval("design-planning")));
+
+    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
+
+    assertEquals("WAIT_FOR_PLAN_APPROVAL", next.decision());
+    assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+  }
+
+  private static String tokenOf(String subject) {
+    return "h."
+        + Base64.getUrlEncoder().withoutPadding().encodeToString(
+            ("{\"sub\":\"" + subject + "\"}").getBytes(StandardCharsets.UTF_8))
+        + ".s";
   }
 
   @Test

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -180,7 +181,7 @@ public class CreateChainReceiptRestartProbe {
   }
 
   private static io.restassured.response.Response post(String body) {
-    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)
+    return A2aTestAuth.givenAuthorized().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)
         .post(java.net.URI.create("/message:send"));
   }
 

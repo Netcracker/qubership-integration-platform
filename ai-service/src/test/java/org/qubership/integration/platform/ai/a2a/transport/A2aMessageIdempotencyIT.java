@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,7 +95,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -109,7 +108,7 @@ class A2aMessageIdempotencyIT {
             .path("task.id");
 
     String secondTaskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -142,7 +141,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -168,7 +167,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId, taskId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -198,7 +197,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -222,7 +221,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -253,7 +252,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -266,7 +265,7 @@ class A2aMessageIdempotencyIT {
             .path("task.id");
 
     String recovered =
-        given()
+        A2aTestAuth.givenAuthorized()
             .urlEncodingEnabled(false)
             .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
@@ -299,7 +298,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -323,7 +322,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -396,7 +395,7 @@ class A2aMessageIdempotencyIT {
               try {
                 barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
                 statusA.set(
-                    given()
+                    A2aTestAuth.givenAuthorized()
                         .urlEncodingEnabled(false)
                         .header("A2A-Version", "1.0")
                         .contentType(ContentType.JSON)
@@ -417,7 +416,7 @@ class A2aMessageIdempotencyIT {
               try {
                 barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
                 statusB.set(
-                    given()
+                    A2aTestAuth.givenAuthorized()
                         .urlEncodingEnabled(false)
                         .header("A2A-Version", "1.0")
                         .contentType(ContentType.JSON)
@@ -499,7 +498,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -522,7 +521,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -558,7 +557,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId, "a".repeat(64));
 
-    given()
+    A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
@@ -614,7 +613,7 @@ class A2aMessageIdempotencyIT {
       assertEquals(1, events.size());
       assertEquals(taskId, events.getFirst().path("task").path("id").asText());
     } else {
-      given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+      A2aTestAuth.givenAuthorized().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
           .body(body).post(URI.create("/message:send")).then().statusCode(denied ? 404 : applied ? 200 : 400);
     }
     assertEquals(applied && !owned && !denied,

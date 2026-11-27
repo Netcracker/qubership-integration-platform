@@ -8,6 +8,7 @@ import {
 } from "@jest/globals";
 import { setAiServiceUrl } from "../../../src/ai/appConfig.ts";
 import { fetchOpenDecision } from "../../../src/api/ai/decisionClient.ts";
+import { installRequestHeaders } from "../../../src/api/rest/requestHeadersInterceptor.ts";
 
 function mockFetchOnce(response: Partial<Response>) {
   const fetchMock = jest
@@ -101,6 +102,30 @@ describe("fetchOpenDecision", () => {
 
     expect(result?.artifactType).toBeUndefined();
     expect(result?.reason).toBeUndefined();
+  });
+
+  it("sends the session bearer so an anonymous 401 cannot log the user out", async () => {
+    const handle = installRequestHeaders(() => ({
+      Authorization: "Bearer test-token",
+    }));
+    const fetchMock = mockFetchOnce({
+      status: 204,
+      ok: true,
+      text: () => Promise.resolve(""),
+    });
+
+    try {
+      await fetchOpenDecision("conv-1");
+    } finally {
+      handle.eject();
+    }
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://ai.example.com/api/v1/chat/conv-1/decision",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer test-token" },
+      }),
+    );
   });
 
   it("should return null when the conversation has no open gate", async () => {

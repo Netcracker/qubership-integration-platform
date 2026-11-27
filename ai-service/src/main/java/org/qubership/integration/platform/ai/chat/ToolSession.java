@@ -25,9 +25,11 @@ public final class ToolSession {
 
   private ToolSession() {}
 
+  /** Binds {@code conversationId} until {@link Handle#close()}, which restores the previous binding. */
   public static Handle open(String conversationId) {
+    ThreadState previous = captureThreadState();
     bind(conversationId);
-    return new Handle();
+    return new Handle(previous);
   }
 
   public static void bind(String conversationId) {
@@ -76,16 +78,14 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installOnSubscription(conversationId, context));
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static <T> Multi<T> propagateBinding(Context context, Multi<T> upstream) {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installOnSubscription(conversationId, context));
+    return BindingScope.wrap(upstream, installer(context));
   }
 
   public static void executeInBoundContext(Context context, Runnable action) {
@@ -96,56 +96,78 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return action.get();
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    String previousConversationId = THREAD_CONVERSATION_ID.get();
-    Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
-    Context previousThreadContext = THREAD_CONTEXT.get();
-    Object previousMdc = MDC.get(ChatMdc.CONVERSATION_ID);
-    installOnSubscription(conversationId, context);
+    Runnable restore = installer(context).install();
     try {
       return action.get();
     } finally {
-      restoreThreadState(previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
+      restore.run();
     }
   }
 
   public static final class Handle implements AutoCloseable {
 
+    private final ThreadState previous;
+    private boolean closed;
+
+    private Handle(ThreadState previous) {
+      this.previous = previous;
+    }
+
     @Override
     public void close() {
-      clear();
+      if (closed) {
+        return;
+      }
+      closed = true;
+      restoreThreadState(previous);
     }
   }
 
-  private static void installOnSubscription(String conversationId, Context context) {
+  private static BindingScope.Installer installer(Context context) {
+    return () -> {
+      ThreadState previous = captureThreadState();
+      installOnSubscription(context);
+      return () -> restoreThreadState(previous);
+    };
+  }
+
+  private static void installOnSubscription(Context context) {
+    String conversationId = context.get(CONTEXT_KEY);
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
     THREAD_CONVERSATION_ID.set(conversationId);
     THREAD_CONTEXT.set(context);
     SUBSCRIBE_PATH_CONTEXT.set(context);
   }
 
-  private static void restoreThreadState(
-      String previousConversationId,
-      Context previousSubscribeContext,
-      Context previousThreadContext,
-      Object previousMdc) {
-    if (previousConversationId != null) {
-      THREAD_CONVERSATION_ID.set(previousConversationId);
+  private record ThreadState(
+      String conversationId, Context subscribeContext, Context threadContext, Object mdc) {}
+
+  private static ThreadState captureThreadState() {
+    return new ThreadState(
+        THREAD_CONVERSATION_ID.get(),
+        SUBSCRIBE_PATH_CONTEXT.get(),
+        THREAD_CONTEXT.get(),
+        MDC.get(ChatMdc.CONVERSATION_ID));
+  }
+
+  private static void restoreThreadState(ThreadState state) {
+    if (state.conversationId() != null) {
+      THREAD_CONVERSATION_ID.set(state.conversationId());
     } else {
       THREAD_CONVERSATION_ID.remove();
     }
-    if (previousMdc != null) {
-      MDC.put(ChatMdc.CONVERSATION_ID, previousMdc.toString());
+    if (state.mdc() != null) {
+      MDC.put(ChatMdc.CONVERSATION_ID, state.mdc().toString());
     } else {
       MDC.remove(ChatMdc.CONVERSATION_ID);
     }
-    if (previousSubscribeContext != null) {
-      SUBSCRIBE_PATH_CONTEXT.set(previousSubscribeContext);
+    if (state.subscribeContext() != null) {
+      SUBSCRIBE_PATH_CONTEXT.set(state.subscribeContext());
     } else {
       SUBSCRIBE_PATH_CONTEXT.remove();
     }
-    if (previousThreadContext != null) {
-      THREAD_CONTEXT.set(previousThreadContext);
+    if (state.threadContext() != null) {
+      THREAD_CONTEXT.set(state.threadContext());
     } else {
       THREAD_CONTEXT.remove();
     }

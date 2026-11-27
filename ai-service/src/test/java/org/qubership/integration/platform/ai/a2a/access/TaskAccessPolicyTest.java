@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aAgentExecutor;
 import org.qubership.integration.platform.ai.a2a.transport.A2aTaskSnapshotPersister;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
@@ -76,6 +77,7 @@ class TaskAccessPolicyTest {
             .setContextId("ctx-policy")
             .setParams(
                 org.a2aproject.sdk.spec.MessageSendParams.builder().message(message).build())
+            .setServerCallContext(A2aTestAuth.bearerCallContext())
             .build();
 
     // Fail closed on persist so we stop after the policy check + receipt path setup.
@@ -186,6 +188,7 @@ class TaskAccessPolicyTest {
             .setContextId("ctx-denied")
             .setParams(
                 org.a2aproject.sdk.spec.MessageSendParams.builder().message(message).build())
+            .setServerCallContext(A2aTestAuth.bearerCallContext())
             .build();
 
     assertThrows(

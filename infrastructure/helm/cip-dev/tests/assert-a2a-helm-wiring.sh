@@ -10,6 +10,10 @@ helm lint "$CHART"
 
 # Default-off render must succeed with an empty public URL (localhost fallback at runtime).
 helm template qip-dev "$CHART" > "$RENDERED"
+if ! grep -Fq 'QIP_AI_AUTH_REQUIRED: "false"' "$RENDERED"; then
+    echo "FAIL: cip-dev must render QIP_AI_AUTH_REQUIRED=false by default" >&2
+    exit 1
+fi
 
 # Enabling A2A without a public Agent Card URL must fail closed.
 if helm template qip-dev "$CHART" --set global.qip.ai.a2aEnabled=true > /dev/null 2>&1; then
@@ -27,9 +31,14 @@ RELEASE_TAG="$(sed -n 's/^list=//p' "$TAG_OUTPUT")"
 helm template qip-dev "$CHART" \
     --set global.qip.ai.a2aEnabled=true \
     --set global.qip.ai.a2aPublicBaseUrl=https://ai.example.com \
+    --set global.qip.ai.authRequired=true \
     --set-string global.qip.ai.minioEndpoint=https://storage.example.com \
     --set-string global.qip.ai.minioCredentialsSecret=custom-storage \
     > "$ENABLE_RENDERED"
+if ! grep -Fq 'QIP_AI_AUTH_REQUIRED: "true"' "$ENABLE_RENDERED"; then
+    echo "FAIL: global.qip.ai.authRequired=true must render QIP_AI_AUTH_REQUIRED=true" >&2
+    exit 1
+fi
 if ! grep -Fq 'QIP_AI_A2A_PUBLIC_BASE_URL: "https://ai.example.com"' "$ENABLE_RENDERED"; then
     echo "FAIL: missing configured public Agent Card URL in enable render" >&2
     exit 1

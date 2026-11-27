@@ -51,6 +51,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.chat.AuthPolicy;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
@@ -266,6 +269,42 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     Objects.requireNonNull(emitter, "emitter");
     requireFeatureEnabled();
 
+    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
+    if (callerBearer == null && AuthPolicy.required()) {
+      CipAssistA2aAgentExecutor.emitRejection(
+          emitter,
+          context.getTaskId(),
+          context.getContextId(),
+          CipAssistA2aAgentExecutor.UNAUTHORIZED_STATUS);
+      return;
+    }
+    AtomicReference<String> tokenKey = new AtomicReference<>(context.getTaskId());
+    AtomicReference<UserTokenStore.Hold> tokenHold = new AtomicReference<>();
+    if (callerBearer != null) {
+      try {
+        tokenHold.set(UserTokenStore.acquire(tokenKey.get(), callerBearer));
+      } catch (UserTokenStore.ConversationBusyException busy) {
+        CipAssistA2aAgentExecutor.emitFailure(
+            emitter, context.getTaskId(), context.getContextId(), busy.getMessage());
+        return;
+      }
+    }
+    try (ToolSession.Handle ignored =
+        callerBearer == null ? null : ToolSession.open(tokenKey.get())) {
+      executeDispatched(context, emitter, callerBearer, tokenKey, tokenHold);
+    } finally {
+      if (tokenHold.get() != null) {
+        tokenHold.get().release();
+      }
+    }
+  }
+
+  private void executeDispatched(
+      RequestContext context,
+      AgentEmitter emitter,
+      String callerBearer,
+      AtomicReference<String> tokenKey,
+      AtomicReference<UserTokenStore.Hold> tokenHold) {
     CallerContext caller = callerContextProvider.current();
     String taskId = context.getTaskId();
     String contextId = context.getContextId();
@@ -380,6 +419,20 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       // transport never infers application from Task status, revision, or pending action.
       if (claim instanceof A2aCallerMessageClaimResult.Incomplete incomplete) {
         taskId = incomplete.taskId();
+        if (callerBearer != null && !taskId.equals(tokenKey.get())) {
+          if (tokenHold.get() != null) {
+            tokenHold.get().release();
+          }
+          try {
+            tokenHold.set(UserTokenStore.acquire(taskId, callerBearer));
+          } catch (UserTokenStore.ConversationBusyException busy) {
+            CipAssistA2aAgentExecutor.emitFailure(emitter, taskId, contextId, busy.getMessage());
+            return;
+          }
+          // The handle opened in execute restores the caller's binding on close.
+          ToolSession.bind(taskId);
+          tokenKey.set(taskId);
+        }
         isNew =
             facade.snapshot(taskId).isEmpty() && command instanceof InboundCommand.ClarifyText;
       }

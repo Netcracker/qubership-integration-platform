@@ -188,8 +188,9 @@ public class OpenChainTurnContextFactory {
     if (!requested) {
       return CompletableFuture.completedFuture(CatalogRead.notRequested());
     }
+    var turn = ToolSession.attachedContext();
     return CompletableFuture.supplyAsync(
-        () -> {
+        () -> ToolSession.callInBoundContext(turn, () -> {
           try {
             return CatalogRead.available(read.get());
           } catch (RuntimeException error) {
@@ -198,7 +199,7 @@ public class OpenChainTurnContextFactory {
             }
             throw error;
           }
-        },
+        }),
         executor);
   }
 

@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
@@ -17,8 +18,10 @@ import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
  */
 public final class SkillActivitySupport {
 
-  private static final ThreadLocal<ArrayDeque<Boolean>> WORKER_BINDS =
+  private static final ThreadLocal<ArrayDeque<WorkerBind>> WORKER_BINDS =
       ThreadLocal.withInitial(ArrayDeque::new);
+
+  private record WorkerBind(boolean emitBound, ToolSession.Handle session) {}
 
   private SkillActivitySupport() {}
 
@@ -78,7 +81,11 @@ public final class SkillActivitySupport {
     Objects.requireNonNull(turnEmit, "turnEmit");
     Optional<Consumer<ChatEvent>> emit =
         turnEmit.isPresent() ? turnEmit : captureTurnEmit(conversationId);
-    WORKER_BINDS.get().push(emit.isPresent());
+    ToolSession.Handle session =
+        conversationId == null || conversationId.isBlank()
+            ? null
+            : ToolSession.open(conversationId);
+    WORKER_BINDS.get().push(new WorkerBind(emit.isPresent(), session));
     if (emit.isEmpty()) return;
     ToolInvocationSink.bind(emit.orElseThrow(), EvidenceIds.wireSkill(skillId), conversationId);
     bindParents(skillId);
@@ -86,10 +93,17 @@ public final class SkillActivitySupport {
 
   /** Clears parent skill ids and undoes {@link #bindWorker} if that call bound the turn sink. */
   public static void unbindWorker() {
-    ArrayDeque<Boolean> bindings = WORKER_BINDS.get();
-    boolean owned = !bindings.isEmpty() && bindings.pop();
+    ArrayDeque<WorkerBind> bindings = WORKER_BINDS.get();
+    if (bindings.isEmpty()) {
+      WORKER_BINDS.remove();
+      return;
+    }
+    WorkerBind bind = bindings.pop();
     if (bindings.isEmpty()) WORKER_BINDS.remove();
-    if (owned) {
+    if (bind.session() != null) {
+      bind.session().close();
+    }
+    if (bind.emitBound()) {
       clearParents();
       ToolInvocationSink.unbindIfBound();
     }

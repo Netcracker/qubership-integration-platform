@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.cache;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
@@ -10,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -317,8 +319,15 @@ public class ConversationCatalogCache {
     }
   }
 
+  // Catalog reads are authorized per caller, so entries read under another subject are dropped.
   private ConversationState state(String conversationId) {
-    return byConversation.computeIfAbsent(conversationId, ignored -> new ConversationState());
+    String subject = UserTokenStore.currentSubject().orElse(null);
+    return byConversation.compute(
+        conversationId,
+        (id, existing) ->
+            existing == null || !Objects.equals(subject, existing.subject)
+                ? new ConversationState(subject)
+                : existing);
   }
 
   private static boolean blankConversation(String conversationId) {
@@ -330,6 +339,7 @@ public class ConversationCatalogCache {
   }
 
   private static final class ConversationState {
+    final String subject;
     final Map<String, CatalogRestClient.SystemDto> systemsById = new ConcurrentHashMap<>();
     final Map<String, CatalogRestClient.SpecificationDto> specificationsById =
         new ConcurrentHashMap<>();
@@ -341,5 +351,9 @@ public class ConversationCatalogCache {
     final java.util.Set<String> specificationIdsSeenOnOperations =
         java.util.concurrent.ConcurrentHashMap.newKeySet();
     volatile String activeSystemId;
+
+    ConversationState(String subject) {
+      this.subject = subject;
+    }
   }
 }

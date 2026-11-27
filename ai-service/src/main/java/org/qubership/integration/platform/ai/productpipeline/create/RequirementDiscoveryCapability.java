@@ -421,8 +421,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
     var nativeRepairPaths = requirementRepairPaths(context, repairBase);
     var sourceRestoration = context.attributes().get("sourceRestorationReview")
         instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review ? review : null;
-    ToolSession.bind(conversationId);
-    Context toolSessionContext = ToolSession.attachedContext();
+    Context toolSessionContext;
+    try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+      toolSessionContext = ToolSession.attachedContext();
+    }
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
         context.runId(), conversationId, mappingRepairDraft == null && nativeRepairPaths.isEmpty() && sourceRestoration == null

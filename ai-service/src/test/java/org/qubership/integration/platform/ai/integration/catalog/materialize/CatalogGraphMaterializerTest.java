@@ -37,6 +37,8 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDepe
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAccessDeniedException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
@@ -667,6 +669,61 @@ class CatalogGraphMaterializerTest {
     assertFalse(result.succeeded());
     assertEquals(List.of("script-1"), result.failedNodeIds());
     assertEquals("catalog refused", result.error());
+  }
+
+  @Test
+  void accessDeniedWhileReadingBackMappedContainersReturnsTheBatchResult() {
+    ChainPlanGraph desired = twoNodeGraph();
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenReturn("catalog-trigger-1", "catalog-script-1");
+    var denied = new CatalogAccessDeniedException(
+        jakarta.ws.rs.core.Response.status(403).build(), "{\"errorMessage\":\"token lacks catalog write\"}");
+    org.mockito.Mockito.doThrow(denied).when(skeletonMaterializer)
+        .seedMappedContainersForPrune(any(), any(), any(), any(), any(), any());
+
+    CatalogGraphMaterializeResult result = materializer.apply(
+        CHAIN_ID,
+        CatalogGraphMaterializer.emptyCurrent(desired),
+        desired,
+        new MaterializationMap(CHAIN_ID, Map.of(), Map.of(), Map.of()));
+
+    assertFalse(result.succeeded());
+    assertEquals(denied, result.failureCause());
+    assertEquals(denied.getMessage(), result.error());
+    assertEquals(Set.of("trigger-1", "script-1"), Set.copyOf(result.createdNodeIds()));
+    assertEquals(
+        Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"),
+        result.materializationMap().nodeIdToElementId());
+    verify(skeletonMaterializer, org.mockito.Mockito.never())
+        .finishCreatedContainers(any(), any(), any(), any());
+  }
+
+  @Test
+  void deniedCreateStopsTheBatchAndRecordsWhatItDid() {
+    ChainPlanGraph desired = twoNodeGraph();
+    var denied = new CatalogAccessDeniedException(
+        jakarta.ws.rs.core.Response.status(403).build(), "{\"errorMessage\":\"token lacks catalog write\"}");
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenReturn("catalog-trigger-1")
+        .thenThrow(denied);
+    ToolInvocationSink.bind(event -> {}, null, CHAIN_ID);
+    try {
+      CatalogGraphMaterializeResult result = materializer.apply(
+          CHAIN_ID,
+          CatalogGraphMaterializer.emptyCurrent(desired),
+          desired,
+          new MaterializationMap(CHAIN_ID, Map.of(), Map.of(), Map.of()));
+
+      assertEquals(List.of("script-1"), result.failedNodeIds());
+      assertEquals(
+          "Catalog batch stopped by a rejected token: succeeded [trigger-1], failed [script-1], "
+              + "not executed [], connections not executed 1. Denied: " + denied.getMessage(),
+          ToolInvocationSink.catalogChanges().orElseThrow().drainRejectedBatch());
+      verify(skeletonMaterializer, org.mockito.Mockito.never())
+          .seedMappedContainersForPrune(any(), any(), any(), any(), any(), any());
+    } finally {
+      ToolInvocationSink.unbind(CHAIN_ID);
+    }
   }
 
   private void stubMatchingImport(ChainPlanGraph desired, MaterializationMap map) {

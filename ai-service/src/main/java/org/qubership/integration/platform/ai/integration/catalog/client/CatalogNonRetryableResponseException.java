@@ -7,7 +7,7 @@ import jakarta.ws.rs.core.Response;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 
 /** A catalog client-response failure that must not be retried. */
-public final class CatalogNonRetryableResponseException extends WebApplicationException {
+public class CatalogNonRetryableResponseException extends WebApplicationException {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

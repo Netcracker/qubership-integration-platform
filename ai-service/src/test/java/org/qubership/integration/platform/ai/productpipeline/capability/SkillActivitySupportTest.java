@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 
 class SkillActivitySupportTest {
@@ -16,6 +17,7 @@ class SkillActivitySupportTest {
   @AfterEach
   void tearDown() {
     ToolInvocationSink.unbind();
+    ToolSession.clear();
   }
 
   @Test
@@ -58,6 +60,29 @@ class SkillActivitySupportTest {
       ToolInvocationSink.unbind("active-b");
       ToolInvocationSink.unbind("active-a");
     }
+  }
+
+  @Test
+  void bindWorkerBindsTheConversationAndRestoresTheOuterOne() {
+    ToolSession.bind("conv-outer");
+    SkillActivitySupport.bindWorker("cip-design-executor", "conv-design-exec");
+    assertEquals("conv-design-exec", ToolSession.resolveConversationId());
+
+    SkillActivitySupport.unbindWorker();
+
+    assertEquals("conv-outer", ToolSession.resolveConversationId());
+  }
+
+  @Test
+  void nestedWorkerBindsRestoreInStackOrder() {
+    ToolSession.bind("conv-outer");
+    SkillActivitySupport.bindWorker("cip-design-executor", "conv-a");
+    SkillActivitySupport.bindWorker("cip-design-executor", "conv-b");
+
+    SkillActivitySupport.unbindWorker();
+    assertEquals("conv-a", ToolSession.resolveConversationId());
+    SkillActivitySupport.unbindWorker();
+    assertEquals("conv-outer", ToolSession.resolveConversationId());
   }
 
   @Test

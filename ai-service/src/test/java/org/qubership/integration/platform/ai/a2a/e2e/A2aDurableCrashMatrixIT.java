@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.a2a.e2e;
 
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -239,7 +240,7 @@ class A2aDurableCrashMatrixIT {
   }
 
   private static io.restassured.response.Response sendMessage(String body) {
-    return given()
+    return A2aTestAuth.givenAuthorized()
         .urlEncodingEnabled(false)
         .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)

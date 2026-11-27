@@ -13,8 +13,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
@@ -40,6 +42,7 @@ public class ProvidedIdsFlowTasks {
   private final Map<String, List<PipelineSignal>> signalsByRun;
   private final Map<String, ProvidedIdsFlow.RunContext> contextByRun;
   private final Map<String, Boolean> settledRuns;
+  private final Map<String, UserTokenStore.Hold> holdsByRun = new ConcurrentHashMap<>();
 
   @Inject
   public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, AppConfig appConfig) {
@@ -71,6 +74,17 @@ public class ProvidedIdsFlowTasks {
       return input;
     }
     rockySkills.requireAvailable();
+    pinRun(input.runId(), runSupport.currentRunSnapshot(input.runId()).conversationId());
+    try {
+      return runCurrentStage(input);
+    } catch (RuntimeException | Error failure) {
+      // A thrown stage records no decision to reenter with, so the hold cannot outlive it.
+      releaseRun(input.runId());
+      throw failure;
+    }
+  }
+
+  private ProvidedIdsFlow.RunContext runCurrentStage(ProvidedIdsFlow.RunContext input) {
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
     int used = runSupport.restoreTechnicalRetryCount(input.runId(), stageId);
@@ -114,6 +128,56 @@ public class ProvidedIdsFlowTasks {
     contextByRun.put(next.runId(), next);
     markSettled(next.runId(), decision);
     return next;
+  }
+
+  /**
+   * Takes the run's credential as an accepted command starts, before it records or dispatches, so a
+   * turn that disconnects cannot release it first. The claim gives the hold back unless Flow took
+   * the command.
+   */
+  CommandClaim acceptCommand(String runId, String conversationId) {
+    return new CommandClaim(runId, pinRun(runId, conversationId));
+  }
+
+  /**
+   * Keeps the conversation's credential for a run past the turn that started it. Returns the hold
+   * only when this call created it; empty when the run already held one or the conversation has no
+   * credential (the stage then runs without one and the catalog filter fails it honestly).
+   */
+  private UserTokenStore.Hold pinRun(String runId, String conversationId) {
+    UserTokenStore.Hold[] created = new UserTokenStore.Hold[1];
+    holdsByRun.computeIfAbsent(
+        runId, ignored -> created[0] = UserTokenStore.pin(conversationId).orElse(null));
+    return created[0];
+  }
+
+  /** One accepted command's share of its run credential. */
+  final class CommandClaim {
+
+    private final String runId;
+    private final UserTokenStore.Hold created;
+    private boolean dispatched;
+
+    private CommandClaim(String runId, UserTokenStore.Hold created) {
+      this.runId = runId;
+      this.created = created;
+    }
+
+    /** Flow took the command: from now on the stage that Flow runs owns the hold. */
+    public void dispatched() {
+      dispatched = true;
+    }
+
+    /**
+     * Gives back a hold this command created, unless Flow took the command. A hold a running stage
+     * already holds is never returned here.
+     */
+    public void close() {
+      if (created != null && !dispatched) {
+        holdsByRun.remove(runId, created);
+        created.release();
+      }
+    }
   }
 
   /** A saved listen is stale when an accepted command has already advanced the run. */
@@ -168,6 +232,14 @@ public class ProvidedIdsFlowTasks {
       settledRuns.remove(runId);
     } else {
       settledRuns.put(runId, true);
+      releaseRun(runId);
+    }
+  }
+
+  private void releaseRun(String runId) {
+    UserTokenStore.Hold hold = holdsByRun.remove(runId);
+    if (hold != null) {
+      hold.release();
     }
   }
 
