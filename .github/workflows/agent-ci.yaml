@@ -40,6 +40,8 @@ on:
     secrets:
       AGENT_VARIABLES_READ_TOKEN:
         required: true
+      GH_ACCESS_TOKEN:
+        required: false
   schedule:
     - cron: '23 4 * * *'
   workflow_dispatch:
@@ -103,6 +105,9 @@ jobs:
         id: observe
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
           AGENT_MODE: ${{ vars.AGENT_MODE }}
           AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
@@ -166,6 +171,9 @@ jobs:
         env:
           GOTOOLCHAIN: local
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_VARIABLES_READ_TOKEN: ${{ secrets.AGENT_VARIABLES_READ_TOKEN }}
           AGENT_ENABLED: ${{ vars.AGENT_ENABLED }}
           AGENT_MODE: ${{ vars.AGENT_MODE }}

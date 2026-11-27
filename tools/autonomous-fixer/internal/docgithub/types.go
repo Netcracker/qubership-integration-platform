@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/docpacket"
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/fixer"
@@ -14,20 +15,44 @@ import (
 type Client struct {
 	API        *fixer.GitHubClient
 	Repository string
+	projectAPI *fixer.GitHubClient
+	useOrgBot  bool
 }
 
-func NewClient(repository, token string) (*Client, error) {
-	api, err := fixer.NewGitHubClient(repository, token, nil, "")
+type ClientOptions struct {
+	ProjectToken string
+	UseOrgBot    bool
+	HTTPClient   *http.Client
+	BaseURL      string
+}
+
+func NewClient(repository, token string, options ClientOptions) (*Client, error) {
+	api, err := fixer.NewGitHubClient(repository, token, options.HTTPClient, options.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{api, repository}, nil
+	client := &Client{API: api, Repository: repository, useOrgBot: options.UseOrgBot}
+	if !options.UseOrgBot {
+		client.projectAPI = api
+	} else if options.ProjectToken != "" {
+		client.projectAPI, err = fixer.NewGitHubClient(repository, options.ProjectToken, options.HTTPClient, options.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 func (c *Client) Request(ctx context.Context, method, path string, body, target any) error {
 	return c.API.Request(ctx, method, path, body, target)
 }
 func (c *Client) GraphQL(ctx context.Context, query string, variables map[string]any, target any) error {
 	return c.API.GraphQL(ctx, query, variables, target)
+}
+func (c *Client) projectGraphQL(ctx context.Context, query string, variables map[string]any, target any) error {
+	if c.projectAPI == nil {
+		return fmt.Errorf("organization bot mode requires AGENT_PROJECT_TOKEN")
+	}
+	return c.projectAPI.GraphQL(ctx, query, variables, target)
 }
 
 type Project struct {

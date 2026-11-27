@@ -152,7 +152,7 @@ func TestRESTStopLabelSyncPreservesUnownedLabels(t *testing.T) {
 	api.Issue.Labels = append(api.Issue.Labels, Label{Name: "custom-label"}, Label{Name: "needs-human:custom-reason"}, Label{Name: "needs-human:" + StopReasons[1]})
 	state, _ := NewState(adapter.Task, "alice")
 	state.StopEpisodes = []StopEpisode{{ID: "episode", Reason: reason, Status: "open"}}
-	if err := SyncStopLabels(context.Background(), adapter.Client, 1, state); err != nil {
+	if err := SyncStopLabels(context.Background(), adapter.Client, adapter.Store.authors.Writer(), 1, state); err != nil {
 		t.Fatal(err)
 	}
 	labels := map[string]bool{}

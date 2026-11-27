@@ -46,6 +46,9 @@ jobs:
       - name: Record the engineering pull request outcome
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
+          GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
           AGENT_CI_REQUIRED_CHECKS: ${{ vars.AGENT_CI_REQUIRED_CHECKS }}
           AGENT_OUTCOME_DIR: ${{ runner.temp }}/agent-outcome-report
         run: '"$RUNNER_TEMP/agent-outcome"'

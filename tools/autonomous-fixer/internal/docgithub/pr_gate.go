@@ -48,15 +48,15 @@ func readDocumentationPR(ctx context.Context, c *Client, number int, publisherLo
 		if !strings.EqualFold(comment.User.Login, publisherLogin) || !strings.HasPrefix(comment.Body, "<!-- qip-docs:") {
 			continue
 		}
-		state, err := decodePublicationState(comment.Body)
-		if err != nil || state.Plan == nil || validatePublicationPlan(*state.Plan) != nil {
+		state, err := readPublicationRecord(comment.Body, c.Repository, issue)
+		if err != nil {
 			continue
 		}
 		p := state.Plan
-		if p.Repository != c.Repository || p.IssueNumber != issue || state.PlanID != p.ID || p.ID[:12] != m[2] {
+		if p.ID[:12] != m[2] {
 			continue
 		}
-		if !strings.HasPrefix(comment.Body, marker(*p)+"\n") || !strings.Contains(pr.Body, marker(*p)) || !regexp.MustCompile(fmt.Sprintf(`(?m)^Related #%d\s*$`, issue)).MatchString(pr.Body) {
+		if !strings.Contains(pr.Body, marker(*p)) || !regexp.MustCompile(fmt.Sprintf(`(?m)^Related #%d\s*$`, issue)).MatchString(pr.Body) {
 			continue
 		}
 		if state.Branch != pr.Head.Ref || state.CandidateDigest == "" || p.DefaultBranch != pr.Base.Ref || (state.PRNumber != number && !(state.PRNumber == 0 && state.Status == "publishing")) {

@@ -249,7 +249,7 @@ var urlCredentials = regexp.MustCompile(`(?i)(https?://)[^/@\s]+:[^/@\s]+@`)
 var providerToken = regexp.MustCompile(`(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]+)`)
 
 func sanitizeDiagnostic(text string) string {
-	for _, key := range []string{"OPENROUTER_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN"} {
+	for _, key := range []string{"OPENROUTER_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GH_ACCESS_TOKEN", "AGENT_PROJECT_TOKEN"} {
 		if secret := os.Getenv(key); secret != "" {
 			text = strings.ReplaceAll(text, secret, "<REDACTED>")
 		}

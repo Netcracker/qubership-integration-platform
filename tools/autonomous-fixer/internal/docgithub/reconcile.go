@@ -137,7 +137,7 @@ func (p *publisher) complete(ctx context.Context, mergeSHA string) error {
 			}
 		}
 		query := `mutation($project:ID!,$item:ID!,$field:ID!,$option:String!){updateProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$option}}){projectV2Item{id}}}`
-		requestErr := p.client.GraphQL(ctx, query, map[string]any{"project": p.plan.Project.ID, "item": p.plan.Project.ItemID, "field": p.plan.Project.StatusFieldID, "option": p.plan.Project.DoneOptionID}, nil)
+		requestErr := p.client.projectGraphQL(ctx, query, map[string]any{"project": p.plan.Project.ID, "item": p.plan.Project.ItemID, "field": p.plan.Project.StatusFieldID, "option": p.plan.Project.DoneOptionID}, nil)
 		current, e = p.revalidate(ctx, mergeSHA)
 		if current.ProjectStatus != p.plan.Project.DoneOptionID && fixer.GitHubWriteRejected(requestErr) {
 			state.ProjectDoneAttempted = false
@@ -358,20 +358,11 @@ func RecoverPlan(ctx context.Context, c *Client, issue int) (Plan, error) {
 		if comment.User.ID != author.ID || !strings.HasPrefix(comment.Body, "<!-- qip-docs:") {
 			continue
 		}
-		state, err := decodePublicationState(comment.Body)
+		state, err := readPublicationRecord(comment.Body, c.Repository, issue)
 		if err != nil {
 			return Plan{}, err
 		}
-		if state.Plan == nil {
-			return Plan{}, fmt.Errorf("owned documentation state has no recoverable plan")
-		}
 		plan := *state.Plan
-		if err = validatePublicationPlan(plan); err != nil {
-			return Plan{}, err
-		}
-		if plan.Repository != c.Repository || plan.IssueNumber != issue || state.PlanID != plan.ID || !strings.HasPrefix(comment.Body, marker(plan)+"\n") {
-			return Plan{}, fmt.Errorf("owned documentation state has another identity")
-		}
 		if !state.terminal() {
 			active = append(active, plan)
 		}

@@ -44,7 +44,8 @@ func TestStateCommentEncoding(t *testing.T) {
 func TestCommentStorePreflightAndCanonicalIdentity(t *testing.T) {
 	state := commentState(t)
 	body, _ := EncodeStateComment(state)
-	comments := []Comment{{ID: 10, Body: body, User: GitHubUser{ID: 3, Type: "Bot"}}}
+	bot := GitHubUser{ID: 3, Login: ActionsBotLogin, Type: "Bot"}
+	comments := []Comment{{ID: 10, Body: body, User: bot}}
 	writes := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
@@ -56,7 +57,7 @@ func TestCommentStorePreflightAndCanonicalIdentity(t *testing.T) {
 	}))
 	defer server.Close()
 	client, _ := NewGitHubClient("org/repo", "token", server.Client(), server.URL)
-	store := NewCommentStore(client, "org/repo", 1, 3, "task")
+	store := NewEngineeringCommentStore(client, "org/repo", 1, EngineeringAuthors{Actions: bot}, "task")
 	read, err := store.ReadState(context.Background())
 	if err != nil || read.Status != "ok" {
 		t.Fatal(read, err)
@@ -92,7 +93,7 @@ func TestCommentStoreIgnoresSpoofedMarker(t *testing.T) {
 	}))
 	defer server.Close()
 	client, _ := NewGitHubClient("org/repo", "token", server.Client(), server.URL)
-	store := NewCommentStore(client, "org/repo", 1, 3, "task")
+	store := NewEngineeringCommentStore(client, "org/repo", 1, EngineeringAuthors{Actions: GitHubUser{ID: 3, Login: ActionsBotLogin, Type: "Bot"}}, "task")
 	read, _ := store.ReadState(context.Background())
 	if read.Status != "ok" || read.State != nil {
 		t.Fatalf("accepted spoofed state: %+v", read)

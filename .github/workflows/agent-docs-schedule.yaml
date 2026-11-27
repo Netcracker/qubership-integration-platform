@@ -113,11 +113,11 @@ jobs:
         run: install -m 0500 "$RUNNER_TEMP/docs-tool/docs-agent" "$RUNNER_TEMP/docs-agent"
       - name: Identify the repository for the App token
         id: repository
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         run: printf 'name=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
       - name: Create a read-only GitHub App token
         id: app-token
-        if: vars.AGENT_DOCS_APP_ID != ''
+        if: vars.AGENT_USE_ORG_BOT != 'true' && vars.AGENT_DOCS_APP_ID != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         env:
           INPUT_PERMISSION-VARIABLES: read
@@ -133,7 +133,11 @@ jobs:
       - name: Discover issues in documentation review
         id: discover
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && (steps.app-token.outputs.token || secrets.AGENT_DOCS_READ_TOKEN || secrets.AGENT_DOCS_GITHUB_TOKEN)) || '' }}
+          AGENT_PROJECT_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.AGENT_DOCS_GITHUB_TOKEN || '' }}
           ACTIONS_READ_TOKEN: ${{ github.token }}
           PROJECT_NUMBER: ${{ vars.AGENT_DOCS_PROJECT_NUMBER || '12' }}
           BATCH_SIZE: ${{ vars.AGENT_DOCS_SCHEDULE_BATCH_SIZE || '2' }}
@@ -203,6 +207,7 @@ jobs:
       AGENT_DOCS_APP_PRIVATE_KEY: ${{ secrets.AGENT_DOCS_APP_PRIVATE_KEY }}
       AGENT_DOCS_READ_TOKEN: ${{ secrets.AGENT_DOCS_READ_TOKEN }}
       AGENT_DOCS_GITHUB_TOKEN: ${{ secrets.AGENT_DOCS_GITHUB_TOKEN }}
+      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
   reply:
@@ -229,7 +234,10 @@ jobs:
         run: install -m 0500 "$RUNNER_TEMP/docs-tool/docs-agent" "$RUNNER_TEMP/docs-agent"
       - name: Reply to the skipped documentation command
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
+          GITHUB_TOKEN: >-
+            ${{ (vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN) ||
+                (vars.AGENT_USE_ORG_BOT != 'true' && github.token) || '' }}
           AGENT_ALLOWED_ACTORS: ${{ vars.AGENT_ALLOWED_ACTORS }}
           ACTOR: ${{ github.actor }}
           REASON: ${{ needs.discover.outputs.skip_reason || needs.process.outputs.skip_reason }}

@@ -95,19 +95,31 @@ func Authorize(ctx context.Context, c *Client, actor string) error {
 	return err
 }
 
-func authorizePublisher(ctx context.Context, c *Client) (string, error) {
-	publisherLogin, err := c.API.RepositoryVariable(ctx, "AGENT_DOCS_PUBLISHER_LOGIN")
+func (c *Client) configuredPublisherLogin(ctx context.Context) (login, variable string, err error) {
+	variable = "AGENT_DOCS_PUBLISHER_LOGIN"
+	if c.useOrgBot {
+		variable = "AGENT_ORG_BOT_LOGIN"
+	}
+	login, err = c.API.RepositoryVariable(ctx, variable)
+	if err == nil && login == "" {
+		err = fmt.Errorf("%s is required", variable)
+	}
+	return login, variable, err
+}
+
+func authorizePublisher(ctx context.Context, c *Client) (fixer.GitHubUser, error) {
+	publisherLogin, variable, err := c.configuredPublisherLogin(ctx)
 	if err != nil {
-		return "", err
+		return fixer.GitHubUser{}, err
 	}
 	identity, err := c.ActorIdentity(ctx)
 	if err != nil {
-		return "", err
+		return fixer.GitHubUser{}, err
 	}
-	if publisherLogin == "" || !strings.EqualFold(identity.Login, publisherLogin) {
-		return "", fmt.Errorf("authenticated publisher does not match AGENT_DOCS_PUBLISHER_LOGIN")
+	if !strings.EqualFold(identity.Login, publisherLogin) {
+		return fixer.GitHubUser{}, fmt.Errorf("authenticated publisher does not match %s", variable)
 	}
-	return publisherLogin, nil
+	return identity, nil
 }
 
 func marker(p Plan) string { return "<!-- qip-docs:" + p.ID + " -->" }
@@ -152,6 +164,24 @@ func decodePublicationState(body string) (Publication, error) {
 	}
 	if strings.TrimRight(tail, " \t\r\n") != stateFooter(state) {
 		return state, fmt.Errorf("documentation state footer differs from the recorded signature")
+	}
+	return state, nil
+}
+
+func readPublicationRecord(body, repository string, issue int) (Publication, error) {
+	state, err := decodePublicationState(body)
+	if err != nil {
+		return Publication{}, err
+	}
+	if state.Plan == nil {
+		return Publication{}, fmt.Errorf("owned documentation state has no recoverable plan")
+	}
+	plan := *state.Plan
+	if err := validatePublicationPlan(plan); err != nil {
+		return Publication{}, err
+	}
+	if plan.Repository != repository || plan.IssueNumber != issue || state.PlanID != plan.ID || !strings.HasPrefix(body, marker(plan)+"\n") {
+		return Publication{}, fmt.Errorf("owned documentation state has another identity")
 	}
 	return state, nil
 }
@@ -202,11 +232,11 @@ func (p *publisher) readState(ctx context.Context) (bool, error) {
 		if found {
 			return false, fmt.Errorf("duplicate documentation state comments")
 		}
-		state, e := decodePublicationState(comment.Body)
+		state, e := readPublicationRecord(comment.Body, p.plan.Repository, p.plan.IssueNumber)
 		if e != nil {
 			return false, e
 		}
-		if state.PlanID != p.plan.ID || state.Plan == nil || state.Plan.Validate() != nil || Digest(*state.Plan) != Digest(p.plan) {
+		if Digest(*state.Plan) != Digest(p.plan) {
 			return false, fmt.Errorf("documentation state belongs to another plan")
 		}
 		state.CommentID = comment.ID

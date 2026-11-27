@@ -64,9 +64,9 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		token := os.Getenv("AGENT_PUBLICATION_TOKEN")
-		if token == "" {
-			return fmt.Errorf("AGENT_PUBLICATION_TOKEN is required")
+		token, err := fixer.PublicationToken(ctx, *repo)
+		if err != nil {
+			return err
 		}
 		api, err := fixer.NewGitHubClient(*repo, token, nil, "")
 		if err != nil {

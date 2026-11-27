@@ -41,10 +41,10 @@ func inPublicationWindow(date time.Time, pr agentpr.PullRequest) bool {
 	return !date.IsZero() && !date.Before(pr.CreatedAt) && !date.After(pr.ClosedAt)
 }
 
-func readProvenance(ctx context.Context, client *fixer.GitHubClient, pr agentpr.PullRequest, comments []fixer.Comment, bot fixer.GitHubUser, git gitRepository, report Report) Provenance {
+func readProvenance(ctx context.Context, client *fixer.GitHubClient, pr agentpr.PullRequest, comments []fixer.Comment, authors fixer.EngineeringAuthors, git gitRepository, report Report) Provenance {
 	result := Provenance{Status: "unknown"}
 	record := func(id int64, kind string, user fixer.GitHubUser, date time.Time) {
-		if id > 0 && userParticipation(user, pr.User) && inPublicationWindow(date, pr) {
+		if id > 0 && !authors.Contains(user) && userParticipation(user, pr.User) && inPublicationWindow(date, pr) {
 			result.Discussion = append(result.Discussion, Discussion{ID: id, Kind: kind, User: user})
 			result.Status = "observed"
 		}
@@ -77,7 +77,7 @@ func readProvenance(ctx context.Context, client *fixer.GitHubClient, pr agentpr.
 			}
 		}
 	}
-	revisions := hostedrevision.PublishedCommits(comments, bot, report.Repository.ID, pr.Number)
+	revisions := hostedrevision.PublishedCommits(comments, authors, report.Repository.ID, pr.Number)
 	result.readCommits(ctx, client, pr, git, report.Published, report.Final, revisions)
 	return result
 }

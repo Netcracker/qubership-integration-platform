@@ -32,6 +32,8 @@ func TestHostedFixIssueUsesOpenCodeAndDoesNotPassProviderKey(t *testing.T) {
 	cfg := hostedOpenCodeFixture(t)
 	t.Setenv("OPENROUTER_API_KEY", "fixture-secret")
 	t.Setenv("GITHUB_TOKEN", "fixture-github-token")
+	t.Setenv("GH_ACCESS_TOKEN", "fixture-access-token")
+	t.Setenv("AGENT_PROJECT_TOKEN", "fixture-project-token")
 	if err := os.WriteFile(filepath.Join(cfg.TaskDirectory, "task.md"), []byte("Check the fixture. Sensitive marker fixture-github-token."), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -39,13 +41,15 @@ func TestHostedFixIssueUsesOpenCodeAndDoesNotPassProviderKey(t *testing.T) {
 set -eu
 test -z "${OPENROUTER_API_KEY+x}"
 test -z "${GITHUB_TOKEN+x}"
+test -z "${GH_ACCESS_TOKEN+x}"
+test -z "${AGENT_PROJECT_TOKEN+x}"
 if [ "$1" = '--version' ]; then echo 'fixture runtime'; exit; fi
 case "$OPENCODE_CONFIG_CONTENT" in
 	*fixture-secret*|*fixture-github-token*) exit 12 ;;
 esac
 mkdir -p "$XDG_DATA_HOME"
 printf '%s' "$OPENCODE_CONFIG_CONTENT" > "$XDG_DATA_HOME/native-config.json"
-printf '%s\n' '{"type":"text","sessionID":"fixture","part":{"type":"text","messageID":"message","text":"Checked the patch. Sensitive marker fixture-secret.\n\nPR title: fix(schemas): Preserve boolean defaults\n## Why\nImporting a chain dropped its false default.\n## What\nThe import preserves explicit false defaults.\n## How to verify\nCommand: npm test\nThe schema regression test passed.\nEnd-to-end decision: The module test exercises the importer.\n## For the reviewer\n\nOutcome: fixed"}}'
+printf '%s\n' '{"type":"text","sessionID":"fixture","part":{"type":"text","messageID":"message","text":"Checked the patch. Sensitive markers fixture-secret, fixture-access-token, and fixture-project-token.\n\nPR title: fix(schemas): Preserve boolean defaults\n## Why\nImporting a chain dropped its false default.\n## What\nThe import preserves explicit false defaults.\n## How to verify\nCommand: npm test\nThe schema regression test passed.\nEnd-to-end decision: The module test exercises the importer.\n## For the reviewer\n\nOutcome: fixed"}}'
 `
 	if err := os.WriteFile(cfg.RuntimeBinary, []byte(script), 0700); err != nil {
 		t.Fatal(err)
@@ -83,7 +87,9 @@ printf '%s\n' '{"type":"text","sessionID":"fixture","part":{"type":"text","messa
 	}
 	for _, path := range []string{filepath.Join(dir, "response-raw.txt"), filepath.Join(cfg.OutputDirectory, "report.json")} {
 		content, err := os.ReadFile(path)
-		if err != nil || strings.Contains(string(content), "fixture-secret") || strings.Contains(string(content), "fixture-github-token") || !strings.Contains(string(content), "<REDACTED>") && !strings.Contains(string(content), "\\u003cREDACTED\\u003e") {
+		if err != nil || strings.Contains(string(content), "fixture-secret") || strings.Contains(string(content), "fixture-github-token") ||
+			strings.Contains(string(content), "fixture-access-token") || strings.Contains(string(content), "fixture-project-token") ||
+			!strings.Contains(string(content), "<REDACTED>") && !strings.Contains(string(content), "\\u003cREDACTED\\u003e") {
 			t.Fatalf("hosted output did not redact the fixture credentials: %s, %v", path, err)
 		}
 	}
@@ -97,11 +103,13 @@ printf '%s\n' '{"type":"text","sessionID":"fixture","part":{"type":"text","messa
 func TestHostedOpenCodeRequiresExplicitProviderProfiles(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "fixture-secret")
 	for name, damage := range map[string]func(*Config){
-		"local OpenCode default": func(c *Config) { c.Hosted = false },
-		"legacy workflow":        func(c *Config) { c.Workflow = "agent" },
-		"reviewer absent":        func(c *Config) { c.ReviewProfile = nil },
-		"another provider":       func(c *Config) { c.Profile.Model = "openai/test-author" },
-		"credential for tools":   func(c *Config) { c.Environment["OPENROUTER_API_KEY"] = "other-key" },
+		"local OpenCode default":  func(c *Config) { c.Hosted = false },
+		"legacy workflow":         func(c *Config) { c.Workflow = "agent" },
+		"reviewer absent":         func(c *Config) { c.ReviewProfile = nil },
+		"another provider":        func(c *Config) { c.Profile.Model = "openai/test-author" },
+		"credential for tools":    func(c *Config) { c.Environment["OPENROUTER_API_KEY"] = "other-key" },
+		"bot token for tools":     func(c *Config) { c.Environment["GH_ACCESS_TOKEN"] = "access-token" },
+		"project token for tools": func(c *Config) { c.Environment["AGENT_PROJECT_TOKEN"] = "project-token" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := hostedOpenCodeFixture(t)

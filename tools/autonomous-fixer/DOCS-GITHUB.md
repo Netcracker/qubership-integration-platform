@@ -20,7 +20,7 @@ Configure these settings in the repository's Actions variables and secrets.
 | --- | --- |
 | `AGENT_DOCS_ENABLED` | Set to `true` to enable the workflow. |
 | `AGENT_DOCS_PROJECT_NUMBER` | The number of the project linked to the issue. Defaults to `12`. |
-| `AGENT_DOCS_PUBLISHER_LOGIN` | The account or App bot that publishes state comments and documentation PRs. The PR gate checks this login. |
+| `AGENT_DOCS_PUBLISHER_LOGIN` | Publisher login for the single-PAT and GitHub App configurations. |
 | `AGENT_ALLOWED_ACTORS` | Comma-separated GitHub logins allowed to run the workflow and publish. |
 | `AGENT_DOCS_MODEL` | OpenRouter model for the documentation author. Defaults to `openrouter/openai/gpt-6-luna`. |
 | `AGENT_DOCS_EFFORT` | Reasoning effort for the documentation author. Defaults to `medium`. |
@@ -29,6 +29,16 @@ Set the `OPENROUTER_API_KEY` secret for `run`. Jev classifies the prepared packe
 
 Choose one GitHub credential mode.
 
+- **QIP organization account and project PAT.** Set `AGENT_USE_ORG_BOT=true` and
+  `AGENT_ORG_BOT_LOGIN` to the GitHub login that owns `GH_ACCESS_TOKEN` (in QIP, `NetcrackerCLPLCI`).
+  The fixer uses the organization secret `GH_ACCESS_TOKEN` to read repository variables, publish PRs and comments, and close issues.
+  It uses `AGENT_DOCS_GITHUB_TOKEN` to find project items, read their status, and move them to
+  **Done**. The project token needs access to the board and its linked issues. A classic PAT
+  needs the `project` scope and its owner needs write access to the board. The same organization
+  account can own both tokens.
+  Before changing the publisher login, finish active documentation runs, reconcile interrupted
+  publications, and merge or close outstanding documentation PRs under the previous identity.
+  Follow the same procedure when switching back. Completed issues keep their original comments.
 - **GitHub App.** Set variable `AGENT_DOCS_APP_ID` to the App ID and secret `AGENT_DOCS_APP_PRIVATE_KEY` to its private key. Install the App in the organization that owns the repository and project. Grant repository Contents, Issues, and Pull requests read and write, repository Variables read, and organization Projects read and write. Preparation and dry-run publication request a read-only token. Applied publication and reconciliation request write access. The App login must match `AGENT_DOCS_PUBLISHER_LOGIN`. If token creation fails, the job stops.
 - **Personal access token.** Leave `AGENT_DOCS_APP_ID` unset. Set secret `AGENT_DOCS_GITHUB_TOKEN` to a dedicated token with access to repository variables and the write permissions needed to create branches and pull requests, post comments, close issues, and update the project. Its account must match `AGENT_DOCS_PUBLISHER_LOGIN`. If you also set `AGENT_DOCS_READ_TOKEN`, preparation and dry-run publication use that token for reads.
 
@@ -95,13 +105,25 @@ packet. A reopened issue invalidates a plan prepared while it was closed.
 
 `docs-agent work` uses the prepared packet. An incomplete packet routes directly to assessment and skips the billable Jev request. Completed output includes an immutable feedback record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish completion.
 
+For a local publication with the organization account, load both credentials into your shell
+from your secret store. The CLI reads the repository token from `GITHUB_TOKEN` and the project
+PAT from `AGENT_PROJECT_TOKEN`. The following command previews a restored candidate. Set
+`PUBLISHER_LOGIN` to the repository's `AGENT_ORG_BOT_LOGIN` and use absolute artifact paths.
+
+```bash
+AGENT_USE_ORG_BOT=true GITHUB_TOKEN="$GH_ACCESS_TOKEN" AGENT_PROJECT_TOKEN="$AGENT_DOCS_GITHUB_TOKEN" \
+  docs-agent publish --prepared "$PREPARED" --run "$RUN" --source "$CANDIDATE" --actor "$PUBLISHER_LOGIN"
+```
+
 To publish a downloaded result locally, check out the plan's base commit and run
 `docs-agent restore --prepared ... --run ... --source ... --workspace ...` to restore the candidate into a
 new worktree. Pass that worktree as `--source` to
 `docs-agent publish --prepared ... --run ... --source ... --actor ... --apply`. For a hosted artifact,
 `--run` points to its `work/` directory. Omit `--apply` to validate the local publication without writes.
-Local applied publication requires a token whose login matches the declared actor and configured publisher.
-The initiating workflow actor may differ from the App publisher identity.
+For local `--apply`, the repository token's login must match both `--actor` and the configured
+publisher, and that login must be in `AGENT_ALLOWED_ACTORS`. In QIP, an allowed maintainer
+can run the documentation workflow in Actions with **Apply** selected. The workflow checks the
+maintainer's permission and publishes with the configured account.
 
 Human reviewers can append documentation-only corrections to the published branch. The gate and merge reconciliation check ancestry and the complete PR file list, including rename origins. The original candidate identity remains recorded, with the later merge head marked separately; added commits are an observation, not automatically a classifier error. A rewritten unrelated head or a product-code change needs separate validation.
 

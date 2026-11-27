@@ -25,6 +25,7 @@ type outcomeFixture struct {
 	current           agentpr.PullRequest
 	state             *fixer.State
 	stateAuthor, bot  fixer.GitHubUser
+	organization      fixer.GitHubUser
 	timeline          []timelineEvent
 	comments          []fixer.Comment
 	writes            []string
@@ -33,6 +34,11 @@ type outcomeFixture struct {
 }
 
 func newOutcomeFixture(t *testing.T) *outcomeFixture {
+	t.Helper()
+	return newOutcomeFixtureWithWriter(t, false)
+}
+
+func newOutcomeFixtureWithWriter(t *testing.T, organization bool) *outcomeFixture {
 	t.Helper()
 	f := &outcomeFixture{gitFixture: newGitFixture(t)}
 	f.file("product.txt", "baseline\n")
@@ -53,6 +59,9 @@ func newOutcomeFixture(t *testing.T) *outcomeFixture {
 	f.comments, f.commits, f.reviews = []fixer.Comment{}, []map[string]any{}, []map[string]any{}
 	f.bot = fixer.GitHubUser{ID: 42, Login: "github-actions[bot]", Type: "Bot"}
 	f.stateAuthor = f.bot
+	if organization {
+		f.organization = fixer.GitHubUser{ID: 716, Login: "QipAutomation", Type: "User"}
+	}
 	state, err := fixer.NewState(fixer.Seed{TaskID: "qip-8", Repository: repository.FullName, IssueNumber: 8,
 		BaseSHA: base, TrustedSHA: base, Requirements: "Fix the product defect.", ScopePaths: []string{"ui"}}, "operator")
 	if err != nil {
@@ -70,7 +79,7 @@ func newOutcomeFixture(t *testing.T) *outcomeFixture {
 	f.state = state
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
-	f.client, err = fixer.NewGitHubClient(repository.FullName, "test-token", server.Client(), server.URL)
+	f.client, err = fixer.NewEngineeringGitHubClient(repository.FullName, "test-token", "organization-token", f.organization.Login, organization, server.Client(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +94,8 @@ func (f *outcomeFixture) serve(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case path == "":
 			value = f.event.Repository
+		case path == "/users/"+f.organization.Login || path == "/user" && r.Header.Get("Authorization") == "Bearer organization-token":
+			value = f.organization
 		case path == "/users/github-actions[bot]":
 			value = f.bot
 		case path == "/pulls/19":
@@ -131,6 +142,9 @@ func (f *outcomeFixture) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		f.writes = append(f.writes, r.Method+" "+path)
 		comment := fixer.Comment{ID: 900, Body: edit.Body, User: f.bot}
+		if r.Header.Get("Authorization") == "Bearer organization-token" {
+			comment.User = f.organization
+		}
 		switch {
 		case r.Method == "POST" && path == "/issues/19/comments":
 			f.comments = append(f.comments, comment)
@@ -314,5 +328,20 @@ func TestRerunningTheOutcomeWorkflowRecoversAnArtifactWithoutEditingTheComment(t
 	f.config.Workflow.RunID++
 	if duplicate, err := f.read(); err != nil || duplicate != nil || len(f.writes) != 1 {
 		t.Fatalf("unequal run identity was accepted as the retry: %+v, %v", duplicate, err)
+	}
+}
+
+func TestOrganizationOutcomeRecognizesLegacyStateAndIgnoresBotAsHuman(t *testing.T) {
+	f := newOutcomeFixtureWithWriter(t, true)
+	f.comments = append(f.comments, fixer.Comment{ID: 700, User: f.organization, Body: "CI observation", CreatedAt: f.current.CreatedAt.Format(time.RFC3339)})
+	report, err := f.read()
+	if err != nil || report == nil {
+		t.Fatalf("record outcome: %v, %v", report, err)
+	}
+	if len(report.HumanInvolvement.Discussion) != 0 || len(f.comments) != 2 || f.comments[1].User != f.organization {
+		t.Fatalf("unexpected participants or publisher: %+v, %+v", report.HumanInvolvement, f.comments)
+	}
+	if retry, err := f.read(); err != nil || retry != nil || len(f.writes) != 1 {
+		t.Fatalf("replayed outcome: %v, %v, writes %v", retry, err, f.writes)
 	}
 }

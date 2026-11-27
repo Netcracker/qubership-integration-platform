@@ -224,7 +224,8 @@ func Prepare(ctx context.Context, cfg Config) (*Driver, error) {
 		}
 	}
 	for key := range cfg.Environment {
-		if key == "HOME" || key == "CODEX_HOME" || strings.HasPrefix(key, "OPENCODE_") || strings.HasPrefix(key, "XDG_") || key == "GITHUB_TOKEN" || key == "GH_TOKEN" || (cfg.Hosted && key == "OPENROUTER_API_KEY") {
+		if key == "HOME" || key == "CODEX_HOME" || strings.HasPrefix(key, "OPENCODE_") || strings.HasPrefix(key, "XDG_") ||
+			key == "GITHUB_TOKEN" || key == "GH_TOKEN" || key == "GH_ACCESS_TOKEN" || key == "AGENT_PROJECT_TOKEN" || (cfg.Hosted && key == "OPENROUTER_API_KEY") {
 			return nil, fmt.Errorf("environment key %s is controlled by the worker", key)
 		}
 	}
