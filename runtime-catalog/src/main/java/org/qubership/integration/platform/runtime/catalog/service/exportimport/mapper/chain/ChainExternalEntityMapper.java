@@ -273,7 +273,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .build();
 
                 if (resultFolder != null) {
-                    resultFolder.addChildFolder(newFolder);
+                    newFolder.setParentFolder(resultFolder);
                 }
             }
 
