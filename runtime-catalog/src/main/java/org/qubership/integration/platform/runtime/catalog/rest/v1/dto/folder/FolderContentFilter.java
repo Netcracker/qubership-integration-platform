@@ -39,10 +39,12 @@ public class FolderContentFilter {
     @Schema(description = "Whether to show only chains with at least one external service used")
     private boolean externalRoutesOnly;
 
+    @Schema(hidden = true)
     public boolean isEmpty() {
         return !chainsWithHttpTriggers;
     }
 
+    @Schema(hidden = true)
     public Specification<Chain> getSpecification() {
         return (root, query, criteriaBuilder) -> {
             query.distinct(true);
