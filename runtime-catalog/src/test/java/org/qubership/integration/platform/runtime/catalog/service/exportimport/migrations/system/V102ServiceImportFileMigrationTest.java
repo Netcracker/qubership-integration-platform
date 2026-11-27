@@ -1,11 +1,11 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.system.V102ServiceImportFileMigration;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class V102ServiceImportFileMigrationTest {
     @Test
-    public void testMigration() throws JsonProcessingException {
+    public void testMigration() throws JacksonException {
         YAMLMapper mapper = new YAMLMapper();
         JsonNode node = mapper.readTree("""
                 ---

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.sessions.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +17,7 @@ import org.qubership.integration.platform.sessions.properties.opensearch.Element
 import org.qubership.integration.platform.sessions.properties.opensearch.IndexProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.SessionProperties;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 class SessionServiceFilterTest {
 
     private static final String INDEX = "session-elements";
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = new JsonMapper();
 
     private OpenSearchClient client;
     private SessionService sessionService;

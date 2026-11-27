@@ -17,6 +17,10 @@ There is a list of modules where you can use Groovy:
    3. Error handling.
 2. [Service Call](../../../7__Senders/6__Service_Call/readme.md) - embedded Scripting module, so the same functionality as for Script.
 
+### Groovy 5 compatibility
+
+> ⚠️ **Warning:** The Spring engine runs scripts with Groovy 5.0.8. By default, a `File` or `Path` value is truthy only when its target exists. Use `file != null` to check whether a reference is set, `file.exists()` to check whether a `File` exists, or `java.nio.file.Files.exists(path)` to check whether a `Path` exists.
+
 ### Common Cases
 #### 1. Library import
 

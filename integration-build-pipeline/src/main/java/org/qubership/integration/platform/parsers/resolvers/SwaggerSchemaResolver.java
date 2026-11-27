@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.parsers.resolvers;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Collections;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class SwaggerSchemaResolver extends CommonSchemaResolver implements Schem
             ObjectNode definitions = schemaNode.putObject(DEFINITIONS_NODE_NAME);
             schemaRefs.forEach(definitions::set);
             return OBJECT_MAPPER.writeValueAsString(schemaNode);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SpecificationParserException(SCHEMA_RESOLVING_ERROR, e);
         }
     }

@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.engine.service.contextstorage;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +8,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRespository;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -25,7 +26,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 class ContextStorageServiceTest {
 
     // NON_NULL as in MapperConfiguration, so a null map value would be dropped.
-    private static final ObjectMapper MAPPER = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    private static final ObjectMapper MAPPER = JsonMapper.builder()
+            .changeDefaultPropertyInclusion(inclusion -> inclusion
+                    .withValueInclusion(JsonInclude.Include.NON_NULL)
+                    .withContentInclusion(JsonInclude.Include.NON_NULL))
+            .build();
 
     @Mock
     private ContextStorageRespository repository;

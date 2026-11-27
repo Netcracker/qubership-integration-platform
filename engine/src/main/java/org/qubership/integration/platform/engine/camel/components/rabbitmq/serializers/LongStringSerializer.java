@@ -16,14 +16,17 @@
 
 package org.qubership.integration.platform.engine.camel.components.rabbitmq.serializers;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.rabbitmq.client.LongString;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ser.std.StdSerializer;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+
+
+
 
 @Slf4j
 public class LongStringSerializer extends StdSerializer<LongString> {
@@ -33,10 +36,10 @@ public class LongStringSerializer extends StdSerializer<LongString> {
     }
 
     @Override
-    public void serialize(LongString value, JsonGenerator generator, SerializerProvider provider) throws IOException {
+    public void serialize(LongString value, JsonGenerator generator, SerializationContext provider) throws JacksonException {
         try {
             generator.writeString(new String(value.getBytes(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             log.warn("Exception while serializing {} object", LongString.class.getName(), e);
             throw e;
         }

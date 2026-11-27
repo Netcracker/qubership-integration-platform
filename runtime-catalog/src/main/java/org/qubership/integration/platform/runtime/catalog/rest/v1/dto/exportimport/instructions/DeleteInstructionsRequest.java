@@ -33,11 +33,11 @@ public class DeleteInstructionsRequest {
 
     @Schema(description = "Ids of chain import instructions to delete")
     @Builder.Default
-    private final Set<String> chains = new HashSet<>();
+    private Set<String> chains = new HashSet<>();
     @Schema(description = "Ids of service import instructions to delete")
     @Builder.Default
-    private final Set<String> services = new HashSet<>();
+    private Set<String> services = new HashSet<>();
     @Schema(description = "Ids of common variables import instructions to delete")
     @Builder.Default
-    private final Set<String> commonVariables = new HashSet<>();
+    private Set<String> commonVariables = new HashSet<>();
 }

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +29,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
+
 
 @Slf4j
 @RestController
@@ -114,7 +115,7 @@ public class OperationController {
 
     @GetMapping(value = "/{operationId}/specification", produces = "application/json")
     @io.swagger.v3.oas.annotations.Operation(description = "Get specification part related to specified operation")
-    public Object getSpecification(@PathVariable @Parameter(description = "Operation id") String operationId) {
+    public JsonNode getSpecification(@PathVariable @Parameter(description = "Operation id") String operationId) {
         if (log.isDebugEnabled()) {
             log.debug("Request to get operation {} specification", operationId);
         }

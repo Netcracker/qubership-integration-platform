@@ -6,8 +6,8 @@ spring:
     - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
     - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
     - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - org.springframework.boot.jdbc.autoconfigure.health.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.jdbc.autoconfigure.metrics.DataSourcePoolMetricsAutoConfiguration
     - io.opentelemetry.instrumentation.spring.autoconfigure.internal.instrumentation.jdbc.JdbcInstrumentationAutoConfiguration
     - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
     - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration

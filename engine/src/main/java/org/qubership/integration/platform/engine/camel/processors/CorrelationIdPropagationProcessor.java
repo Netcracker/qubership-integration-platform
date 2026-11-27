@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -25,6 +23,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -60,7 +60,7 @@ public class CorrelationIdPropagationProcessor implements Processor {
                     Map<String, Object> body = objectMapper.readValue(payload, HashMap.class);
                     body.put(correlationIdName, correlationId);
                     exchange.getMessage().setBody(objectMapper.writeValueAsString(body));
-                } catch (JsonProcessingException e) {
+                } catch (JacksonException e) {
                     log.error("Error while adding correlationId {} to body", correlationId);
                 }
             }

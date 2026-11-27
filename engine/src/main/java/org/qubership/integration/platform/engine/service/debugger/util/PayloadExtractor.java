@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.support.http.HttpUtil;
@@ -35,12 +33,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+
+
 
 @Slf4j
 @Component
@@ -114,7 +117,7 @@ public class PayloadExtractor {
                     value.setValue(maskingService.maskJSON(value.getValue(), maskedFields));
                 }
                 properties.put(key, value);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 if (log.isDebugEnabled()) {
                     log.debug("Property " + key + " has invalid json");
                 }
@@ -138,7 +141,7 @@ public class PayloadExtractor {
         }
         try {
             return objectMapper.writeValueAsString(mapData);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             if (log.isDebugEnabled()) {
                 log.debug("Error while logging in json processing {}", e.getMessage());
             }

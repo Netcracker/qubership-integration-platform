@@ -19,6 +19,7 @@ package org.qubership.integration.platform.io.model.exportimport.system;
 import com.fasterxml.jackson.annotation.*;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
@@ -31,6 +32,7 @@ import java.util.List;
 @Setter
 @SuperBuilder
 @Jacksonized
+@NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SpecificationGroupContentDto {

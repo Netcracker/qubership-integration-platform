@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.Parser;
 import org.qubership.integration.platform.parsers.SpecificationParser;
@@ -39,6 +36,9 @@ import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.parsers.model.asyncapi.v3.AsyncapiV3Specification;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncResolver;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -139,7 +139,7 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
     /**
      * Reads a specification source, normalizing an AsyncAPI 3.0 document onto the 2.x model.
      */
-    public AsyncapiSpecification read(String data) throws JsonProcessingException {
+    public AsyncapiSpecification read(String data) throws JacksonException {
         ObjectMapper mapper = getMapper(data);
         JsonNode rootNode = mapper.readTree(data);
         String version = rootNode.path("asyncapi").asText();

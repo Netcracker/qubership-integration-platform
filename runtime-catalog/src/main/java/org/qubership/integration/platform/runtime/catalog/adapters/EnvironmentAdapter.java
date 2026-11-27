@@ -1,13 +1,14 @@
 package org.qubership.integration.platform.runtime.catalog.adapters;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 import java.util.Objects;
+
 
 public class EnvironmentAdapter implements ServiceEnvironment {
     private static final ObjectMapper MAPPER = new ObjectMapper();

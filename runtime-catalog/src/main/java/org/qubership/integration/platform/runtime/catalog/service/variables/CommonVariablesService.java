@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +47,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -406,11 +406,11 @@ public class CommonVariablesService {
         return result;
     }
 
-    private Map<String, String> importVariablesFile(byte[] file) throws JsonProcessingException {
+    private Map<String, String> importVariablesFile(byte[] file) throws JacksonException {
         return importVariablesFile(new String(file));
     }
 
-    private Map<String, String> importVariablesFile(String file) throws JsonProcessingException {
+    private Map<String, String> importVariablesFile(String file) throws JacksonException {
         return yamlMapper.readValue(file, new TypeReference<>() {
         });
     }
@@ -422,7 +422,7 @@ public class CommonVariablesService {
     private byte[] stringMapAsByteArr(Map<String, String> variablesForExport) {
         try {
             return yamlMapper.writeValueAsString(variablesForExport).getBytes();
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Unable to convert variables to file {}", e.getMessage());
             throw new RuntimeException("Unable to convert variables to file");
         }

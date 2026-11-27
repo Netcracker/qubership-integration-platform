@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.chain.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.chain.model.ImportEnvironment;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
+
 
 @Data
 public class ImportEnvironmentImpl implements ImportEnvironment {

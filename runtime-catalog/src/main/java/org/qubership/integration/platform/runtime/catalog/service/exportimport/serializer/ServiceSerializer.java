@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
@@ -30,8 +28,11 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.List;
+
 
 @Component
 public class ServiceSerializer {

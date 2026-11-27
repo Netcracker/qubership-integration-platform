@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -36,7 +35,7 @@ class CircularReferencesFinderSerializer extends DelegatingSerializerBase {
     }
 
     @Override
-    public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+    public void serialize(Object value, JsonGenerator gen, SerializationContext serializers) throws tools.jackson.core.JacksonException {
         if (scope.contains(value)) {
             consumer.accept(value);
         } else {

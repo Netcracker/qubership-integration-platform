@@ -40,14 +40,20 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -64,6 +70,7 @@ class IntegrationRuntimeServiceTest {
     private QuartzSchedulerService quartzSchedulerService;
     private ExternalLibraryGroovyShellFactory groovyShellFactory;
     private CamelDebuggerPropertiesService debuggerPropertiesService;
+    private EngineStateReporter engineStateReporter;
     private Executor deploymentExecutor;
     private IntegrationRuntimeService service;
 
@@ -74,6 +81,7 @@ class IntegrationRuntimeServiceTest {
         quartzSchedulerService = mock(QuartzSchedulerService.class);
         groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
         debuggerPropertiesService = mock(CamelDebuggerPropertiesService.class);
+        engineStateReporter = mock(EngineStateReporter.class);
         deploymentExecutor = mock(Executor.class);
         service = new IntegrationRuntimeService(
                 mock(ServerConfiguration.class),
@@ -85,7 +93,7 @@ class IntegrationRuntimeServiceTest {
                 mock(MaasService.class),
                 Optional.empty(),
                 mock(VariablesService.class),
-                mock(EngineStateReporter.class),
+                engineStateReporter,
                 deploymentExecutor,
                 debuggerPropertiesService,
                 0,
@@ -120,6 +128,56 @@ class IntegrationRuntimeServiceTest {
         service.processAndUpdateState(DeploymentsUpdate.builder().build(), false);
 
         verifyNoInteractions(debuggerPropertiesService);
+    }
+
+    @Test
+    void reportsACompletedChainWhileAnotherChainIsStillStopping() throws Exception {
+        CountDownLatch slowStopStarted = new CountDownLatch(1);
+        CountDownLatch allowSlowStopToFinish = new CountDownLatch(1);
+        CountDownLatch stateReported = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            DeploymentInfo deploymentInfo = invocation.getArgument(1);
+            if ("slow".equals(deploymentInfo.getChainId())) {
+                slowStopStarted.countDown();
+                allowSlowStopToFinish.await();
+            }
+            return null;
+        }).when(deploymentProcessingService).processStopContext(
+                isNull(), any(DeploymentInfo.class), isNull());
+        doAnswer(invocation -> {
+            stateReported.countDown();
+            return null;
+        }).when(engineStateReporter).addStateToQueue(any());
+        doAnswer(invocation -> {
+            new Thread(invocation.getArgument(0, Runnable.class)).start();
+            return null;
+        }).when(deploymentExecutor).execute(any());
+
+        DeploymentUpdate fastStop = DeploymentUpdate.builder()
+                .deploymentInfo(DeploymentInfo.builder().deploymentId("fast").chainId("fast")
+                        .snapshotId("fast-snapshot").build())
+                .build();
+        DeploymentUpdate slowStop = DeploymentUpdate.builder()
+                .deploymentInfo(DeploymentInfo.builder().deploymentId("slow").chainId("slow")
+                        .snapshotId("slow-snapshot").build())
+                .build();
+        DeploymentsUpdate update = DeploymentsUpdate.builder().stop(List.of(fastStop, slowStop)).build();
+        CompletableFuture<Void> processing = CompletableFuture.runAsync(() -> {
+            try {
+                service.processAndUpdateState(update, false);
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+        });
+
+        try {
+            assertTrue(slowStopStarted.await(5, TimeUnit.SECONDS));
+            assertTrue(stateReported.await(5, TimeUnit.SECONDS));
+            assertFalse(processing.isDone());
+        } finally {
+            allowSlowStopToFinish.countDown();
+        }
+        processing.get(5, TimeUnit.SECONDS);
     }
 
     @Test

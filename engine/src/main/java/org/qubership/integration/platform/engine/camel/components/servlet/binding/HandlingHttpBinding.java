@@ -29,20 +29,27 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.Map;
 
 @Component
 @Slf4j
 public class HandlingHttpBinding extends DefaultHttpBinding {
+    private final ObjectMapper objectMapper;
+
     @Autowired
-    public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy) {
+    public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy,
+                               @Qualifier("jsonMapper") ObjectMapper objectMapper) {
         super();
         setHeaderFilterStrategy(servletCustomFilterStrategy);
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -91,6 +98,12 @@ public class HandlingHttpBinding extends DefaultHttpBinding {
     @Override
     public void doWriteResponse(Message message, HttpServletResponse response, Exchange exchange) throws IOException {
         if (!exchange.isFailed()) {
+            if (message.getBody() instanceof Map<?, ?>) {
+                message.setBody(objectMapper.writeValueAsString(message.getBody()));
+                if (message.getHeader(Exchange.CONTENT_TYPE) == null) {
+                    message.setHeader(Exchange.CONTENT_TYPE, "application/json");
+                }
+            }
             filterFieldsInResponse(message, exchange);
         }
         super.doWriteResponse(message, response, exchange);

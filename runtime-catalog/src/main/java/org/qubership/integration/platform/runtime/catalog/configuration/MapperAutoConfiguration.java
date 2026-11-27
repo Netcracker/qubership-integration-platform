@@ -16,34 +16,32 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
-import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.kubernetes.client.openapi.models.V1Secret;
-import io.swagger.v3.core.util.Json;
+import org.qubership.integration.platform.io.configuration.MapperInclusion;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.deserializer.CodeviewChainElementDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.serializer.CodeviewChainElementSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
+import org.snakeyaml.engine.v2.api.LoadSettings;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-import org.yaml.snakeyaml.LoaderOptions;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.EnumFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ser.std.SimpleBeanPropertyFilter;
+import tools.jackson.databind.ser.std.SimpleFilterProvider;
+import tools.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
+
 
 @AutoConfiguration
 public class MapperAutoConfiguration {
@@ -57,42 +55,44 @@ public class MapperAutoConfiguration {
     }
 
     @Bean("primaryObjectMapper")
-    public ObjectMapper primaryObjectMapper() {
-        ObjectMapper objectMapper = JsonMapper.builder()
+    public JsonMapper primaryObjectMapper() {
+        return JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-                .enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                .enable(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
                 .build();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        objectMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-
-        return objectMapper;
     }
 
     @Bean("yamlMapper")
     public YAMLMapper yamlMapper(KubeSecretSerializer kubeSecretSerializer) {
-        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        yamlMapper.registerModule(serializeModule);
-        yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-        return yamlMapper;
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .addModule(serializeModule)
+                .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
+                .build();
     }
 
     @Bean("openApiObjectMapper")
     public ObjectMapper openApiObjectMapper() {
-        return Json.mapper();
+        return JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
     }
 
     @Bean("defaultYamlMapper")
     public YAMLMapper defaultYamlMapper() {
-        return new YAMLMapper(createCustomYamlFactory());
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
     }
 
     @Bean("yamlExportImportMapper")
@@ -107,86 +107,76 @@ public class MapperAutoConfiguration {
                 "sourceHash"
         };
 
-        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
-
         SimpleModule serializeModule = new SimpleModule();
-
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        yamlMapper.registerModule(serializeModule);
         SimpleFilterProvider simpleFilterProvider = new SimpleFilterProvider().setFailOnUnknownId(false);
         simpleFilterProvider.addFilter("baseEntityFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
-        yamlMapper.setFilterProvider(simpleFilterProvider);
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        yamlMapper.configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
-
-        return yamlMapper;
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .addModule(serializeModule)
+                .filterProvider(simpleFilterProvider)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .configure(YAMLWriteFeature.MINIMIZE_QUOTES, minimizeQuotes)
+                .build();
     }
 
     @Bean("codeViewYamlMapper")
     public YAMLMapper codeViewYamlMapper(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
-        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         serializeModule.addSerializer(ChainElement.class, new CodeviewChainElementSerializer());
         serializeModule.addDeserializer(ChainElement.class, new CodeviewChainElementDeserializer(objectMapper));
-        yamlMapper.registerModule(serializeModule);
-
-        return yamlMapper;
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .addModule(serializeModule)
+                .build();
     }
 
     @Bean("objectMapperWithSorting")
     public ObjectMapper objectMapperWithSorting() {
-        ObjectMapper objectMapper = primaryObjectMapper();
-        objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-
-        return objectMapper;
+        return primaryObjectMapper().rebuild()
+                .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                .build();
     }
 
     @Bean("variablesYamlMapper")
     public YAMLMapper variablesYamlMapper(KubeSecretSerializer kubeSecretSerializer) {
-        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
-
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        yamlMapper.registerModule(serializeModule);
-        yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-        yamlMapper.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
-        yamlMapper.enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES);
-
-        return yamlMapper;
+        return YAMLMapper.builder(createCustomYamlFactory())
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .addModule(serializeModule)
+                .filterProvider(new SimpleFilterProvider().setFailOnUnknownId(false))
+                .enable(YAMLWriteFeature.MINIMIZE_QUOTES)
+                .build();
     }
 
     @Bean("variablesYamlImportExportMapper")
     public YAMLMapper variablesYamlImportExportMapper() {
         final String[] excludedFields = {"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"};
 
-        YAMLMapper yamlMapper = new YAMLMapper();
         SimpleModule serializeModule = new SimpleModule();
-
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        yamlMapper.registerModule(serializeModule);
         SimpleFilterProvider simpleFilterProvider = new SimpleFilterProvider().setFailOnUnknownId(false);
         simpleFilterProvider.addFilter("commonVariableFilter",
                 SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
-        yamlMapper.setFilterProvider(simpleFilterProvider);
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        return yamlMapper;
+        return YAMLMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .addModule(serializeModule)
+                .filterProvider(simpleFilterProvider)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
     }
 
     private YAMLFactory createCustomYamlFactory() {
-        LoaderOptions loaderOptions = new LoaderOptions();
-        loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
+        LoadSettings loadSettings = LoadSettings.builder()
+                .setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024)
+                .build();
         return new MinimizedQuotesYamlFactory(YAMLFactory.builder()
-                .loaderOptions(loaderOptions)
+                .loadSettings(loadSettings)
                 .stringQuotingChecker(new YamlStringQuotingChecker()));
     }
 
-    @Bean
-    public MappingJackson2HttpMessageConverter mappingJackson2HttpMessageConverter(
-            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
-        return new MappingJackson2HttpMessageConverter(jsonMapper);
-    }
 }

@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -10,6 +8,8 @@ import org.qubership.integration.platform.io.configuration.ObjectMapperAutoConfi
 import org.qubership.integration.platform.parsers.configuration.SpecificationParserConfiguration;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.time.Duration;
 import java.util.List;
@@ -244,7 +244,7 @@ class AsyncapiSpecificationParserSchemaTest {
 
         ParsedOperation operation = model.getOperations().get(0);
         assertTrue(operation.getResponseSchemas().containsKey(key), () -> "keys: " + operation.getResponseSchemas().keySet());
-        ObjectNode stored = operation.getResponseSchemas().get(key).deepCopy();
+        ObjectNode stored = (ObjectNode) operation.getResponseSchemas().get(key).deepCopy();
         stored.remove(List.of("$id", "$schema"));
         ObjectNode written = (ObjectNode) yamlMapper.readTree(expected);
         written.putIfAbsent("definitions", yamlMapper.createObjectNode());

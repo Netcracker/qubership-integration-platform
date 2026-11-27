@@ -19,6 +19,7 @@ package org.qubership.integration.platform.io.model.exportimport.system;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
@@ -29,6 +30,7 @@ import java.sql.Timestamp;
 @Setter
 @SuperBuilder
 @Jacksonized
+@NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ContextServiceContentDto {

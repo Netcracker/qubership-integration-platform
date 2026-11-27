@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.chain.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Map;
+
 
 /**
  * A system-model operation read from an import archive.

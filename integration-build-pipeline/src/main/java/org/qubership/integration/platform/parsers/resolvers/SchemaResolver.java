@@ -16,7 +16,8 @@
 
 package org.qubership.integration.platform.parsers.resolvers;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+
 
 public interface SchemaResolver {
 

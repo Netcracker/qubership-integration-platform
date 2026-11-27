@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.library.components;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +10,8 @@ import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementFolder;
 import org.qubership.integration.platform.library.model.LibraryElements;
 import org.springframework.util.PropertyPlaceholderHelper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

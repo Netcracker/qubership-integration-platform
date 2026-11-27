@@ -1,8 +1,7 @@
 package org.qubership.integration.platform.engine.cloudcore.maas.localdev;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.netcracker.cloud.maas.client.api.Classifier;
 import com.netcracker.cloud.maas.client.api.MaaSAPIClient;
 import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.rabbit.RabbitMaaSClient;
@@ -17,17 +16,26 @@ import com.netcracker.cloud.maas.client.impl.rabbit.RabbitMaaSClientImpl;
 import com.netcracker.cloud.tenantmanager.client.Tenant;
 import com.netcracker.cloud.tenantmanager.client.TenantManagerConnector;
 import lombok.SneakyThrows;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 
+
+
+
 public class LocalDevMaaSAPIClient implements MaaSAPIClient {
     private final String agentUrl;
     private final HttpClient restClient;
     private final ApiUrlProvider apiUrlProvider;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder()
+            .addMixIn(Classifier.class, ClassifierMixin.class)
+            .build();
     private final TenantManagerConnector tenantManagerConnector;
 
     public LocalDevMaaSAPIClient(String agentUrl, HttpClient restClient) {
@@ -66,6 +74,11 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
         return new RabbitMaaSClientImpl(restClient, apiUrlProvider);
     }
 
+    @Override
+    public void close() throws Exception {
+        tenantManagerConnector.close();
+    }
+
     public List<? extends ConfigureResponse> loadConfiguration(String config) throws IOException {
         return restClient.request(agentUrl + "/api/v1/config")
                 .post(config, "plain/text")
@@ -88,7 +101,7 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
         );
 
         ArrayNode responseArray = (ArrayNode) mapper.readTree(responseBody.getBytes(StandardCharsets.UTF_8));
-        Iterator<JsonNode> it = responseArray.elements();
+        Iterator<JsonNode> it = responseArray.values().iterator();
         List<ConfigureResponse> result = new ArrayList<>(responseArray.size());
         while (it.hasNext()) {
             JsonNode responseNode = it.next();
@@ -109,5 +122,11 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
             result.add(mapper.treeToValue(responseNode, entityClass));
         }
         return result;
+    }
+
+    private abstract static class ClassifierMixin {
+        @JsonCreator
+        ClassifierMixin(Map<String, String> classifier) {
+        }
     }
 }

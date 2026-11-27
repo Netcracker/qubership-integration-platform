@@ -27,9 +27,7 @@
  * - An enum value that does not exist is refused on `IN` and **accepted on `IS`**, where it becomes
  *   a string comparison that matches nothing and answers 200 with an empty page. That asymmetry is
  *   why a case asserting "the filter works" over an empty result proves nothing.
- * - The export answers **`Content-Type: application/json` carrying an xlsx** — a zip, `PK` magic
- *   and all — with the real name only in `Content-Disposition`. A client trusting the content type
- *   parses the workbook as JSON.
+ * - The export answers with an XLSX workbook and its filename in `Content-Disposition`.
  *
  * The log is global: every worker's actions land in the same table. So every case filters on a name
  * carrying the run token and asserts over the rows it created, never over the page as a whole.
@@ -210,13 +208,11 @@ test.describe("audit log", { tag: ["@catalog", "@v1"] }, () => {
 
     const exported = await catalog.exportActionsLog(from, Date.now() + CLOCK_SKEW);
     expect(exported.status()).toBe(200);
-    // The real name is in the disposition and nowhere else: the content type says JSON while the body
-    // is a workbook, so a client that trusts it hands an xlsx to a JSON parser.
     expect(exported.headers()["content-disposition"]).toBe(
       "attachment; filename=catalog-actions-log.xlsx",
     );
-    expect(exported.headers()["content-type"], "measured: an xlsx served as application/json").toBe(
-      "application/json",
+    expect(exported.headers()["content-type"]).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
 
     const body = Buffer.from(await exported.body());

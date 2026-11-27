@@ -1,18 +1,17 @@
 package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 
 import java.util.Collections;
 import java.util.List;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class DeployWithSnapshotCreationRequest {
@@ -29,4 +28,11 @@ public class DeployWithSnapshotCreationRequest {
 
     @Builder.Default
     private DeployMode mode = DeployMode.REWRITE;
+
+    @JsonCreator
+    public DeployWithSnapshotCreationRequest() {
+        this.chainIds = Collections.emptyList();
+        this.snapshotAction = BulkDeploymentSnapshotAction.CREATE_NEW;
+        this.mode = DeployMode.REWRITE;
+    }
 }

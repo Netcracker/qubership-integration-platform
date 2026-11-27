@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+
 public class XmlTemplateCollector implements org.qubership.integration.platform.mapper.model.datatypes.DataTypeVisitor<Collection<Node>, XmlTemplateCollectorContext, Exception> {
     @Override
     public Collection<Node> visitAllOfType(org.qubership.integration.platform.mapper.model.datatypes.AllOfType type, XmlTemplateCollectorContext ctx) throws Exception {
@@ -75,7 +76,7 @@ public class XmlTemplateCollector implements org.qubership.integration.platform.
     public Collection<Node> visitObjectType(org.qubership.integration.platform.mapper.model.datatypes.ObjectType type, XmlTemplateCollectorContext ctx) throws Exception {
         List<Node> result = new ArrayList<>();
         for (Attribute attribute : type.getSchema().getAttributes()) {
-            if (isXmlTextNode(attribute) || isXmlAttribute(attribute)) {
+            if (isXmlStringNode(attribute) || isXmlAttribute(attribute)) {
                 continue;
             }
             Node node = buildElementNode(attribute, addDefinitionsToContext(ctx, type.getDefinitions()));
@@ -140,7 +141,7 @@ public class XmlTemplateCollector implements org.qubership.integration.platform.
         return attribute.getName().startsWith("@");
     }
 
-    private static boolean isXmlTextNode(Attribute attribute) {
+    private static boolean isXmlStringNode(Attribute attribute) {
         return attribute.getName().equals("#text");
     }
 

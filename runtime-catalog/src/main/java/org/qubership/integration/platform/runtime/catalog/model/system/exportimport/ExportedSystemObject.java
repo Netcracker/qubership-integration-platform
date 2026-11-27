@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.jackson.databind.node.ObjectNode;
+
 
 @Getter
 @Setter

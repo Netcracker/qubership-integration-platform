@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.parsers.resolvers.async.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.parsers.model.asyncapi.Channel;
 import org.qubership.integration.platform.parsers.model.asyncapi.MethodType;
 import org.qubership.integration.platform.parsers.model.asyncapi.OperationObject;
 import org.qubership.integration.platform.parsers.resolvers.async.AbstractAsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchemaResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncResolver;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.Collections;

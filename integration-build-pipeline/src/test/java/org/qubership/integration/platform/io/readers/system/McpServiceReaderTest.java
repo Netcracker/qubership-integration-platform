@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.io.readers.system;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +25,7 @@ import org.qubership.integration.platform.io.model.exportimport.system.MCPServic
 import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.User;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;

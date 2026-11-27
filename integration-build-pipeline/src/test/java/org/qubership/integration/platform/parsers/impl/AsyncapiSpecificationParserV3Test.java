@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
@@ -14,6 +12,8 @@ import org.qubership.integration.platform.parsers.model.asyncapi.Info;
 import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.impl.KafkaSpecificationResolver;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.io.InputStream;

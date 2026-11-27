@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedMCPSystemObject;
@@ -12,6 +9,10 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+
 
 @Component
 public class MCPSystemSerializer {
@@ -30,7 +31,7 @@ public class MCPSystemSerializer {
         this.fileMigrationService = fileMigrationService;
     }
 
-    public ExportedSystemObject serialize(MCPSystem system) throws JsonProcessingException {
+    public ExportedSystemObject serialize(MCPSystem system) throws JacksonException {
         MCPServiceDto mcpServiceDto = mcpServiceDtoMapper.toExternalEntity(system);
         ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(mcpServiceDto));
         return new ExportedMCPSystemObject(system.getId(), systemNode);

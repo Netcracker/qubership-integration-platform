@@ -1,14 +1,14 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.chain.V107ChainImportFileMigration;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,12 +22,12 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should move 'asyncValidationSchema' into 'after[0].schema' for 'async-api-trigger' element")
     @Test
-    void shouldMoveAsyncValidationSchemaIntoAfterSchema() throws JsonProcessingException {
+    void shouldMoveAsyncValidationSchemaIntoAfterSchema() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("async-api-trigger"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("async-api-trigger"));
         ObjectNode properties = elementNode.withObjectProperty("properties");
-        properties.set("asyncValidationSchema", TextNode.valueOf("{\"type\":\"object\"}"));
+        properties.set("asyncValidationSchema", StringNode.valueOf("{\"type\":\"object\"}"));
         ObjectNode afterElement = JsonNodeFactory.instance.objectNode();
         afterElement.put("someField", "someValue");
         properties.withArrayProperty("after").add(afterElement);
@@ -44,10 +44,10 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should not modify 'async-api-trigger' when 'asyncValidationSchema' is missing")
     @Test
-    void shouldNotModifyAsyncApiTriggerWhenAsyncValidationSchemaIsMissing() throws JsonProcessingException {
+    void shouldNotModifyAsyncApiTriggerWhenAsyncValidationSchemaIsMissing() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("async-api-trigger"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("async-api-trigger"));
         ObjectNode properties = elementNode.withObjectProperty("properties");
         ObjectNode afterElement = JsonNodeFactory.instance.objectNode();
         afterElement.put("someField", "someValue");
@@ -64,12 +64,12 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should not modify 'async-api-trigger' when 'after' array has more than one element")
     @Test
-    void shouldNotModifyAsyncApiTriggerWhenAfterArrayHasMultipleElements() throws JsonProcessingException {
+    void shouldNotModifyAsyncApiTriggerWhenAfterArrayHasMultipleElements() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("async-api-trigger"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("async-api-trigger"));
         ObjectNode properties = elementNode.withObjectProperty("properties");
-        properties.set("asyncValidationSchema", TextNode.valueOf("{\"type\":\"object\"}"));
+        properties.set("asyncValidationSchema", StringNode.valueOf("{\"type\":\"object\"}"));
         properties.withArrayProperty("after")
                 .add(JsonNodeFactory.instance.objectNode())
                 .add(JsonNodeFactory.instance.objectNode());
@@ -85,10 +85,10 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should rename 'scheme' to 'schema' in 'afterValidation' array for 'service-call' element")
     @Test
-    void shouldRenameSchemeToSchemaInAfterValidation() throws JsonProcessingException {
+    void shouldRenameSchemeToSchemaInAfterValidation() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("service-call"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("service-call"));
         ObjectNode properties = elementNode.withObjectProperty("properties");
         ObjectNode validationEntry = JsonNodeFactory.instance.objectNode();
         validationEntry.put("scheme", "myScheme");
@@ -109,10 +109,10 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should not modify 'service-call' when 'afterValidation' is empty")
     @Test
-    void shouldNotModifyServiceCallWhenAfterValidationIsEmpty() throws JsonProcessingException {
+    void shouldNotModifyServiceCallWhenAfterValidationIsEmpty() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("service-call"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("service-call"));
         elementNode.withObjectProperty("properties").withArrayProperty("afterValidation");
 
         ObjectNode chainNode = JsonNodeFactory.instance.objectNode();
@@ -127,10 +127,10 @@ class V107ChainImportFileMigrationTest {
 
     @DisplayName("Should not modify entries in 'afterValidation' that don't have 'scheme' field")
     @Test
-    void shouldNotModifyEntriesWithoutSchemeField() throws JsonProcessingException {
+    void shouldNotModifyEntriesWithoutSchemeField() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("service-call"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("service-call"));
         ObjectNode properties = elementNode.withObjectProperty("properties");
         ObjectNode validationEntry = JsonNodeFactory.instance.objectNode();
         validationEntry.put("schema", "alreadyCorrect");

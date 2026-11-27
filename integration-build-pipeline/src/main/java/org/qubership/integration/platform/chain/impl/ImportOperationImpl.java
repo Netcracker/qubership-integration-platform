@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.chain.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import org.qubership.integration.platform.chain.model.ImportOperation;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Map;
+
 
 @Data
 public class ImportOperationImpl implements ImportOperation {

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -19,7 +18,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -46,8 +44,8 @@ public class McpToolRegistrar extends ElementProcessingAction {
     private final McpToolTargets toolTargets;
 
     @Autowired
-    public McpToolRegistrar(@Qualifier("jsonMapper") ObjectMapper objectMapper, McpToolTargets toolTargets) {
-        this.mcpJsonMapper = new JacksonMcpJsonMapper(objectMapper);
+    public McpToolRegistrar(McpToolTargets toolTargets) {
+        this.mcpJsonMapper = new JacksonMcpJsonMapper(new com.fasterxml.jackson.databind.ObjectMapper());
         this.toolTargets = toolTargets;
     }
 

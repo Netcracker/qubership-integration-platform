@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Options;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -26,10 +23,14 @@ import org.qubership.integration.platform.io.writers.camel.xml.templates.Templat
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
+
 
 @TemplatesHelper
 @Slf4j
@@ -70,7 +71,7 @@ public class ManualQueryParamsHelper {
                                 queryJoiner.add(key + KEY_VALUE_DELIMITER + jsonEntry.getValue().toString());
                             }
                         }
-                    } catch (JsonProcessingException e) {
+                    } catch (JacksonException e) {
                         throw new RuntimeException("Failed to process query JSON parameters", e);
                     }
                 } else {

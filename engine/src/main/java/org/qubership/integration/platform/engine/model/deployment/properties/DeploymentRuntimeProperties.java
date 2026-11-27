@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.model.deployment.properties;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.*;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
@@ -32,7 +33,6 @@ import static java.util.Objects.nonNull;
 @Getter
 @Setter
 @AllArgsConstructor
-@NoArgsConstructor
 @Builder
 public class DeploymentRuntimeProperties {
     private static final DeploymentRuntimeProperties DEFAULT_VALUES = DeploymentRuntimeProperties.builder()
@@ -55,6 +55,10 @@ public class DeploymentRuntimeProperties {
     @Getter(AccessLevel.NONE)
     @Builder.Default
     private SessionLogDetails sessionLogDetails = SessionLogDetails.OFF;
+
+    @JsonCreator
+    public DeploymentRuntimeProperties() {
+    }
 
     public SessionsLoggingLevel calculateSessionLevel(Exchange exchange) {
         // At first, we are looking for specific header, that sets the logging level.

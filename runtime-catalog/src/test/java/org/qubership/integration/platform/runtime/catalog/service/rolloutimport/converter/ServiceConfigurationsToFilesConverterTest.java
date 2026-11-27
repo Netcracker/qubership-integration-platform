@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -32,7 +32,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("All empty inputs return empty map")
-    void allEmptyInputsReturnEmptyMap() throws JsonProcessingException {
+    void allEmptyInputsReturnEmptyMap() throws JacksonException {
         Map<Path, byte[]> result = converter.convert(
                 emptyConfigMap(),
                 emptyConfigMap(),
@@ -46,7 +46,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Single service creates {serviceId}/{serviceId}.service.cip.yaml")
-    void singleServiceCreatesCorrectFilePath() throws JsonProcessingException {
+    void singleServiceCreatesCorrectFilePath() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
         Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_NAME + ".yaml");
 
@@ -57,7 +57,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Single contextService creates {serviceId}/{serviceId}.context-service.cip.yaml")
-    void singleContextServiceCreatesCorrectFilePath() throws JsonProcessingException {
+    void singleContextServiceCreatesCorrectFilePath() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> contextServices = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
         Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".context-service." + APP_NAME + ".yaml");
 
@@ -68,7 +68,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("SpecGroup without parentId in content is skipped")
-    void specGroupWithoutParentIdIsSkipped() throws JsonProcessingException {
+    void specGroupWithoutParentIdIsSkipped() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
         Map<String, RolloutImportConfigurationItem> specGroups = Map.of(SPEC_GROUP_ID, item(SPEC_GROUP_ID, objectMapper.createObjectNode()));
 
@@ -80,7 +80,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("SpecGroup with parentId pointing to non-existing service is skipped")
-    void specGroupWithNonExistingServiceIsSkipped() throws JsonProcessingException {
+    void specGroupWithNonExistingServiceIsSkipped() throws JacksonException {
         ObjectNode sgContent = objectMapper.createObjectNode();
         sgContent.put("parentId", "non-existing-service");
         Map<String, RolloutImportConfigurationItem> specGroups = Map.of(SPEC_GROUP_ID, item(SPEC_GROUP_ID, sgContent));
@@ -93,7 +93,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("SpecGroup with valid service parentId creates file under service directory")
-    void specGroupWithValidParentCreatesFileUnderServiceDir() throws JsonProcessingException {
+    void specGroupWithValidParentCreatesFileUnderServiceDir() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
         ObjectNode sgContent = objectMapper.createObjectNode();
         sgContent.put("parentId", SERVICE_ID);
@@ -107,7 +107,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Specification without parentId is skipped")
-    void specificationWithoutParentIdIsSkipped() throws JsonProcessingException {
+    void specificationWithoutParentIdIsSkipped() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
         Map<String, RolloutImportConfigurationItem> specs = Map.of(SPEC_ID, item(SPEC_ID, objectMapper.createObjectNode()));
 
@@ -119,7 +119,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Specification with valid specGroup/service chain creates spec file in service directory")
-    void specificationWithValidChainCreatesSpecFile() throws JsonProcessingException {
+    void specificationWithValidChainCreatesSpecFile() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
 
         ObjectNode sgContent = objectMapper.createObjectNode();
@@ -138,7 +138,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
     @Test
     @DisplayName("Specification referencing an existing resource adds resource bytes to result")
-    void specificationWithExistingResourceIncludesResourceBytes() throws JsonProcessingException {
+    void specificationWithExistingResourceIncludesResourceBytes() throws JacksonException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
 
         ObjectNode sgContent = objectMapper.createObjectNode();

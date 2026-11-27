@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import com.fasterxml.jackson.databind.ser.FilterProvider;
-import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
-import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,13 +26,17 @@ import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploym
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ser.FilterProvider;
+import tools.jackson.databind.ser.std.SimpleBeanPropertyFilter;
+import tools.jackson.databind.ser.std.SimpleFilterProvider;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
 
 @Slf4j
 @RestController
@@ -49,15 +50,17 @@ public class RuntimeDeploymentController {
     private static final String DEPLOYMENT_INFO_PREFIX = DEPLOYMENT_INFO + ".";
 
     private final RuntimeDeploymentService runtimeDeploymentService;
+    private final JsonMapper objectMapper;
 
     @Autowired
-    public RuntimeDeploymentController(RuntimeDeploymentService runtimeDeploymentService) {
+    public RuntimeDeploymentController(RuntimeDeploymentService runtimeDeploymentService, JsonMapper objectMapper) {
         this.runtimeDeploymentService = runtimeDeploymentService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(description = "Get deployment statuses for all chains on all available engine pods")
-    public ResponseEntity<MappingJacksonValue> findChainRuntimeDeployments(
+    public ResponseEntity<byte[]> findChainRuntimeDeployments(
             @RequestParam(value = "fields", required = false) @Parameter(description = "Fields to include in the response") String[] fields
     ) {
         Map<String, Collection<ChainRuntimeDeployment>> deployments = runtimeDeploymentService.getChainRuntimeDeployments();
@@ -65,12 +68,10 @@ public class RuntimeDeploymentController {
             return ResponseEntity.noContent().build();
         }
 
-        MappingJacksonValue result = new MappingJacksonValue(deployments);
-        if (ArrayUtils.isNotEmpty(fields)) {
-            result.setFilters(createFilters(fields));
-        }
-
-        return ResponseEntity.ok(result);
+        byte[] result = ArrayUtils.isNotEmpty(fields)
+                ? objectMapper.writer(createFilters(fields)).writeValueAsBytes(deployments)
+                : objectMapper.writeValueAsBytes(deployments);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(result);
     }
 
     private FilterProvider createFilters(String[] fields) {

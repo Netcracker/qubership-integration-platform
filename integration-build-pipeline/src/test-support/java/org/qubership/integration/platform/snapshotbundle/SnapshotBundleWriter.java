@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.snapshotbundle;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.chain.model.Chain;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+
 public final class SnapshotBundleWriter {
     public static final int FORMAT_VERSION = 1;
     public static final String INDEX_FILE_NAME = "snapshotindex.yml";
@@ -48,7 +49,7 @@ public final class SnapshotBundleWriter {
     private final ObjectMapper yamlMapper;
 
     public SnapshotBundleWriter() {
-        this(new YAMLMapper().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS));
+        this(YAMLMapper.builder().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS).build());
     }
 
     SnapshotBundleWriter(ObjectMapper yamlMapper) {

@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.engine.camel.processors.session;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.graphql.GraphqlComponent;
 import org.apache.camel.component.graphql.GraphqlEndpoint;
@@ -24,6 +22,8 @@ import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.util.Set;
@@ -238,8 +238,8 @@ class GraphQLSessionLoggingProcessorTest {
         JsonNode requestBody = OBJECT_MAPPER.readTree(requestBodyText);
 
         assertTrue(requestBodyText.lines().count() > 1);
-        assertEquals(QUERY, requestBody.path("query").textValue());
-        assertEquals(OPERATION_NAME, requestBody.path("operationName").textValue());
-        assertEquals("42", requestBody.path("variables").path("id").textValue());
+        assertEquals(QUERY, requestBody.path("query").stringValue());
+        assertEquals(OPERATION_NAME, requestBody.path("operationName").stringValue());
+        assertEquals("42", requestBody.path("variables").path("id").stringValue());
     }
 }

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.maven.plugin.domain.builders.chain;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
@@ -11,8 +10,10 @@ import org.qubership.integration.platform.maven.plugin.mojos.ControlPlaneType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.List;
+
 
 @Component
 public class OptionControlledHttpRouteResourceBuilder extends HttpRouteResourceBuilder {

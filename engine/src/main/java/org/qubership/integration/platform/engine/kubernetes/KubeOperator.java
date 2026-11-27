@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.kubernetes;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
@@ -32,6 +31,7 @@ import okhttp3.Response;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +40,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
+
+
 
 @Slf4j
 public class KubeOperator {

@@ -1,0 +1,55 @@
+---
+id: "e2e1a002-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-legacy-header-source"
+description: "A Kafka trigger that records the legacy header values before calling the Kafka sender chain."
+content:
+  labels: []
+  elements:
+  - id: "e2e1a002-0000-4000-8000-000000000002"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-legacy-header-source"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-kafka-legacy-header-source"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "latest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e1a002-0000-4000-8000-000000000003"
+    name: "Read Legacy Headers"
+    type: "script"
+    properties:
+      script: |-
+        def data = new groovy.json.JsonSlurper().parseText(exchange.getMessage().getBody(String))
+        def message = exchange.getMessage()
+        def nativeHeaders = message.getHeader('kafka.HEADERS')
+        def userHeaders = nativeHeaders == null ? null : (nativeHeaders.toArray()
+            .findAll { it.key() == data.userHeaderName }
+            .collect { new String(it.value(), java.nio.charset.StandardCharsets.UTF_8) } ?: null)
+        data.observed = [
+            topic: message.getHeader('kafka.TOPIC'),
+            key: message.getHeader('kafka.KEY'),
+            userHeaders: userHeaders
+        ]
+        message.setBody(groovy.json.JsonOutput.toJson(data))
+  - id: "e2e1a002-0000-4000-8000-000000000004"
+    name: "Chain Call"
+    type: "chain-call-2"
+    properties:
+      elementId: "e2e1a001-0000-4000-8000-000000000002"
+      timeout: 30000
+  dependencies:
+  - from: "e2e1a002-0000-4000-8000-000000000002"
+    to: "e2e1a002-0000-4000-8000-000000000003"
+  - from: "e2e1a002-0000-4000-8000-000000000003"
+    to: "e2e1a002-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

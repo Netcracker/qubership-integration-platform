@@ -16,15 +16,16 @@
 
 package org.qubership.integration.platform.parsers.asyncapi;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.asyncapi.*;
 import org.qubership.integration.platform.parsers.model.asyncapi.components.Components;
 import org.qubership.integration.platform.parsers.model.asyncapi.v3.*;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
+
 
 /**
  * Converts an AsyncAPI 3.0 document into the 2.x model the resolvers consume.

@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.mapper.build.atlasmap;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.atlasmap.json.v2.JsonDataSource;
 import io.atlasmap.json.v2.JsonField;
 import io.atlasmap.v2.*;
@@ -31,6 +28,7 @@ import org.apache.commons.collections4.ListUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.message.BasicNameValuePair;
+import org.qubership.integration.platform.io.configuration.MapperInclusion;
 import org.qubership.integration.platform.mapper.ComplexField;
 import org.qubership.integration.platform.mapper.GeneratedField;
 import org.qubership.integration.platform.mapper.build.DataTypeUtils;
@@ -56,6 +54,8 @@ import org.qubership.integration.platform.mapper.model.mapping.definition.Object
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -111,8 +111,9 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
 
     @Autowired
     public AtlasMapInterpreter(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-        this.objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        this.objectMapper = objectMapper.rebuild()
+                .changeDefaultPropertyInclusion(MapperInclusion::nonNull)
+                .build();
         this.dataTypeToFieldTypeConverter = new DataTypeToFieldTypeConverter();
     }
 
@@ -135,7 +136,7 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
 
         try {
             return objectMapper.writeValueAsString(atlasMapping);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new MapperException(SERIALIZE_CONFIGURATION_ERROR_MESSAGE, e);
         }
     }

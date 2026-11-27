@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.consul;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +26,7 @@ import org.qubership.integration.platform.engine.model.deployment.engine.EngineI
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;

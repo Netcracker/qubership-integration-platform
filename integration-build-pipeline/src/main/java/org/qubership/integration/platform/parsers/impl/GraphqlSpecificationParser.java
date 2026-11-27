@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.language.AstPrinter;
 import graphql.language.Definition;
 import graphql.language.Document;
@@ -33,10 +31,13 @@ import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @Parser("graphqlschema")

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.camel.Exchange;
@@ -44,7 +43,7 @@ class McpToolRegistrarTest {
         context = mock(SpringCamelContext.class);
         when(context.getRegistry()).thenReturn(new DefaultRegistry());
         toolTargets = new McpToolTargets();
-        registrar = new McpToolRegistrar(new ObjectMapper(), toolTargets);
+        registrar = new McpToolRegistrar(toolTargets);
     }
 
     @Test

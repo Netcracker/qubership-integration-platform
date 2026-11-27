@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.sessions.mapper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.mapstruct.Mapper;
@@ -30,6 +27,9 @@ import org.qubership.integration.platform.sessions.dto.opensearch.SessionElement
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -176,7 +176,7 @@ public abstract class SessionElementMapper {
             if (StringUtils.isNotEmpty(v2PropsJson)) {
                 return objectMapper.readValue(v2PropsJson, new TypeReference<>() {});
             }
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error while deserializing json string: {}", v2PropsJson);
         }
 
@@ -189,7 +189,7 @@ public abstract class SessionElementMapper {
         }
         try {
             return objectMapper.readValue(jsonString, new TypeReference<>(){});
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error while deserializing json string: {}", jsonString);
         }
         return null;
@@ -202,7 +202,7 @@ public abstract class SessionElementMapper {
     protected String convertMapToJson(Map<String, String> map) {
         try {
             return objectMapper.writeValueAsString(map);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error while serializing map to json: {}", map);
         }
         return null;
@@ -211,7 +211,7 @@ public abstract class SessionElementMapper {
     protected String convertSessionElementPropertyMapToJson(Map<String, SessionElementProperty> map) {
         try {
             return objectMapper.writeValueAsString(map);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error while serializing map to json: {}", map);
         }
         return null;

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.chain;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.SnapshotBeanBuilder;
@@ -8,9 +7,11 @@ import org.qubership.integration.platform.chain.model.MaskedField;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Set;
 import java.util.stream.Collectors;
+
 
 @Component
 public class MaskedFieldsBeanBuilder implements SnapshotBeanBuilder {

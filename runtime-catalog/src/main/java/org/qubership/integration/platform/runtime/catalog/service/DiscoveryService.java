@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -55,8 +50,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
-import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -461,7 +460,7 @@ public class DiscoveryService {
             }
             ObjectNode specObj = (ObjectNode) node;
             return specObj.has("swagger") ? "swagger" : specObj.has("openapi") ? "openapi" : null;
-        } catch (JsonProcessingException ignored) {
+        } catch (JacksonException ignored) {
             log.error("Error while processing specification from URL {}", url);
             return null;
         }
@@ -668,7 +667,7 @@ public class DiscoveryService {
                     }
                     asyncUrls.put(url + "/" + specId + "/version/" + specVersion, specName);
                 }
-            } catch (IOException | NullPointerException ignored) {
+            } catch (RuntimeException ignored) {
                 log.error("Error while reading response from address {}", address);
             }
         }
@@ -705,7 +704,7 @@ public class DiscoveryService {
                         swaggerUrls.put(urlNode.get(SPEC_FIELD_URL).asText(), specName);
                     }
                 }
-            } catch (IOException | NullPointerException ignored) {
+            } catch (RuntimeException ignored) {
             }
         }
 
@@ -744,10 +743,10 @@ public class DiscoveryService {
         try {
             try {
                 version = this.objectMapper.readTree(specificationContent).get(SPEC_FIELD_INFO).get(SPEC_FIELD_VERSION).asText("");
-            } catch (IOException | NullPointerException e) {
+            } catch (RuntimeException e) {
                 version = this.yamlMapper.readTree(specificationContent).get(SPEC_FIELD_INFO).get(SPEC_FIELD_VERSION).asText("");
             }
-        } catch (IOException | NullPointerException e) {
+        } catch (RuntimeException e) {
             log.error("Error while parsing version from address: {}", address);
             return null;
         }
@@ -764,7 +763,7 @@ public class DiscoveryService {
         DiscoveryStatusDTO dto = new DiscoveryStatusDTO(result, errorMessage);
         try {
             cp.setString(objectMapper.writeValueAsString(dto));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Unable to set discovery status: " + e.getMessage());
         }
         // Readers fetch the result once the progress reads 100, so both are committed together.
@@ -817,7 +816,7 @@ public class DiscoveryService {
         DiscoveryStatusDTO status = new DiscoveryStatusDTO();
         try {
             status = objectMapper.readValue(rawStatusData, DiscoveryStatusDTO.class);
-        } catch (JsonProcessingException | RuntimeException ignored) {
+        } catch (RuntimeException ignored) {
         }
 
 

@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.maven.plugin.domain.adapters;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.chain.impl.LabelImpl;
 import org.qubership.integration.platform.chain.impl.ServiceEnvironmentBuilder;
 import org.qubership.integration.platform.chain.model.ImportEnvironment;
@@ -13,8 +11,11 @@ import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.ServiceType;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
+
 
 /**
  * Presents an {@link ImportSystem} read from a service file as the {@link IntegrationService} the

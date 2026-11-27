@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +26,8 @@ import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplateInstantiationException;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 
@@ -74,7 +74,7 @@ public class EnvironmentPropertiesHelperTest {
 
     @DisplayName("Extracting empty environment properties")
     @Test
-    public void emptyEnvironmentPropertiesJsonTest() throws JsonProcessingException {
+    public void emptyEnvironmentPropertiesJsonTest() throws JacksonException {
         String environmentJson = """
                    {
                       "id": "d711bef5-14fd-4295-a665-92b99936649e",
@@ -137,7 +137,7 @@ public class EnvironmentPropertiesHelperTest {
 
     @DisplayName("Extracting empty async environment properties")
     @Test
-    public void emptyAsyncPropertiesJsonTest() throws JsonProcessingException {
+    public void emptyAsyncPropertiesJsonTest() throws JacksonException {
         String environmentJson = """
                    {
                       "id": "9c8c1b26-63b6-4f6d-91f9-371d743965f0",

@@ -68,7 +68,7 @@ public class ElementModificationService {
                 elementProperties.put("systemType", "IMPLEMENTED");
                 elementProperties.put("integrationSystemId", specificationGroup.getSystem().getId());
                 elementProperties.put("integrationSpecificationGroupId", specificationGroup.getId());
-                elementProperties.put("contextPath", null);
+                elementProperties.remove("contextPath");
 
                 element.setProperties(elementProperties);
                 this.elementService.save(element);

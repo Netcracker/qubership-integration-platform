@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.cloudcore.maas;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.netcracker.cloud.maas.client.api.Classifier;
 import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.kafka.TopicAddress;
@@ -27,6 +24,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -124,7 +124,7 @@ public class MaasService {
     public byte[] getMaasDeclarativeFileKafka(@NotEmpty String topicClassifierName) {
         try {
             return yamlMapper.writeValueAsBytes(buildKafkaConfig(MAAS_NAMESPACE_PLACEHOLDER, topicClassifierName));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Unable to generate declarative file", e);
         }
     }
@@ -132,7 +132,7 @@ public class MaasService {
     public byte[] getMaasDeclarativeFileRabbitMq(@NotEmpty String vhost, String exchange, String queue, String routingKey) {
         try {
             return yamlMapper.writeValueAsBytes(buildRabbitmqConfig(MAAS_NAMESPACE_PLACEHOLDER, vhost, exchange, queue, routingKey));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Unable to generate declarative file", e);
         }
     }
@@ -144,7 +144,7 @@ public class MaasService {
 
         return MaasRabbitmqConfig.builder()
                 .spec(Spec.builder()
-                        .classifier(new Classifier(vhost, Classifier.NAMESPACE, namespace))
+                        .classifier(new Classifier(vhost, Classifier.NAMESPACE, namespace).toMap())
                         .entities(Entities.builder()
                                 .exchanges(buildRabbitmqExchangeConfig(exchange))
                                 .queues(buildRabbitmqQueueConfig(queue))
@@ -157,7 +157,7 @@ public class MaasService {
     private MaasKafkaConfig buildKafkaConfig(@NotEmpty String namespace, @NotEmpty String topicClassifierName) {
         return MaasKafkaConfig.builder().spec(
                         Spec.builder().classifier(
-                                        new Classifier(topicClassifierName, Classifier.NAMESPACE, namespace))
+                                        new Classifier(topicClassifierName, Classifier.NAMESPACE, namespace).toMap())
                                 .build())
                 .build();
     }
@@ -237,7 +237,7 @@ public class MaasService {
         if (log.isDebugEnabled()) {
             try {
                 log.debug("Apply MaaSConfiguration: {}", jsonMapper.writeValueAsString(configuration));
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.warn("Failed to serialize MaaS configuration request", e);
             }
         }

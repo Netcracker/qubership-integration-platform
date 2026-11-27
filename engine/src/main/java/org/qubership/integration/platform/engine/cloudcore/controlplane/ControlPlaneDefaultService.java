@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -27,6 +24,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.util.Collections;
@@ -100,10 +100,10 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * Get all routes in control plane
      *
      * @return routes
-     * @throws JsonProcessingException failed to deserialize response
+     * @throws JacksonException failed to deserialize response
      * @throws ControlPlaneException   if control plane not available
      */
-    public List<RouteConfigurationResponse> getRoutesList() throws JsonProcessingException, ControlPlaneException, RestClientException {
+    public List<RouteConfigurationResponse> getRoutesList() throws JacksonException, ControlPlaneException, RestClientException {
         ResponseEntity<String> response = restTemplateMS
                 .getForEntity(controlPlaneHost + getRoutesEndpoint, String.class);
 
@@ -374,7 +374,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     /**
      * Create or update route configuration or tls definition V3
      */
-    private void postConfigurationV3(Object configuration) throws JsonProcessingException {
+    private void postConfigurationV3(Object configuration) throws JacksonException {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 

@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.codeview.serializer;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ser.std.StdSerializer;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
+
 
 @Slf4j
 public class CodeviewChainElementSerializer extends StdSerializer<ChainElement> {
@@ -35,28 +35,29 @@ public class CodeviewChainElementSerializer extends StdSerializer<ChainElement> 
 
     @SuppressWarnings("DuplicatedCode")
     @Override
-    public void serialize(ChainElement element, JsonGenerator generator, SerializerProvider serializer) throws IOException {
+    public void serialize(ChainElement element, JsonGenerator generator, SerializationContext serializer) {
         try {
             generator.writeStartObject();
 
-            generator.writeStringField("id", element.getId());
+            generator.writeStringProperty("id", element.getId());
             if (element.getName() != null) {
-                generator.writeStringField("name", element.getName());
+                generator.writeStringProperty("name", element.getName());
             }
-            generator.writeStringField("description", element.getDescription());
+            generator.writeStringProperty("description", element.getDescription());
 
             writeProperties(element, generator);
 
             generator.writeEndObject();
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             log.warn("Exception while serializing ChainElement {}, exception: ", element.getId(), e);
             throw e;
         }
     }
 
-    private void writeProperties(ChainElement element, JsonGenerator generator) throws IOException {
+    private void writeProperties(ChainElement element, JsonGenerator generator) {
         Map<String, Object> properties = new TreeMap<>(element.getProperties());
-        generator.writeObjectField("properties", properties);
+        generator.writeName("properties");
+        generator.writePOJO(properties);
     }
 
 }

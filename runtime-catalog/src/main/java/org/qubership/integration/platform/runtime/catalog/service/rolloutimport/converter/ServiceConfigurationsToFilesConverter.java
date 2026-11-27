@@ -1,16 +1,16 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -48,7 +48,7 @@ public class ServiceConfigurationsToFilesConverter {
             Map<String, RolloutImportConfigurationItem> specGroupConfigs,
             Map<String, RolloutImportConfigurationItem> contextServiceConfigs,
             Map<String, String> resources
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         Map<Path, byte[]> files = new HashMap<>();
         convertServices(files, serviceConfigs, id -> generateMainSystemFileExportName(id, false));
         convertServices(files, contextServiceConfigs, id -> generateMainContextServiceFileExportName(id, false));
@@ -61,13 +61,13 @@ public class ServiceConfigurationsToFilesConverter {
             Map<Path, byte[]> files,
             Map<String, RolloutImportConfigurationItem> serviceConfigs,
             UnaryOperator<String> fileNameBuilder
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
             JsonNode contentNode = serviceConfig.getValue().getContent();
             if (contentNode instanceof ObjectNode serviceContent) {
                 serviceContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
-                        TextNode.valueOf(MigrationUtil.formatVersions(serviceImportFileMigrations))
+                        StringNode.valueOf(MigrationUtil.formatVersions(serviceImportFileMigrations))
                 );
             }
 
@@ -82,7 +82,7 @@ public class ServiceConfigurationsToFilesConverter {
             Map<Path, byte[]> files,
             Map<String, RolloutImportConfigurationItem> serviceConfigs,
             Map<String, RolloutImportConfigurationItem> specGroupConfigs
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         for (Map.Entry<String, RolloutImportConfigurationItem> specGroupConfig : specGroupConfigs.entrySet()) {
             String specGroupId = specGroupConfig.getKey();
             String serviceId = getParentId(specGroupConfig.getValue().getContent());
@@ -108,7 +108,7 @@ public class ServiceConfigurationsToFilesConverter {
             Map<String, RolloutImportConfigurationItem> specGroupConfigs,
             Map<String, RolloutImportConfigurationItem> specificationConfigs,
             Map<String, String> resources
-    ) throws JsonProcessingException {
+    ) throws JacksonException {
         for (Map.Entry<String, RolloutImportConfigurationItem> specificationConfig : specificationConfigs.entrySet()) {
             String specificationId = specificationConfig.getKey();
             String specGroupId = getParentId(specificationConfig.getValue().getContent());
@@ -139,7 +139,7 @@ public class ServiceConfigurationsToFilesConverter {
             String specificationFileName = generateSpecificationFileExportName(specificationId, false);
             putYaml(files, serviceDirectory.resolve(specificationFileName), specificationConfig.getValue());
 
-            List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
+            List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsString(SPECIFICATION_FILE_NAME_FIELD_KEY)
                     .stream()
                     .map(Paths::get)
                     .toList();
@@ -159,7 +159,7 @@ public class ServiceConfigurationsToFilesConverter {
         return (parentIdNode.isMissingNode() || parentIdNode.isNull()) ? null : parentIdNode.asText();
     }
 
-    private void putYaml(Map<Path, byte[]> files, Path path, RolloutImportConfigurationItem configurationItem) throws JsonProcessingException {
+    private void putYaml(Map<Path, byte[]> files, Path path, RolloutImportConfigurationItem configurationItem) throws JacksonException {
         files.put(path, objectMapper.writeValueAsBytes(configurationItem));
     }
 }

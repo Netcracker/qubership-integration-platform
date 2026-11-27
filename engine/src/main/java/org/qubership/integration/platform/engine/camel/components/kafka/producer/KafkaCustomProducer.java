@@ -23,6 +23,7 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomEndpoint;
+import org.qubership.integration.platform.engine.camel.components.kafka.KafkaLegacyHeaderCompatibility;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
     private Producer kafkaProducer;
     private final KafkaCustomEndpoint endpoint;
     private final KafkaCustomConfiguration configuration;
+    private final KafkaLegacyHeaderCompatibility legacyHeaderCompatibility;
     private ExecutorService workerPool;
     private boolean shutdownWorkerPool;
     private volatile boolean closeKafkaProducer;
@@ -55,6 +57,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
         super(endpoint);
         this.endpoint = endpoint;
         this.configuration = endpoint.getConfiguration();
+        this.legacyHeaderCompatibility = new KafkaLegacyHeaderCompatibility(configuration.getLegacyHeaderNames());
 
         endpointTopic = URISupport.extractRemainderPath(URI.create(endpoint.getEndpointUri()), true);
         configPartitionKey = configuration.getPartitionKey();
@@ -189,7 +192,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     private Object getOverrideKey(Message message) {
         if (ObjectHelper.isEmpty(configKey)) {
-            return message.getHeader(KafkaConstants.KEY);
+            return legacyHeaderCompatibility.getHeaderValue(message, KafkaConstants.KEY);
         }
 
         return configKey;
@@ -197,7 +200,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     private Integer getOverridePartitionKey(Message message) {
         if (ObjectHelper.isEmpty(configPartitionKey)) {
-            return message.getHeader(KafkaConstants.PARTITION_KEY, Integer.class);
+            return legacyHeaderCompatibility.getHeaderValue(message, KafkaConstants.PARTITION_KEY, Integer.class);
         }
 
         return configPartitionKey;
@@ -211,7 +214,7 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
 
     private String evaluateTopic(Message message) {
         // must remove header so it's not propagated.
-        Object overrideTopic = message.removeHeader(KafkaConstants.OVERRIDE_TOPIC);
+        Object overrideTopic = legacyHeaderCompatibility.removeHeaderValue(message, KafkaConstants.OVERRIDE_TOPIC);
         if (overrideTopic != null) {
             LOG.debug("Using override topic: {}", overrideTopic);
             return overrideTopic.toString();

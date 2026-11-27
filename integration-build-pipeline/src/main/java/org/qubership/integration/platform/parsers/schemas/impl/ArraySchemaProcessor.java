@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.parsers.schemas.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.HashMap;
 import java.util.List;
@@ -53,7 +53,7 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
+    public MutablePair<String, String> process(Schema<?> schema, com.fasterxml.jackson.databind.ObjectMapper mapper) {
         ArraySchema arraySchema = (ArraySchema) schema;
         Schema<?> itemsSchema = arraySchema.getItems();
         if (itemsSchema == null) {
@@ -66,19 +66,19 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
         }
         SchemaProcessor schemaProcessor = schemaProcessorMap.getOrDefault(itemsSchema.getClass().getSimpleName(),
                 schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS));
-        ObjectNode arraySchemaNode = mapper.createObjectNode();
+        ObjectNode arraySchemaNode = objectMapper.createObjectNode();
 
         MutablePair<String, String> processedSchemaPair = schemaProcessor.process(itemsSchema, mapper);
         arraySchemaNode.set(TYPE_NODE_NAME, ARRAY_TYPE_NODE);
 
         try {
-            ObjectNode itemsNode = (ObjectNode) mapper.readTree(processedSchemaPair.getRight());
+            ObjectNode itemsNode = (ObjectNode) objectMapper.readTree(processedSchemaPair.getRight());
             // An $id inside items would make #/definitions references resolve against the item, not the root.
             putIfNotNull(arraySchemaNode, SCHEMA_ID_NODE_NAME, itemsNode.remove(SCHEMA_ID_NODE_NAME));
             putIfNotNull(arraySchemaNode, SCHEMA_HEADER_NODE_NAME, itemsNode.remove(SCHEMA_HEADER_NODE_NAME));
             arraySchemaNode.set(ITEMS_NODE_NAME, itemsNode);
-            processedSchemaPair.setRight(mapper.writeValueAsString(arraySchemaNode));
-        } catch (JsonProcessingException e) {
+            processedSchemaPair.setRight(objectMapper.writeValueAsString(arraySchemaNode));
+        } catch (JacksonException e) {
             log.error("Error during converting content string schema to JSON", e);
         }
 
@@ -98,7 +98,7 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
             resultSchema.set(ITEMS_NODE_NAME, itemsNode);
             resultSchema.set(DEFINITIONS_NODE_NAME, definitions);
             return resultSchema;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error during converting content string schema to JSON", e);
         }
         return objectMapper.createObjectNode();

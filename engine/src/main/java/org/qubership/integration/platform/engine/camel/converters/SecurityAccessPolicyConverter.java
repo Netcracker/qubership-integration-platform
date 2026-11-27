@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.converters;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.NoTypeConversionAvailableException;
 import org.apache.camel.TypeConversionException;
@@ -27,8 +24,14 @@ import org.qubership.integration.platform.engine.security.CipSecurityAccessPolic
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+
+
+
 
 @Component
 public class SecurityAccessPolicyConverter implements TypeConverter {
@@ -51,7 +54,7 @@ public class SecurityAccessPolicyConverter implements TypeConverter {
         try {
             List<String> attributes = objectMapper.readValue(value.toString(), STRING_LIST_TYPE_REFERENCE);
             return (T) CipSecurityAccessPolicy.fromStrings(attributes);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new TypeConversionException(value, type, exception);
         }
     }

@@ -188,12 +188,14 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
       - description: Exchange ID
         in: path
         name: exchangeId
         required: true
         schema:
           type: string
+          minLength: 1
       responses:
         "200":
           description: OK

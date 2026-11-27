@@ -18,13 +18,17 @@
  * before the send.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
-import { publishKafka as publish, consumeOneKafka as consumeOne } from "../../support/broker-clients.js";
-import { callToken } from "../../support/run.js";
+import { BROKERS_FIXTURE_DIR, BROKERS_LOGGING, brokerChain, deleteKafkaTopics, ensureKafkaTopics, readBrokersCorpusState, waitForKafkaConsumers } from "../../support/brokers.js";
+import { consumeMatchingKafka, publishKafka as publish, consumeOneKafka as consumeOne } from "../../support/broker-clients.js";
+import { callToken, tokenized } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER } from "../../support/sessions.js";
 import { expectBrokerTrigger } from "../../support/broker-trigger.js";
 import { covers } from "../../registry/covers.js";
 import { readUntil } from "../../support/poll.js";
+import { withOwnFixture } from "../../support/spec-owned.js";
+
+/** The duplicate-delivery window starts after all expected records have arrived. */
+const KAFKA_DUPLICATE_WINDOW = 10_000;
 
 /** What `readUntil` gets for the offset-moved case's settle window, instead of a bare literal. */
 const OFFSET_SETTLE_TIMEOUT = 10_000;
@@ -78,6 +82,92 @@ test.describe("kafka", { tag: ["@engine", "@sessions", "@kafka"] }, () => {
       );
       const fresh = [...settled].filter((id) => !before.has(id));
       expect(fresh.sort()).toEqual([first.id, second.id].sort());
+    });
+
+    test("legacy Kafka headers and sender keys remain supported", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "the case deploys its own broker chains, and a deploy into the shared micro domain rolls its pod" } }, async ({ catalog, sessions, run }) => {
+      const sourceTopic = tokenized(run, "kafka-legacy-header-source");
+      const outputTopic = tokenized(run, "kafka-legacy-header-output");
+      const cases = [
+        {
+          token: callToken("legacy-header-repeated"),
+          inputKey: "input-key",
+          userHeaderValues: ["first", "second"],
+          senderMode: "legacy-only",
+          senderKey: "legacy-output-key",
+        },
+        {
+          token: callToken("legacy-header-null-key"),
+          inputKey: undefined,
+          userHeaderValues: undefined,
+          senderMode: "both-same",
+          senderKey: "paired-output-key",
+        },
+        {
+          token: callToken("legacy-header-empty-key"),
+          inputKey: "",
+          userHeaderValues: undefined,
+          senderMode: "legacy-only",
+          senderKey: "",
+        },
+      ];
+      await ensureKafkaTopics([sourceTopic, outputTopic]);
+      try {
+        await withOwnFixture(catalog, run, "kafka-legacy-header-callee.yaml", { dir: BROKERS_FIXTURE_DIR }, async () => {
+          await withOwnFixture(catalog, run, "kafka-legacy-header-source.yaml", { dir: BROKERS_FIXTURE_DIR, logging: BROKERS_LOGGING }, async (sourceChain) => {
+            await waitForKafkaConsumers([sourceTopic]);
+            for (const entry of cases) {
+              const payload = {
+                token: entry.token,
+                userHeaderName: "e2e-user-header",
+                senderMode: entry.senderMode,
+                senderKey: entry.senderKey,
+                marker: entry.token,
+              };
+              await publish(sourceTopic, entry.token, JSON.stringify(payload), {
+                ...(entry.inputKey === undefined ? {} : { key: entry.inputKey }),
+                ...(entry.userHeaderValues === undefined ? {} : { headers: { "e2e-user-header": entry.userHeaderValues } }),
+              });
+            }
+
+            const recorded = await Promise.all(cases.map((entry) =>
+              sessions.onlyOf(sourceChain.id, 2, (each) => each.externalSessionCipId === entry.token),
+            ));
+            for (const session of recorded) {
+              expect(session.chainId).toBe(sourceChain.id);
+              expect(failedElements(session)).toEqual([]);
+            }
+
+            const records = await consumeMatchingKafka(
+              outputTopic,
+              `${outputTopic}-e2e-consumer`,
+              (record) => record.value !== null && cases.some((entry) => record.value!.includes(entry.token)),
+              KAFKA_DUPLICATE_WINDOW,
+            );
+            const tokens = new Set(cases.map((entry) => entry.token));
+            const matchingSessions = (await sessions.search({}, { chainId: sourceChain.id, count: 100 })).sessions
+              .filter((session) => tokens.has(session.externalSessionCipId ?? ""));
+            expect(matchingSessions, "sessions created for the three trigger messages").toHaveLength(cases.length);
+            for (const entry of cases) {
+              expect(matchingSessions.filter((session) => session.externalSessionCipId === entry.token), `sessions recorded for ${entry.token}`).toHaveLength(1);
+            }
+            expect(records, "records published for the three trigger messages").toHaveLength(cases.length);
+            for (const entry of cases) {
+              const matching = records.filter((record) => record.value?.includes(entry.token));
+              expect(matching, `records published for ${entry.token}`).toHaveLength(1);
+              expect(matching[0].key).toBe(entry.senderKey);
+              const output = JSON.parse(matching[0].value!) as { marker: string; observed: { topic: string; key: string | null; userHeaders: string[] | null } };
+              expect(output.marker).toBe(entry.token);
+              expect(output.observed).toEqual({
+                topic: sourceTopic,
+                key: entry.inputKey ?? null,
+                userHeaders: entry.userHeaderValues ?? null,
+              });
+            }
+          });
+        });
+      } finally {
+        await deleteKafkaTopics([sourceTopic, outputTopic]);
+      }
     });
   });
 

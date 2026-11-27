@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.TagType;
@@ -29,6 +26,9 @@ import org.qubership.integration.platform.chain.impl.ElementBuilder;
 import org.qubership.integration.platform.chain.model.Element;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 
@@ -47,7 +47,7 @@ public class PropertyJsonHelperTest {
 
     @DisplayName("Extracting json property")
     @Test
-    public void jsonPropertyTest() throws JsonProcessingException, JSONException {
+    public void jsonPropertyTest() throws JacksonException, JSONException {
         String expected = """
             {
                 "order": {

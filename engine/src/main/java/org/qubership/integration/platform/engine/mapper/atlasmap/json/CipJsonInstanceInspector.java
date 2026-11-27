@@ -16,12 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.json;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import io.atlasmap.json.core.JsonComplexTypeFactory;
 import io.atlasmap.json.inspect.JsonInspectionException;
 import io.atlasmap.json.inspect.JsonInspector;
@@ -31,8 +25,13 @@ import io.atlasmap.v2.FieldStatus;
 import io.atlasmap.v2.FieldType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ValueNode;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
@@ -59,12 +58,11 @@ public class CipJsonInstanceInspector implements JsonInspector {
         }
         try {
             JsonDocument jsonDocument = AtlasJsonModelFactory.createJsonDocument();
-            ObjectMapper objectMapper = new ObjectMapper()
-                .enable(MapperFeature.BLOCK_UNSAFE_POLYMORPHIC_BASE_TYPES);
+            ObjectMapper objectMapper = new ObjectMapper();
 
             JsonNode rootNode = objectMapper.readTree(instance);
             if (rootNode.isObject()) {
-                Iterator<Entry<String, JsonNode>> fields = rootNode.fields();
+                Iterator<Entry<String, JsonNode>> fields = rootNode.properties().iterator();
                 while (fields.hasNext()) {
                     Entry<String, JsonNode> e = fields.next();
                     String key = e.getKey();
@@ -83,7 +81,7 @@ public class CipJsonInstanceInspector implements JsonInspector {
                 throw new IllegalArgumentException("JSON root must be object or array");
             }
             return jsonDocument;
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new JsonInspectionException(e);
         }
     }
@@ -93,7 +91,7 @@ public class CipJsonInstanceInspector implements JsonInspector {
             LOG.trace("Handling object node: {}", objectNode);
         }
         JsonComplexType complexType = createChildJsonComplexType(rootDocument, parent, key, isArray);
-        Iterator<Entry<String, JsonNode>> subFields = objectNode.fields();
+        Iterator<Entry<String, JsonNode>> subFields = objectNode.properties().iterator();
         while (subFields.hasNext()) {
             Entry<String, JsonNode> e = subFields.next();
             String subKey = e.getKey();
@@ -211,7 +209,7 @@ public class CipJsonInstanceInspector implements JsonInspector {
         } else if (valueNode.isTextual()) {
             field.setFieldType(FieldType.STRING);
             field.setStatus(FieldStatus.SUPPORTED);
-            field.setValue(valueNode.textValue());
+            field.setValue(valueNode.stringValue());
         } else if (valueNode.isBoolean()) {
             field.setFieldType(FieldType.BOOLEAN);
             field.setStatus(FieldStatus.SUPPORTED);

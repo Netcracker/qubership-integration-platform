@@ -1,17 +1,18 @@
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplatesHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
+
 
 /**
  * Handlebars helper that combines multiple validation schemas from the 'after'
@@ -60,7 +61,7 @@ public class ValidationSchemaHelper extends BaseHelper implements Helper<String>
                 oneOfArray.add(objectMapper.readTree(schema));
             }
             return objectMapper.writeValueAsString(combined);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Error combining validation schemas", e);
         }
     }

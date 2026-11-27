@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.handler;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.ExceptionDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.handler.exception.MicroserviceErrorResponseException;
@@ -27,10 +26,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResponseErrorHandler;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+
 
 @Component
 public class RestTemplateMsResponseErrorHandler implements ResponseErrorHandler {

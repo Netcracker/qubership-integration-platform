@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.io.readers.chain;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.chain.model.ImportChain;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalEntity;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
@@ -25,11 +24,13 @@ import org.qubership.integration.platform.io.readers.migrations.chain.ChainImpor
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Collection;
 import java.util.List;
+
 
 /**
  * Reads a chain from an exported chain directory into the library {@link ImportChain} model.

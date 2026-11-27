@@ -16,18 +16,19 @@
 
 package org.qubership.integration.platform.parsers.resolvers.async;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.asyncapi.Message;
 import org.qubership.integration.platform.parsers.model.asyncapi.OperationObject;
 import org.qubership.integration.platform.parsers.model.asyncapi.components.Components;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.*;
+
 
 public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiSpecificationResolver {
 
@@ -116,7 +117,7 @@ public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiS
         }
         try {
             return objectMapper.readTree(asyncApiSchemaResolver.resolveSchema(name, (ObjectNode) payload, importedComponents));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SpecificationParserException(SCHEMA_RESOLVING_ERROR, e);
         }
     }
@@ -126,7 +127,7 @@ public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiS
             String refName = ref.replace(MESSAGES_PREFIX, EMPTY_STRING_REPLACEMENT);
             String resolvedSchema = asyncApiSchemaResolver.resolveRef(ref, importedComponents);
             return new MutablePair<>(refName, objectMapper.readTree(resolvedSchema));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SpecificationParserException(SCHEMA_RESOLVING_ERROR, e);
         }
     }

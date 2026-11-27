@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -54,6 +50,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -125,7 +125,7 @@ public class ContextExportImportService {
             }
 
             return exportedSystem;
-        } catch (JsonProcessingException | IllegalArgumentException e) {
+        } catch (JacksonException | IllegalArgumentException e) {
             String systemId = system != null && system.getId() != null ? "with system id: " + system.getId() + " " : "";
             String errMessage = "Error while serializing system " + systemId + e.getMessage();
             log.error(errMessage);
@@ -421,7 +421,7 @@ public class ContextExportImportService {
     }
 
     protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode)
-            throws JsonProcessingException {
+            throws JacksonException {
         SystemDeserializationResult result = new SystemDeserializationResult();
 
         JsonNode idNode = serviceNode.get(AbstractSystemEntity.Fields.id);

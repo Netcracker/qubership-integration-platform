@@ -1,0 +1,49 @@
+---
+id: "e2e1a001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-legacy-header-callee"
+description: "A chain-call target that sets a Kafka key using legacy or paired header names and sends one record."
+content:
+  labels: []
+  elements:
+  - id: "e2e1a001-0000-4000-8000-000000000002"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "e2e1a001-0000-4000-8000-000000000002"
+  - id: "e2e1a001-0000-4000-8000-000000000003"
+    name: "Set Sender Key"
+    type: "script"
+    properties:
+      script: |-
+        def data = new groovy.json.JsonSlurper().parseText(exchange.getMessage().getBody(String))
+        def message = exchange.getMessage()
+        if (data.senderMode == 'legacy-only') {
+            message.removeHeader('CamelKafkaKey')
+            message.setHeader('kafka.KEY', data.senderKey)
+        } else if (data.senderMode == 'both-same') {
+            message.setHeader('kafka.KEY', data.senderKey)
+            message.setHeader('CamelKafkaKey', data.senderKey)
+        } else {
+            throw new IllegalArgumentException('Unknown sender mode: ' + data.senderMode)
+        }
+        message.setBody(groovy.json.JsonOutput.toJson(data))
+  - id: "e2e1a001-0000-4000-8000-000000000004"
+    name: "Kafka Sender"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-legacy-header-output"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  dependencies:
+  - from: "e2e1a001-0000-4000-8000-000000000002"
+    to: "e2e1a001-0000-4000-8000-000000000003"
+  - from: "e2e1a001-0000-4000-8000-000000000003"
+    to: "e2e1a001-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

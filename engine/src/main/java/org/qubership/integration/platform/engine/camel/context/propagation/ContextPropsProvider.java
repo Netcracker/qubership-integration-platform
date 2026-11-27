@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.camel.context.propagation;
 
-import com.fasterxml.jackson.dataformat.xml.util.CaseInsensitiveNameSet;
 import com.netcracker.cloud.context.propagation.core.ContextManager;
 import com.netcracker.cloud.context.propagation.core.contexts.SerializableDataContext;
 import lombok.extern.slf4j.Slf4j;
@@ -9,14 +8,20 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+
+
 
 @Slf4j
 @Component
 public class ContextPropsProvider {
 
     public Set<String> getDownstreamHeaders() {
-        return CaseInsensitiveNameSet.construct(getDownstreamHeadersSafe());
+        Set<String> headers = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        headers.addAll(getDownstreamHeadersSafe());
+        return headers;
     }
 
     private Set<String> getDownstreamHeadersSafe() {

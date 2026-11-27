@@ -16,9 +16,12 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.converters;
 
-import com.fasterxml.jackson.databind.util.StdConverter;
+import tools.jackson.databind.util.StdConverter;
 
 import java.time.Instant;
+
+
+
 
 public class LongToInstantConverter extends StdConverter<Long, Instant> {
     @Override

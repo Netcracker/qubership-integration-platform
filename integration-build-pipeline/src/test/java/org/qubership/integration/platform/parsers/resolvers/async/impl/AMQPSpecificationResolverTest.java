@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.parsers.resolvers.async.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
@@ -10,6 +8,8 @@ import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecifi
 import org.qubership.integration.platform.parsers.model.asyncapi.Channel;
 import org.qubership.integration.platform.parsers.model.asyncapi.OperationObject;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchemaResolver;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -16,16 +16,19 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.serializers;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
 
-import java.io.IOException;
 
-public class TimeValueSerializer extends JsonSerializer<TimeValue> {
+
+
+
+public class TimeValueSerializer extends ValueSerializer<TimeValue> {
     @Override
-    public void serialize(TimeValue timeValue, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    public void serialize(TimeValue timeValue, JsonGenerator jsonGenerator, SerializationContext serializerProvider) throws JacksonException {
         // TimeValue.parseTimeValue can't parse fractional values that is returning by TimeValue.toString
         jsonGenerator.writeString(timeValue.nanos() + "nanos");
     }

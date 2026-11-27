@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpStatus;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.generic.OpenSearchGenericClient;
@@ -26,9 +25,13 @@ import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 import org.qubership.integration.platform.engine.opensearch.ism.rest.ISMStatusResponse;
 import org.qubership.integration.platform.engine.opensearch.ism.rest.PolicyResponse;
 import org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Optional;
+
+
+
 
 public class IndexStateManagementClient {
     private final OpenSearchGenericClient client;

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -26,10 +25,12 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.OperationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
 
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
 
 @Slf4j
 @Component
@@ -82,7 +83,7 @@ public class ElementTemplateUtils {
                 templateResponseSchema.put(responseCode, codeMapping);
 
                 JsonNode contentTypes = entry.getValue();
-                for (Iterator<String> it = contentTypes.fieldNames(); it.hasNext(); ) {
+                for (Iterator<String> it = contentTypes.propertyNames().iterator(); it.hasNext(); ) {
                     String contentType = it.next();
                     JsonNode schemaNode = contentTypes.get(contentType);
                     codeMapping.put(contentType, schemaToDDSConverter.toProperties(schemaNode));

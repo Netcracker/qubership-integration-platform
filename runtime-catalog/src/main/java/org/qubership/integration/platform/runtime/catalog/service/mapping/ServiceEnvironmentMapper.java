@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.mapping;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
@@ -26,8 +23,12 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
+
 
 @Mapper(componentModel = "spring", uses = { MapperUtils.class })
 public abstract class ServiceEnvironmentMapper {

@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.consul;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -35,10 +33,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @Component
@@ -184,7 +185,7 @@ public class ConsulService {
                         entry -> {
                             try {
                                 return objectMapper.writeValueAsString(entry.getValue());
-                            } catch (JsonProcessingException e) {
+                            } catch (JacksonException e) {
                                 throw new RuntimeException(e);
                             }
                         })));
@@ -301,7 +302,7 @@ public class ConsulService {
                 if (decodedValue != null) {
                     reports.add(objectMapper.readValue(decodedValue, EngineState.class));
                 }
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new RuntimeException(e);
             }
         }

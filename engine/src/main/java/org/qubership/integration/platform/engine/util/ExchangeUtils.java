@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import groovy.lang.Closure;
 import groovy.lang.Script;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +26,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.service.debugger.util.json.JsonSerializationHelper;
 import org.springframework.http.MediaType;
+import tools.jackson.core.JacksonException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -94,7 +94,7 @@ public class ExchangeUtils {
                             : JsonSerializationHelper.serializeJson(value))
                     .build();
 
-            } catch (JsonProcessingException exception) {
+            } catch (JacksonException exception) {
                 log.error(exception.getMessage());
             }
         }

@@ -40,6 +40,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.function.BiFunction;
 
+
+
+
 @AtlasModuleDetail(
         name = "CipJsonAtlasModule",
         uri = "atlas:cip:json",
@@ -83,7 +86,7 @@ public class CipJsonAtlasModule extends ComplexMappingAtlasModule {
         super.processPreTargetExecution(session);
         JsonFieldWriter writer = session.getFieldWriter(getDocId(), JsonFieldWriter.class);
         ObjectMapper objectMapper = writer.getObjectMapper();
-        objectMapper.enable(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN);
+        objectMapper.configure(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, true);
     }
 
     @Override

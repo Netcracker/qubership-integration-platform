@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +10,9 @@ import org.qubership.integration.platform.io.readers.migrations.FileMigrationSer
 import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.List;
 

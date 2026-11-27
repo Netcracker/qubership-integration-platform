@@ -1,16 +1,17 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
 
 @Slf4j
 @Component
@@ -24,7 +25,7 @@ public class VariableConfigurationsToFilesConverter {
         this.objectMapper = objectMapper;
     }
 
-    public Map<Path, byte[]> convert(Map<String, JsonNode> variableConfigs) throws JsonProcessingException {
+    public Map<Path, byte[]> convert(Map<String, JsonNode> variableConfigs) throws JacksonException {
         if (variableConfigs.isEmpty()) {
             return Collections.emptyMap();
         }

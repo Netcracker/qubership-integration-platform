@@ -1,13 +1,13 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.function.Failable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 
 @Slf4j
 @Service
@@ -87,7 +88,7 @@ public class ResourceWriteService {
         }));
     }
 
-    private ResourceNameAndKind getResourceNameAndKind(String content) throws JsonProcessingException, ResourceWriteException {
+    private ResourceNameAndKind getResourceNameAndKind(String content) throws JacksonException, ResourceWriteException {
         JsonNode node = yamlMapper.readTree(removeHelmTemplateExpressions(content));
         String kind = node.path("kind").asText();
         if (kind.isEmpty()) {

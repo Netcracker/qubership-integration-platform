@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.parser.ParserOptions;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.Parser;
@@ -32,6 +31,7 @@ import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBas
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Objects;
 import java.util.Set;

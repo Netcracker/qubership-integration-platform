@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.12</version>
+    <version>4.1.1</version>
     <relativePath/>
   </parent>
 
@@ -56,7 +56,7 @@
     <amqp-client.version>5.34.0</amqp-client.version>
     <antlr4.version>4.13.2</antlr4.version>
     <atlasmap.version>2.5.2</atlasmap.version>
-    <camel.version>4.18.2</camel.version>
+    <camel.version>4.22.2</camel.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <commons-collections4.version>4.5.0</commons-collections4.version>
     <commons-io.version>2.22.0</commons-io.version>
@@ -65,14 +65,14 @@
     <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
+    <google-auth.version>1.50.0</google-auth.version>
     <google-guava.version>33.7.2-jre</google-guava.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
-    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
+    <groovy-apache-bom.version>5.0.8</groovy-apache-bom.version>
     <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
     <grpc.version>1.75.0</grpc.version>
     <handlebars.version>4.3.1</handlebars.version>
-    <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
-    <jackson.version>2.19.4</jackson.version>
+    <hypersistence-utils-hibernate.version>3.16.0</hypersistence-utils-hibernate.version>
     <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <jandex.version>3.4.0</jandex.version>
     <jose4j.version>0.9.6</jose4j.version>
@@ -82,7 +82,7 @@
     <logback-gelf.version>5.0.1</logback-gelf.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-    <lombok.version>1.18.46</lombok.version>
+    <lombok.version>1.18.48</lombok.version>
     <lz4-java.version>1.11.4</lz4-java.version>
     <mapstruct.version>1.5.5.Final</mapstruct.version>
     <okio.version>3.16.4</okio.version>
@@ -90,25 +90,25 @@
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <postgresql.version>42.7.11</postgresql.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
+    <protobuf-engine.version>4.33.6</protobuf-engine.version>
     <reflections.version>0.10.2</reflections.version>
     <snappy-java.version>1.1.10.9</snappy-java.version>
     <soa-model-core.version>1.6.4</soa-model-core.version>
     <spring-ai.version>1.1.3</spring-ai.version>
-    <spring-cloud.version>2025.0.1</spring-cloud.version>
-    <springdoc.version>2.8.15</springdoc.version>
+    <spring-cloud.version>2025.1.4</spring-cloud.version>
+    <springdoc.version>3.2.0</springdoc.version>
     <swagger-core.version>2.2.43</swagger-core.version>
     <swagger-parser.version>2.1.38</swagger-parser.version>
     <wire.version>4.9.7</wire.version>
     <woden-core.version>1.0M10</woden-core.version>
 
     <!-- Cloud-Core -->
-    <blue-green.version>1.3.2</blue-green.version>
-    <consul-config-provider.version>6.2.2</consul-config-provider.version>
-    <dbaas-client-bom.version>8.4.3</dbaas-client-bom.version>
-    <dbaas-resttemplate.version>8.4.3</dbaas-resttemplate.version>
-    <maas-client-bom.version>11.1.3</maas-client-bom.version>
-    <maas-kafka-declarative-client.version>6.2.1</maas-kafka-declarative-client.version>
-    <security-core-utils.version>3.1.8</security-core-utils.version>
+    <qubership-core.version>12.2.9</qubership-core.version>
+    <blue-green.version>2.2.9</blue-green.version>
+    <consul-config-provider.version>7.5.6</consul-config-provider.version>
+    <maas-client-spring.version>9.2.9</maas-client-spring.version>
+    <maas-kafka-declarative-client.version>7.2.9</maas-kafka-declarative-client.version>
+    <security-core-utils.version>3.2.9</security-core-utils.version>
 
     <!-- Newest versions requires commons-io 2.15! -->
     <!-- TODO update io.kubernetes.client-java before update this library -->
@@ -116,7 +116,7 @@
 
     <!-- Common plugin versions -->
     <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-    <hibernate-enhance-maven-plugin.version>${hibernate.version}</hibernate-enhance-maven-plugin.version>
+    <hibernate-maven-plugin.version>${hibernate.version}</hibernate-maven-plugin.version>
     <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
@@ -129,15 +129,8 @@
       <!-- BOMs -->
       <dependency>
         <groupId>com.netcracker.cloud</groupId>
-        <artifactId>dbaas-client-bom</artifactId>
-        <version>${dbaas-client-bom.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>com.netcracker.cloud.maas.client</groupId>
-        <artifactId>maas-client-bom</artifactId>
-        <version>${maas-client-bom.version}</version>
+        <artifactId>cloud-core-java-bom</artifactId>
+        <version>${qubership-core.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -151,13 +144,9 @@
 
       <!-- cloud-core dependencies -->
       <dependency>
-        <groupId>com.netcracker.cloud</groupId>
-        <artifactId>dbaas-client-resttemplate</artifactId>
-        <version>${dbaas-resttemplate.version}</version>
-      </dependency>
-      <dependency>
         <groupId>com.netcracker.cloud.maas.client</groupId>
         <artifactId>maas-client-spring</artifactId>
+        <version>${maas-client-spring.version}</version>
       </dependency>
       <dependency>
         <groupId>com.netcracker.cloud.maas.declarative</groupId>

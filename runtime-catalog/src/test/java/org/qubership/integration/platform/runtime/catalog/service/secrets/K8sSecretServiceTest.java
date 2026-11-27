@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.secrets;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1Secret;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +41,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import tools.jackson.core.JacksonException;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.Collections;
 import java.util.Map;
@@ -181,7 +181,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should return secret template when secret exists")
     @Test
-    void shouldReturnSecretTemplateWhenSecretExists() throws JsonProcessingException {
+    void shouldReturnSecretTemplateWhenSecretExists() throws JacksonException {
         V1Secret secret = new V1Secret();
         secret.setKind("Secret");
         doReturn(secret).when(operator).getSecretObjectByName(eq(SECRET_NAME));

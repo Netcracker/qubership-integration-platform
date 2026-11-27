@@ -17,21 +17,22 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.proxy.HibernateProxy;
+import org.hibernate.type.SqlTypes;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
 
 @Getter
 @Setter
@@ -48,7 +49,7 @@ public class Operation extends AbstractSystemEntity {
     @Column(nullable = false)
     private String path;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private JsonNode specification;
 
@@ -57,11 +58,11 @@ public class Operation extends AbstractSystemEntity {
     @JoinColumn(name = "model_id")
     private SystemModel systemModel;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, JsonNode> requestSchema;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, JsonNode> responseSchemas;
 

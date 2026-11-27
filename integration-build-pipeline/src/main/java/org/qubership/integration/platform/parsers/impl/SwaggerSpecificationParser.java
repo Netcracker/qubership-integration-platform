@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.swagger.parser.util.DeserializationUtils;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
@@ -48,6 +43,11 @@ import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.parsers.resolvers.SwaggerSchemaResolver;
 import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -81,6 +81,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
     private final SwaggerSchemaResolver swaggerSchemaResolver;
     private final OpenApiMapperResolver openApiMapperResolver;
+    private final ObjectMapper treeMapper = YAMLMapper.builder().build();
 
     private final Map<String, SchemaProcessor> schemaProcessorMap = new HashMap<>();
 
@@ -119,7 +120,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
      */
     public OpenAPI parseOpenApi(Collection<SpecificationSource> sources, Consumer<String> messageHandler) {
         String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
-        JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
+        JsonNode specificationNode = treeMapper.readTree(specificationText);
         String parseableText = downgradeUnsupportedOpenApiVersion(specificationNode, specificationText, messageHandler.andThen(log::warn));
         OpenAPI importedOpenAPI = getSwaggerParser(specificationNode).readContents(parseableText, null, new ParseOptions()).getOpenAPI();
         if (importedOpenAPI == null) {
@@ -134,7 +135,8 @@ public class SwaggerSpecificationParser implements SpecificationParser {
      * environments.
      */
     public ParsedSystemModel toSystemModel(OpenAPI importedOpenAPI, Consumer<String> messageHandler) {
-        ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
+        com.fasterxml.jackson.databind.ObjectMapper specMapper =
+                openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
         List<ParsedOperation> operationList = separate(importedOpenAPI, specMapper, messageHandler.andThen(log::warn));
         return ParsedSystemModelImpl.builder()
                 .version(importedOpenAPI.getInfo().getVersion())
@@ -216,7 +218,9 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<ParsedOperation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, Consumer<String> messageHandler) {
+    private List<ParsedOperation> separate(OpenAPI importedOpenAPI,
+                                           com.fasterxml.jackson.databind.ObjectMapper specMapper,
+                                           Consumer<String> messageHandler) {
         Map<String, PathItem> pathItems = new LinkedHashMap<>();
         if (importedOpenAPI.getPaths() != null) {
             importedOpenAPI.getPaths().forEach((pathName, pathItem) -> {
@@ -231,7 +235,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     private List<ParsedOperation> generateOperationsList(
             Map<String, PathItem> pathItems,
             OpenAPI importedOpenAPI,
-            ObjectMapper specMapper,
+            com.fasterxml.jackson.databind.ObjectMapper specMapper,
             Consumer<String> messageHandler
     ) {
         List<ParsedOperation> generatedOperations = new ArrayList<>();
@@ -244,19 +248,19 @@ public class SwaggerSpecificationParser implements SpecificationParser {
             if (importedOpenAPI.getComponents() != null) {
                 importedComponents = importedOpenAPI.getComponents();
             }
-            JsonNode importedComponentsString = specMapper.readTree(specMapper.writeValueAsString(importedComponents));
+            JsonNode importedComponentsString = treeMapper.readTree(specMapper.writeValueAsString(importedComponents));
             for (var pathEntry : pathItems.entrySet()) {
                 String pathName = pathEntry.getKey();
                 PathItem pathItem = pathEntry.getValue();
-                ArrayNode pathItemParams = specMapper.createArrayNode();
+                ArrayNode pathItemParams = treeMapper.createArrayNode();
                 if (pathItem.getParameters() != null) {
-                    pathItemParams = (ArrayNode) specMapper.readTree(specMapper.writeValueAsString(pathItem.getParameters()));
+                    pathItemParams = (ArrayNode) treeMapper.readTree(specMapper.writeValueAsString(pathItem.getParameters()));
                 }
                 for (var method : pathItem.readOperationsMap().entrySet()) {
                     io.swagger.v3.oas.models.Operation operation = method.getValue();
-                    ObjectNode specification = (ObjectNode) specMapper.readTree(specMapper.writeValueAsString(operation));
+                    ObjectNode specification = (ObjectNode) treeMapper.readTree(specMapper.writeValueAsString(operation));
                     if (!pathItemParams.isEmpty()) {
-                        ArrayNode specificationParameters = specMapper.createArrayNode();
+                        ArrayNode specificationParameters = treeMapper.createArrayNode();
                         if (specification.has(PARAMETERS_NODE)) {
                             specificationParameters.addAll((ArrayNode) specification.get(PARAMETERS_NODE));
                         }
@@ -307,19 +311,21 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         messageHandler.accept(message);
     }
 
-    private Map<String, JsonNode> generateRequest(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents, ObjectMapper specMapper) {
+    private Map<String, JsonNode> generateRequest(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents,
+                                                  com.fasterxml.jackson.databind.ObjectMapper specMapper) {
         Map<String, JsonNode> result = new HashMap<>();
         if (operation.getRequestBody() != null) {
             result = generateContentMap(operation.getRequestBody().getContent(), importedComponents, specMapper);
         }
         List<Parameter> parameters = operation.getParameters();
         if (parameters != null && !parameters.isEmpty()) {
-            result.put("parameters", specMapper.valueToTree(parameters));
+            result.put("parameters", treeMapper.valueToTree(parameters));
         }
         return result;
     }
 
-    private Map<String, JsonNode> generateResponsesMap(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents, ObjectMapper specMapper) {
+    private Map<String, JsonNode> generateResponsesMap(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents,
+                                                       com.fasterxml.jackson.databind.ObjectMapper specMapper) {
         Map<String, JsonNode> result = new HashMap<>();
         if (operation.getResponses() != null) {
             result = operation.getResponses()
@@ -327,10 +333,10 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     .stream()
                     .map(responseCode -> {
                         Map responseCodeMap;
-                        JsonNode responseCodeMapNode = specMapper.createObjectNode();
+                        JsonNode responseCodeMapNode = treeMapper.createObjectNode();
                         if (operation.getResponses().get(responseCode).getContent() != null) {
                             responseCodeMap = generateContentMap(operation.getResponses().get(responseCode).getContent(), importedComponents, specMapper);
-                            responseCodeMapNode = specMapper.convertValue(responseCodeMap, JsonNode.class);
+                            responseCodeMapNode = treeMapper.valueToTree(responseCodeMap);
                         }
                         return new MutablePair<>(responseCode, responseCodeMapNode);
                     })
@@ -339,13 +345,14 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         return result;
     }
 
-    private Map<String, JsonNode> generateContentMap(Content content, JsonNode importedComponents, ObjectMapper specMapper) {
+    private Map<String, JsonNode> generateContentMap(Content content, JsonNode importedComponents,
+                                                     com.fasterxml.jackson.databind.ObjectMapper specMapper) {
         return content.keySet()
                 .stream()
                 .map(mediaType -> {
                     Schema<?> schema = content.get(mediaType).getSchema();
                     if (schema == null) {
-                        return new MutablePair<>(mediaType, specMapper.createObjectNode());
+                        return new MutablePair<>(mediaType, treeMapper.createObjectNode());
                     }
                     SchemaProcessor schemaProcessor = schemaProcessorMap.getOrDefault(schema.getClass().getSimpleName(),
                             schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS));

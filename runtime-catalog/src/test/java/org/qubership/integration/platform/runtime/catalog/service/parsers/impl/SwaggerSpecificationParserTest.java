@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.parsers.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.swagger.v3.core.util.Json;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +44,9 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -100,7 +100,7 @@ class SwaggerSpecificationParserTest {
     }
 
     private org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser libraryParser() {
-        ObjectMapper mapper = Json.mapper();
+        ObjectMapper mapper = JsonMapper.builder().build();
         SwaggerSchemaResolver resolver = new SwaggerSchemaResolver();
         OpenApiMapperResolver mapperResolver = new OpenApiMapperResolver();
         List<SchemaProcessor> leafProcessors = List.of(

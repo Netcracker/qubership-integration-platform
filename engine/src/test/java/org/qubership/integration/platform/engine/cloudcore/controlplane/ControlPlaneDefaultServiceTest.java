@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
@@ -8,6 +7,7 @@ import org.qubership.integration.platform.engine.model.deployment.update.RouteTy
 import org.qubership.integration.platform.engine.service.BlueGreenStateService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 

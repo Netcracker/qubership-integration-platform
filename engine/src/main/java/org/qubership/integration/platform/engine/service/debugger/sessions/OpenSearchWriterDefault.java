@@ -17,8 +17,6 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.opensearch.core.BulkRequest;
@@ -34,6 +32,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +43,9 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+
+
+
 
 @Slf4j
 @Component
@@ -149,7 +152,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
             SessionElementElastic element = iterator.next().getElement();
             try {
                 payload = mapper.writeValueAsBytes(element);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.error("Failed to parse sessions write request. Element skipped");
                 resetWriteTimeout();
                 continue;

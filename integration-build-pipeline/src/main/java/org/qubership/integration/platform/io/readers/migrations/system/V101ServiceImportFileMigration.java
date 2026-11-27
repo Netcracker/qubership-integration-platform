@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.io.readers.migrations.system;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.ObjectNode;
+
 
 @Slf4j
 @Component
@@ -31,7 +32,7 @@ public class V101ServiceImportFileMigration implements ServiceImportFileMigratio
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying chain migration: {}", getVersion());
         // Move all fields except id and name to the content node
         return MigrationUtil.moveFieldsToContentField(fileNode);

@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+
 
 @Slf4j
 @Component
@@ -32,7 +33,7 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying chain migration: {}", getVersion());
 
         // Move all fields except id and name to the content node
@@ -70,7 +71,7 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
             if (field != null && (field.isNull() || field.asText().isBlank())) {
                 ((ObjectNode) node).put(fieldName, newValue);
             }
-            node.fields().forEachRemaining(entry -> setNewValueToEmptyField(entry.getValue(), fieldName, newValue));
+            node.properties().iterator().forEachRemaining(entry -> setNewValueToEmptyField(entry.getValue(), fieldName, newValue));
         } else if (node.isArray()) {
             for (JsonNode item : node) {
                 setNewValueToEmptyField(item, fieldName, newValue);

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.var
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.VariablesFileResponse;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

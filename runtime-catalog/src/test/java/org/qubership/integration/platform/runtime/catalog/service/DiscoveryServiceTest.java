@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +14,7 @@ import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperato
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.DiscoveryResultDTO;
+import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;

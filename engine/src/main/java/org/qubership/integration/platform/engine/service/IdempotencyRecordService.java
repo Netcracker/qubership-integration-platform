@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.engine.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordData;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordStatus;
@@ -10,6 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
+
+
 
 @Slf4j
 @Service
@@ -63,7 +66,7 @@ public class IdempotencyRecordService {
                     .status(IdempotencyRecordStatus.RECEIVED)
                     .build();
             return objectMapper.writeValueAsString(data);
-        } catch (JsonProcessingException ignored) {
+        } catch (JacksonException ignored) {
             return null;
         }
     }

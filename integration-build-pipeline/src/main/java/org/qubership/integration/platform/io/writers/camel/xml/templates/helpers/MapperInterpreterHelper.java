@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.helper.HelperFunction;
 import org.qubership.integration.platform.chain.model.Element;
@@ -28,6 +26,8 @@ import org.qubership.integration.platform.mapper.build.MappingInterpreter;
 import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
 
@@ -58,7 +58,7 @@ public class MapperInterpreterHelper extends BaseHelper {
                     : objectMapper.readValue(mappingDescriptionAsString, MappingDescription.class);
             validator.validate(mappingDescription);
             return interpreter.getInterpretation(mappingDescription);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException("Error processing JSON in property-json helper", e);
         } catch (TemplateInstantiationException e) {
             var context = options.context.model();

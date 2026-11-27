@@ -17,16 +17,19 @@
 package org.qubership.integration.platform.engine.opensearch.ism.model.actions;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Data;
 import org.qubership.integration.platform.engine.opensearch.ism.deserializers.ActionDeserializer;
 import org.qubership.integration.platform.engine.opensearch.ism.deserializers.TimeValueDeserializer;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
 import org.qubership.integration.platform.engine.opensearch.ism.serializers.ActionSerializer;
 import org.qubership.integration.platform.engine.opensearch.ism.serializers.TimeValueSerializer;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonNaming;
+import tools.jackson.databind.annotation.JsonSerialize;
+
+
+
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)

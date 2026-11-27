@@ -1,15 +1,16 @@
 package org.qubership.integration.platform.io.readers.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import java.util.*;
 import java.util.function.Consumer;
+
 
 @Slf4j
 @Component
@@ -25,7 +26,7 @@ public class V102ChainImportFileMigration implements ChainImportFileMigration {
             Map.entry("http-trigger",
                     properties -> {
                         if (!properties.has("handleChainFailureAction")) {
-                            properties.set("handleChainFailureAction", TextNode.valueOf("default"));
+                            properties.set("handleChainFailureAction", StringNode.valueOf("default"));
                             if (!properties.has("chainFailureHandlerContainer")) {
                                 properties.set("chainFailureHandlerContainer", JsonNodeFactory.instance.objectNode());
                             }
@@ -34,7 +35,7 @@ public class V102ChainImportFileMigration implements ChainImportFileMigration {
             ),
             Map.entry("if",
                     properties -> {
-                        if (properties.path("priority") instanceof TextNode) {
+                        if (properties.path("priority") instanceof StringNode) {
                             try {
                                 Integer priority = Integer.valueOf(properties.path("priority").asText());
                                 properties.set("priority", JsonNodeFactory.instance.numberNode(priority));
@@ -59,7 +60,7 @@ public class V102ChainImportFileMigration implements ChainImportFileMigration {
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException {
         log.debug("Applying chain migration: {}", getVersion());
         ObjectNode rootNode = fileNode.deepCopy();
         rootNode

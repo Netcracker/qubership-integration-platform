@@ -16,8 +16,9 @@
 
 package org.qubership.integration.platform.io.readers.migrations;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.ObjectNode;
+
 
 public interface ImportFileMigration {
     String IMPORT_VERSION_FIELD_OLD = "fileVersion";
@@ -26,5 +27,5 @@ public interface ImportFileMigration {
 
     int getVersion();
 
-    ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException;
+    ObjectNode makeMigration(ObjectNode fileNode) throws JacksonException;
 }

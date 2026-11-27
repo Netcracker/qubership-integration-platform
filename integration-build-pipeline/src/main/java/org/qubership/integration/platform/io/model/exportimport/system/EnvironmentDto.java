@@ -17,16 +17,17 @@
 package org.qubership.integration.platform.io.model.exportimport.system;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import tools.jackson.databind.JsonNode;
 
 import java.io.Serializable;
 import java.util.List;
+
 
 /**
  * Serialization value of an integration-system environment.

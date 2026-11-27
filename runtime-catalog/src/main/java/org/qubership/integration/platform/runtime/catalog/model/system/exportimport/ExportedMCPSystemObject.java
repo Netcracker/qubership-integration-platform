@@ -1,10 +1,11 @@
 package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
+
 
 public class ExportedMCPSystemObject extends ExportedSystemObject {
     public ExportedMCPSystemObject(String id, ObjectNode objectNode) {

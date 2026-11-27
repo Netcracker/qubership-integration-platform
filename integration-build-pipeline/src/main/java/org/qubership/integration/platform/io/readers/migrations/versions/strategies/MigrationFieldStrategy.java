@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.io.readers.migrations.versions.strategies;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterStrategy;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.Arrays;

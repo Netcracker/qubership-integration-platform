@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.parsers.schemas.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.UUIDSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.parsers.schemas.Processor;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import static org.qubership.integration.platform.parsers.schemas.SchemasConstants.*;
 
@@ -38,15 +38,14 @@ public class UUIDSchemaProcessor extends DefaultSchemaProcessor implements Schem
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
+    public MutablePair<String, String> process(Schema<?> schema, com.fasterxml.jackson.databind.ObjectMapper mapper) {
         UUIDSchema uuidSchema = (UUIDSchema) schema;
-        ObjectNode schemaAsNode = mapper.convertValue(uuidSchema, ObjectNode.class);
-        schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
-        schemaAsNode.set(FORMAT_NODE_NAME, UUID_TYPE_NODE);
         try {
-           String schemaAsString = mapper.writeValueAsString(schemaAsNode);
-           return new MutablePair<>(uuidSchema.get$ref(), schemaAsString);
-        } catch (JsonProcessingException e) {
+            ObjectNode schemaAsNode = (ObjectNode) objectMapper.readTree(mapper.writeValueAsString(uuidSchema));
+            schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
+            schemaAsNode.set(FORMAT_NODE_NAME, UUID_TYPE_NODE);
+            return new MutablePair<>(uuidSchema.get$ref(), objectMapper.writeValueAsString(schemaAsNode));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | JacksonException e) {
             log.error("Error during converting content uuid schema to JSON", e);
         }
         return new MutablePair<>();

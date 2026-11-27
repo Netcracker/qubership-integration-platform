@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables.secrets;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1Secret;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -35,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.util.Map;
 import java.util.Set;
@@ -148,7 +148,7 @@ public class K8sSecretService implements SecretService {
             }
 
             return yamlMapper.writeValueAsString(secret);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SecuredVariablesException("Failed to get secret helm chart", e);
         }
 

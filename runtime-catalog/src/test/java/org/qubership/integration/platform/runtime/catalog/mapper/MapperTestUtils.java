@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.atlasmap.api.AtlasContext;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.api.AtlasSession;
@@ -25,6 +23,9 @@ import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.v2.AtlasMapping;
 import org.apache.commons.text.StringEscapeUtils;
 import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+
 
 public class MapperTestUtils {
 
@@ -55,7 +57,7 @@ public class MapperTestUtils {
         MappingDescription mappingDescription = null;
         try {
             mappingDescription = YAML_MAPPER.readValue(file, MappingDescription.class);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             e.printStackTrace();
         }
         return mappingDescription;

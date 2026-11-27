@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.atlasmap.api.AtlasContext;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
@@ -24,6 +23,7 @@ import io.atlasmap.json.v2.JsonField;
 import io.atlasmap.v2.*;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.mapper.ComplexField;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.stream.Collectors;

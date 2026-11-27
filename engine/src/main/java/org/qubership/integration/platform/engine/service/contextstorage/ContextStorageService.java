@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.contextstorage;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
@@ -27,11 +23,18 @@ import org.qubership.integration.platform.engine.persistence.shared.repository.C
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+
+
+
 
 @Slf4j
 @Service
@@ -70,7 +73,7 @@ public class ContextStorageService {
                 JsonNode jsonNode = objectMapper.readTree(jsonValue.toString());
                 JsonNode contextNode = jsonNode.get(CONTEXT);
                 return keys.stream().filter(contextNode::has).collect(Collectors.toMap(key -> key, key -> contextNode.get(key).asText()));
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.error("Error occurred while processing JSON for contextServiceId: {}, contextId: {}", contextServiceId, contextId, e);
                 throw new RuntimeException(e);
             }

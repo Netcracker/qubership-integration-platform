@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
@@ -28,6 +24,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -100,7 +100,7 @@ public class ProtocolExtractionService {
             } else {
                 return getProtocolFromJson(files);
             }
-        } catch (JsonParseException e) {
+        } catch (StreamReadException e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         } catch (Exception e) {
             throw new SpecificationImportException(UNABLE_TO_DEFINE_FILE_EXTENSION, e);
@@ -135,7 +135,7 @@ public class ProtocolExtractionService {
 
     private OperationProtocol getProtocolFromAsyncSpec(JsonNode jsonNode) {
         if (jsonNode.has(SERVERS)) {
-            List<String> protocols = jsonNode.get(SERVERS).findValuesAsText(PROTOCOL);
+            List<String> protocols = jsonNode.get(SERVERS).findValuesAsString(PROTOCOL);
             if (!protocols.isEmpty()) {
                 return OperationProtocol.fromValue(protocols.get(0));
             }

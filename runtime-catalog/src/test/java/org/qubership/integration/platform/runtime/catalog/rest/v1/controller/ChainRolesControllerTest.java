@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Validation;
 import org.hibernate.validator.HibernateValidator;
@@ -18,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Locale;

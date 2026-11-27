@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet.exception;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.camel.CamelAuthorizationException;
 import org.apache.camel.Exchange;
@@ -38,11 +37,15 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Map;
+
+
+
 
 @Component
 public class ChainGlobalExceptionHandler {

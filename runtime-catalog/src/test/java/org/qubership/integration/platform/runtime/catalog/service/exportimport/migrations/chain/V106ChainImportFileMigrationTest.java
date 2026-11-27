@@ -1,14 +1,14 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.chain.V106ChainImportFileMigration;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,30 +22,30 @@ class V106ChainImportFileMigrationTest {
 
     @DisplayName("Should change 'priorityNumber' property type from string to integer for 'when' element")
     @Test
-    void shouldChangePriorityNumberPropertyTypeFromStringToIntegerForWhenElement() throws JsonProcessingException {
+    void shouldChangePriorityNumberPropertyTypeFromStringToIntegerForWhenElement() throws JacksonException {
         testPropTypeChangeFromStringToInteger("when", "priorityNumber");
     }
 
     @DisplayName("Should change 'priorityNumber' property type from string to integer for 'catch' element")
     @Test
-    void shouldChangePriorityNumberPropertyTypeFromStringToIntegerForCatchElement() throws JsonProcessingException {
+    void shouldChangePriorityNumberPropertyTypeFromStringToIntegerForCatchElement() throws JacksonException {
         testPropTypeChangeFromStringToInteger("catch", "priorityNumber");
     }
 
     @DisplayName("Should change 'priority' property type from string to integer for 'catch-2' element")
     @Test
-    void shouldChangePriorityPropertyTypeFromStringToIntegerForCatch2Element() throws JsonProcessingException {
+    void shouldChangePriorityPropertyTypeFromStringToIntegerForCatch2Element() throws JacksonException {
         testPropTypeChangeFromStringToInteger("catch-2", "priority");
     }
 
     @DisplayName("Should remove 'priorityNumber' property from 'if' element")
     @Test
-    void shouldRemovePriorityNumberPropertyFromIfElement() throws JsonProcessingException {
+    void shouldRemovePriorityNumberPropertyFromIfElement() throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf("if"));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf("if"));
         elementNode.withObjectProperty("properties")
-                .set("priorityNumber", TextNode.valueOf("42"));
+                .set("priorityNumber", StringNode.valueOf("42"));
 
         ObjectNode chainNode = JsonNodeFactory.instance.objectNode();
         chainNode
@@ -59,12 +59,12 @@ class V106ChainImportFileMigrationTest {
         assertFalse(propertiesNode.has("priorityNumber"));
     }
 
-    private void testPropTypeChangeFromStringToInteger(String elementType, String propName) throws JsonProcessingException {
+    private void testPropTypeChangeFromStringToInteger(String elementType, String propName) throws JacksonException {
         ObjectNode elementNode = JsonNodeFactory.instance.objectNode();
-        elementNode.set("id", TextNode.valueOf("42"));
-        elementNode.set("type", TextNode.valueOf(elementType));
+        elementNode.set("id", StringNode.valueOf("42"));
+        elementNode.set("type", StringNode.valueOf(elementType));
         elementNode.withObjectProperty("properties")
-                .set(propName, TextNode.valueOf("42"));
+                .set(propName, StringNode.valueOf("42"));
 
         ObjectNode chainNode = JsonNodeFactory.instance.objectNode();
         chainNode

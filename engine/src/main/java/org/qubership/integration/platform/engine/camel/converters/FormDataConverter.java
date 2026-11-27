@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.converters;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.NoTypeConversionAvailableException;
 import org.apache.camel.TypeConversionException;
@@ -28,8 +25,14 @@ import org.qubership.integration.platform.engine.forms.FormEntry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+
+
+
 
 @Component
 public class FormDataConverter implements TypeConverter {
@@ -52,7 +55,7 @@ public class FormDataConverter implements TypeConverter {
         try {
             List<FormEntry> entries = objectMapper.readValue(value.toString(), FORM_ENTRY_LIST_TYPE_REFERENCE);
             return (T) FormData.builder().entries(entries).build();
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new TypeConversionException(value, type, exception);
         }
     }

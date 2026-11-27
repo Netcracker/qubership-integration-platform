@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +17,8 @@ import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteMatch
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.LinkedHashMap;
 import java.util.List;

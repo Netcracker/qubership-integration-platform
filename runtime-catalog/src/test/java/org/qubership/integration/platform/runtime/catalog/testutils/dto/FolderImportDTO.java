@@ -17,15 +17,19 @@
 package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
 @Jacksonized
+@NoArgsConstructor
+@Setter
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @SuperBuilder
 public class FolderImportDTO extends ImportEntityDTO {
 
-    private final FolderImportDTO subfolder;
+    private FolderImportDTO subfolder;
 
     public FolderImportDTO getSubfolder() {
         return subfolder;

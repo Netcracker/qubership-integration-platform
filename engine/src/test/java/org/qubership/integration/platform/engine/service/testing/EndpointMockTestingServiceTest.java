@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.engine.service.testing;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
@@ -16,6 +14,8 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
