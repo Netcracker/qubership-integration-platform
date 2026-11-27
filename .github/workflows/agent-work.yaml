@@ -99,7 +99,7 @@ jobs:
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
 
   admit-revision:
     if: >-
@@ -146,7 +146,7 @@ jobs:
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
 
   work:
     needs: [admit, admit-revision]
@@ -172,7 +172,7 @@ jobs:
       mode: ${{ needs.admit-revision.outputs.admitted == 'true' && 'hosted' || inputs.mode }}
       revision: ${{ needs.admit-revision.outputs.admitted == 'true' }}
     secrets:
-      AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
+      AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       QIP_AGENT_MAVEN_TOKEN: ${{ secrets.QIP_AGENT_MAVEN_TOKEN }}
 
@@ -242,7 +242,7 @@ jobs:
           AGENT_USE_ORG_BOT: ${{ vars.AGENT_USE_ORG_BOT == 'true' }}
           AGENT_ORG_BOT_LOGIN: ${{ vars.AGENT_ORG_BOT_LOGIN }}
           GH_ACCESS_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || '' }}
-          AGENT_VARIABLES_READ_TOKEN: ${{ secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN'] }}
+          AGENT_VARIABLES_READ_TOKEN: ${{ vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || '' }}
           AGENT_PUBLICATION_TOKEN: ${{ vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_PUBLICATION_TOKEN || '' }}
           AGENT_HOSTED_ARTIFACT_DIR: ${{ runner.temp }}/agent-revision-artifact
           REVISION_WORK_RESULT: ${{ needs.work.result }}

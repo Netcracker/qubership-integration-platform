@@ -118,7 +118,7 @@ func TestAutomaticRevisionUsesTheExistingRevisionWorkflow(t *testing.T) {
 }
 
 func TestTrustedJobsSelectTheVariablesCredential(t *testing.T) {
-	const selection = "secrets[vars.AGENT_USE_ORG_BOT == 'true' && 'GH_ACCESS_TOKEN' || 'AGENT_VARIABLES_READ_TOKEN']"
+	const selection = "vars.AGENT_USE_ORG_BOT == 'true' && secrets.GH_ACCESS_TOKEN || vars.AGENT_USE_ORG_BOT != 'true' && secrets.AGENT_VARIABLES_READ_TOKEN || ''"
 	for _, name := range []string{"control", "work", "publish", "ci"} {
 		data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", ".github", "workflows", "agent-"+name+".yaml"))
 		if err != nil {
