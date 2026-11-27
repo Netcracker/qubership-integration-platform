@@ -42,6 +42,7 @@ type Config struct {
 	MaxDiffBytes, MaxDocBytes           int
 }
 type PRReport struct {
+	DiffTipSHA string `json:"diff_tip_sha,omitempty"`
 	Number     int    `json:"number"`
 	MergeSHA   string `json:"merge_sha"`
 	BaseSHA    string `json:"base_sha"`
@@ -108,6 +109,8 @@ func autoDocumentationCandidates(paths []string) []DocMapping {
 			page = "help/docs/03__Admin_Tools/7__Design_Templates/readme.md"
 		case strings.HasPrefix(source, "ui/src/components/admin_tools/access-control/"):
 			page = "help/docs/03__Admin_Tools/6__Access_Control/readme.md"
+		case source == "ui/src/components/admin_tools/ActionsLog.tsx":
+			page = "help/docs/03__Admin_Tools/3__Audit/readme.md"
 		case source == "ui/src/components/admin_tools/ImportInstructions.tsx":
 			page = "help/docs/03__Admin_Tools/4__Import_Instructions/readme.md"
 		case strings.HasPrefix(source, "ui/src/components/admin_tools/exchanges/"):
@@ -216,21 +219,21 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if _, e = git("merge-base", "--is-ancestor", merge, p.DocsSHA); e != nil {
 			return fail(fmt.Errorf("documentation revision %s does not contain PR #%d merge %s: %w", p.DocsSHA, pr.Number, merge, e))
 		}
-		base, evidence, e := landedBase(ctx, git, c.ResolvePRHead, pr, merge)
+		base, tip, evidence, e := landedRange(ctx, git, c.ResolvePRHead, pr, merge)
 		if e != nil {
 			return fail(fmt.Errorf("resolve landed changes for PR #%d: %w", pr.Number, e))
 		}
 		if p.BaseSHA == "" {
 			p.BaseSHA = base
 		}
-		p.HeadSHA = merge
-		full, e := git("diff", "--no-ext-diff", "--no-textconv", "--binary", base, merge, "--")
+		p.HeadSHA = tip
+		full, e := git("diff", "--no-ext-diff", "--no-textconv", "--binary", base, tip, "--")
 		if e != nil {
 			return fail(e)
 		}
-		r.PRs = append(r.PRs, PRReport{pr.Number, merge, base, len(full), digest(full)})
-		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("PR #%d landed on main. Base %s, tip %s, and raw diff SHA256 %s (%d bytes). %s", pr.Number, base, merge, digest(full), len(full), evidence))
-		names, e := git("diff", "--name-only", "--no-renames", "-z", base, merge, "--")
+		r.PRs = append(r.PRs, PRReport{Number: pr.Number, MergeSHA: merge, BaseSHA: base, DiffTipSHA: tip, DiffBytes: len(full), DiffSHA256: digest(full)})
+		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("PR #%d landed on main. Base %s, tip %s, and raw diff SHA256 %s (%d bytes). %s", pr.Number, base, tip, digest(full), len(full), evidence))
+		names, e := git("diff", "--name-only", "--no-renames", "-z", base, tip, "--")
 		if e != nil {
 			return fail(e)
 		}
@@ -242,7 +245,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 				continue
 			}
 			paths[path] = true
-			body, e := git("diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--binary", base, merge, "--", path)
+			body, e := git("diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--binary", base, tip, "--", path)
 			if e != nil {
 				return fail(e)
 			}
@@ -284,7 +287,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			}
 			header := ""
 			if !headerIncluded {
-				header = fmt.Sprintf("\nPR #%d: %s..%s\n", pr.Number, base, merge)
+				header = fmt.Sprintf("\nPR #%d: %s..%s\n", pr.Number, base, tip)
 				headerIncluded = true
 			}
 			available := c.MaxDiffBytes - patch.Len()
@@ -462,6 +465,9 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	}
 	p.Complete = p.Complete && helpComplete
 	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
+	if p.PartialContext && p.CanClassify() {
+		p.HelpExcerpts = selectHelpSections(c.Issue, p.ChangedPaths, p.Documentation)
+	}
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)
 	return p, r, nil
 }

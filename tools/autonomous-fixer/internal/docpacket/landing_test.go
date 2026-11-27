@@ -55,7 +55,7 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 	write(file, buttons("Copy", "Delete", "Open chain"))
 	base := commit("Rename the open button on main")
 
-	for _, name := range []string{"rebase", "squash", "merge", "missing first change", "wrong commit count", "missing source history"} {
+	for _, name := range []string{"rebase", "squash", "merge", "nested merge", "unrelated merge", "missing first change", "wrong commit count", "missing source history"} {
 		t.Run(name, func(t *testing.T) {
 			git("switch", "-C", "landed", base)
 			switch name {
@@ -66,6 +66,15 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 				commit("Squash the button renames")
 			case "merge":
 				git("merge", "--no-ff", head, "-m", "Merge the button renames")
+			case "nested merge", "unrelated merge":
+				git("switch", "-C", "outer", head)
+				if name == "unrelated merge" {
+					git("reset", "--hard", first)
+				}
+				write("unrelated.md", "Another task")
+				outer := commit("Add unrelated changes")
+				git("switch", "landed")
+				git("merge", "--no-ff", outer, "-m", "Merge the outer branch")
 			case "missing first change":
 				git("cherry-pick", head)
 			}
@@ -88,19 +97,26 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 				cfg.ResolvePRHead = nil
 			}
 			p, r, err := Build(context.Background(), cfg)
-			if name == "missing first change" || name == "wrong commit count" || name == "missing source history" {
+			if name == "unrelated merge" || name == "missing first change" || name == "wrong commit count" || name == "missing source history" {
 				if err == nil || !strings.Contains(err.Error(), "PR #42") || p.Complete || len(r.PRs) != 0 {
 					t.Fatalf("accepted unverified landing: %+v %+v %v", p, r, err)
 				}
 				return
 			}
-			if err != nil || !p.Complete || p.BaseSHA != base || len(r.PRs) != 1 || r.PRs[0].BaseSHA != base {
+			wantBase := base
+			if name == "nested merge" {
+				wantBase = git("rev-parse", first+"^")
+				if p.HeadSHA != head || len(p.ChangedPaths) != 1 || p.ChangedPaths[0] != file || len(r.PRs) != 1 || r.PRs[0].MergeSHA != tip {
+					t.Fatalf("included changes outside the nested PR: %v, head %s", p.ChangedPaths, p.HeadSHA)
+				}
+			}
+			if err != nil || !p.Complete || p.BaseSHA != wantBase || len(r.PRs) != 1 || r.PRs[0].BaseSHA != wantBase {
 				t.Fatalf("wrong landed range: %+v %+v %v", p, r, err)
 			}
 			if !strings.Contains(p.Diff, "+Duplicate chain") || !strings.Contains(p.Diff, "+Delete chain") || strings.Contains(p.Diff, "+Open chain") {
 				t.Fatalf("wrong landed diff:\n%s", p.Diff)
 			}
-			if name == "merge" && calls != 0 || name != "merge" && calls != 1 {
+			if calls != 1 {
 				t.Fatalf("PR head lookups: %d", calls)
 			}
 		})

@@ -33,6 +33,7 @@ type Packet struct {
 	Diff           string          `json:"diff"`
 	Sources        []Document      `json:"sources"`
 	Documentation  []Document      `json:"documentation"`
+	HelpExcerpts   []Document      `json:"help_excerpts,omitempty"`
 	SearchEvidence []string        `json:"search_evidence"`
 	Limitations    []string        `json:"limitations"`
 	Complete       bool            `json:"complete"`
@@ -134,6 +135,11 @@ func Request(packet Packet, model string) (jev.Request, error) {
 		}
 		state["documentation"] = pages
 		state["omitted_help_pages"] = omitted
+		if len(packet.HelpExcerpts) > 0 {
+			state["documentation"] = packet.HelpExcerpts
+			state["documentation_scope"] = "Selected sections of current help. Other sections may cover related behavior."
+			delete(state, "omitted_help_pages")
+		}
 		delete(state, "sources")
 		delete(state, "search_evidence")
 	}
