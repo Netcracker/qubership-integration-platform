@@ -172,7 +172,7 @@ spec:
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
-              path: /actuator/health/readiness
+              path: /actuator/health
               port: 8080
             failureThreshold: 15
             initialDelaySeconds: 60
