@@ -55,7 +55,7 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 	write(file, buttons("Copy", "Delete", "Open chain"))
 	base := commit("Rename the open button on main")
 
-	for _, name := range []string{"rebase", "squash", "merge", "nested merge", "unrelated merge", "missing first change", "wrong commit count", "missing source history"} {
+	for _, name := range []string{"rebase", "squash", "merge", "nested merge", "nested rewrite", "nested revert", "unrelated merge", "missing first change", "wrong commit count", "missing source history"} {
 		t.Run(name, func(t *testing.T) {
 			git("switch", "-C", "landed", base)
 			switch name {
@@ -66,10 +66,16 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 				commit("Squash the button renames")
 			case "merge":
 				git("merge", "--no-ff", head, "-m", "Merge the button renames")
-			case "nested merge", "unrelated merge":
+			case "nested merge", "nested rewrite", "nested revert", "unrelated merge":
 				git("switch", "-C", "outer", head)
 				if name == "unrelated merge" {
 					git("reset", "--hard", first)
+				}
+				if name == "nested rewrite" {
+					write(file, buttons("Clone chain", "Delete chain", "Open"))
+				}
+				if name == "nested revert" {
+					write(file, buttons("Copy", "Delete", "Open"))
 				}
 				write("unrelated.md", "Another task")
 				outer := commit("Add unrelated changes")
@@ -100,6 +106,12 @@ func TestBuildVerifiesCompleteLandedChanges(t *testing.T) {
 			if name == "unrelated merge" || name == "missing first change" || name == "wrong commit count" || name == "missing source history" {
 				if err == nil || !strings.Contains(err.Error(), "PR #42") || p.Complete || len(r.PRs) != 0 {
 					t.Fatalf("accepted unverified landing: %+v %+v %v", p, r, err)
+				}
+				return
+			}
+			if name == "nested rewrite" || name == "nested revert" {
+				if err != nil || p.CanClassify() || len(p.Limitations) == 0 || !strings.Contains(strings.Join(p.Limitations, " "), tip) {
+					t.Fatalf("nested change must reach assessment with the enclosing merge: %v %v", err, p.Limitations)
 				}
 				return
 			}

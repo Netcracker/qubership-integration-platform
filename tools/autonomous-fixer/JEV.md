@@ -33,16 +33,25 @@ Provide a JSON packet containing:
 - `limitations`: missing context, narrow scope, or synthetic modifications;
 - `complete`: whether the input contains the evidence needed for its declared scope.
 
-The classifier does not fetch or verify Git objects itself. The caller must assemble the packet from recorded sources; `complete` is a caller declaration, not proof. A partial packet remains eligible for observing Jev's behavior, but its suggested route is always `docs-assess`. A narrow contract check cannot establish that a large issue or PR needs no documentation. Expected labels belong in a separate evaluation manifest and must not be sent to Jev.
+The classifier does not fetch or verify Git objects itself. The caller must assemble the packet from recorded
+sources; `complete` is a caller declaration, not proof. Missing implementation evidence routes to
+`docs-assess`. When only supplementary retrieval is incomplete, Jev can also recommend drafting or completion
+under the routing rules below. A narrow contract check cannot establish that a large issue or PR needs no
+documentation. Expected labels belong in a separate evaluation manifest and must not be sent to Jev.
 
 ## Prepare real issues from Git
 
-`cmd/jev-prepare` builds packets from reviewed issue and PR metadata and local Git objects. It checks that the documentation revision contains every selected merge on `main` and ignores uncommitted files. For an ordinary merge, the packet includes changes since its first parent. If GitHub reports an enclosing merge for a nested PR, the builder checks the original head and commit count and takes the diff from the nested PR’s merge base to its head. The preparation report records both the reported merge and the diff tip. For a squash or rebase merge, the builder verifies the landed range against the original PR before including the diff. Exclude backports and unrelated cross-references from the dataset.
+`cmd/jev-prepare` builds packets from reviewed issue and PR metadata and local Git objects. It checks that the
+documentation revision contains every selected merge on `main` and ignores uncommitted files. For an ordinary
+merge, the packet includes changes since its first parent. If GitHub reports an enclosing merge for a nested
+PR, the builder checks the original head and commit count and takes the diff from the nested PR’s merge base
+to its head. If reapplying the nested diff changes the merged tree or causes a conflict, the issue requires
+assessment.
+The preparation report records both the reported merge and the diff tip. For a squash or rebase merge, the builder verifies the landed range against the original PR before including the diff. Exclude backports and unrelated cross-references from the dataset.
 
 The dataset contains `repository`, `docs_ref`, and `issues`.
 Each issue contains `number`, `title`, `body`, `url`, `timeline_complete`, `primary_linked_merged_prs` (numbers), `prs`, `docs_paths`, and optional `classification_sources`.
-Each PR requires `number`, `merge_sha`, and `target`.
-For a squash or rebase merge, also supply the original PR commit count in `commit_count` and its full head commit SHA in `head_sha`.
+For every merge type, supply `number`, `merge_sha`, `target`, the original PR commit count in `commit_count`, and its full head SHA in `head_sha`.
 Fetch the original PR head into the local repository before preparing the packet.
 If the builder cannot verify the landed range, it writes `error.json` for the issue.
 Keep manual expected outcomes in a separate file.
@@ -64,7 +73,14 @@ Additive mappings from changed Snapshots, Deployments, Domains, and Variables UI
 These mappings add candidates; they do not claim exhaustive coverage or decide that documentation is needed.
 Help image and SVG bodies are not sent as text; conclusions requiring their visual contents need a separate check.
 
-The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes of selected current source. These bound packet extraction, not task execution. Every behavior or documentation truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send the issue to full assessment. Hosted routing skips packets with gaps in the implementing PRs, behavior diff, or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB of landed diff and 128 KiB of whole help pages in retrieval order. For a changed help page or a mapped screen named in the issue title, the classifier can receive up to three matching Markdown sections. It falls back to whole pages when no section qualifies. The full packet remains available to the author.
+The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes
+of selected current source. These bound packet extraction, not task execution. Every behavior or documentation
+truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send
+the issue to full assessment. Hosted routing skips packets with gaps in the implementing PRs, behavior diff,
+or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB of
+landed diff and 128 KiB of whole help pages in retrieval order. For a changed help page or a mapped screen
+named in the issue title, the classifier can receive up to three matching Markdown sections. It falls back to
+whole pages when no section qualifies. The full packet remains available to the author.
 
 `packet.json` preserves the evidence and revision identities. The classifier request excludes archive IDs and top-level revision metadata; `packet_sha256` binds the full archived packet separately from `input_sha256`, which binds the actual API request. The caller still supplies relevant-page selection and correct issue/PR linkage; this command does not discover them from GitHub.
 
@@ -108,7 +124,10 @@ The v4 schema replaced v3's mixed impact categories. The v5 request adds general
 
 The first local evidence set is a smoke and sensitivity check, not an accuracy benchmark. It includes narrowly scoped real source/documents, a single test-only commit, a real configuration-change candidate without an approved gold verdict, and synthetic incomplete/modified-document cases. Descriptive IDs in initial probes were identified as potential answer leakage; neutral-ID observations are recorded separately. No result permits automatic issue closure.
 
-The subsequent real-issue development set uses all selected implementing main PRs and help from a current main snapshot containing those merges. It compares earlier policy variants with improved scope and evidence preparation. These cases guided revisions, so they are not a held-out accuracy benchmark. Unresolved false positives, incomplete packets, and editorial ambiguities remain separate from confirmed outcomes.
+The subsequent real-issue development set uses all selected implementing main PRs and help from a current main
+snapshot containing those merges. It compares earlier policy variants with improved scope and evidence
+preparation. These cases guided revisions, so they are not a held-out accuracy benchmark. Unresolved false
+positives, incomplete packets, and editorial ambiguities remain separate from confirmed outcomes.
 
 Manual expectations also need verification. In the development set, refresh and saved filters appeared covered by seven pages, but a wider consumer check found missing refresh entries in other changed screens. Classifier disagreement is a reason to inspect the evidence, not proof that either the classifier or the manual label is correct.
 

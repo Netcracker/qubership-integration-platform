@@ -223,6 +223,16 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if e != nil {
 			return fail(fmt.Errorf("resolve landed changes for PR #%d: %w", pr.Number, e))
 		}
+		if tip != merge {
+			retained, err := projectionMatches(git, base, tip, merge, merge)
+			if err != nil {
+				return fail(fmt.Errorf("verify nested PR #%d: %w", pr.Number, err))
+			}
+			if !retained {
+				p.Complete = false
+				p.Limitations = append(p.Limitations, fmt.Sprintf("The diff for PR #%d describes its original branch. Merge %s changed or reverted part of it. Assess the merged behavior.", pr.Number, merge))
+			}
+		}
 		if p.BaseSHA == "" {
 			p.BaseSHA = base
 		}
@@ -465,7 +475,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	}
 	p.Complete = p.Complete && helpComplete
 	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
-	if p.PartialContext && p.CanClassify() {
+	if p.PartialContext {
 		p.HelpExcerpts = selectHelpSections(c.Issue, p.ChangedPaths, p.Documentation)
 	}
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)

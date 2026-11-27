@@ -82,6 +82,22 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if e != nil || joined(p) != joined(p2) || joined(r) != joined(r2) {
 		t.Fatal("retrieval is not deterministic")
 	}
+	t.Run("excerpt from oversized pages", func(t *testing.T) {
+		git("switch", "-c", "large-help")
+		t.Cleanup(func() { git("switch", "main") })
+		long := strings.Repeat("Supporting text. ", 9000)
+		write("help/docs/widget.md", "## WidgetPanel\nOpen the widget.\n## Appendix\n"+long)
+		write("help/docs/linked.md", "## Appendix\n"+long)
+		git("add", "help/docs")
+		git("commit", "-m", "Expand the guides")
+		large := c
+		large.DocsRef = git("rev-parse", "HEAD")
+		large.MaxDocBytes = 1_000_000
+		packet, _, err := Build(context.Background(), large)
+		if err != nil || !packet.CanClassify() || len(packet.HelpExcerpts) == 0 {
+			t.Fatalf("short section on oversized page should reach Jev: %v", err)
+		}
+	})
 	// A documentation-only change with a resolved link can complete the plan.
 	write("help/docs/widget.md", "WidgetPanel final [details](linked.md)\n")
 	git("add", "help/docs/widget.md")

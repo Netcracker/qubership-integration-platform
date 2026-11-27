@@ -66,7 +66,7 @@ func landedRange(ctx context.Context, git func(...string) ([]byte, error), sourc
 		if !inBranch {
 			return "", "", "", fmt.Errorf("PR head %s is outside the merged branch", head.SHA)
 		}
-		return base, head.SHA, fmt.Sprintf("Original PR changes included in merge %s.", tip), nil
+		return base, head.SHA, fmt.Sprintf("Original branch of the nested PR in merge %s.", tip), nil
 	}
 	match, err := sameChange(git, base, head.SHA, parent, tip)
 	if err != nil {
@@ -119,24 +119,25 @@ func linearBase(git func(...string) ([]byte, error), tip string, count int) (str
 	return base, nil
 }
 
-func sameChange(git func(...string) ([]byte, error), sourceBase, sourceHead, landedBase, landedTip string) (bool, error) {
-	project := func(from, head, onto, expected string) (bool, error) {
-		actual, err := git("merge-tree", "--write-tree", "--no-messages", "--merge-base="+from, onto, head)
-		if mergeConflict(err) {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
-		tree, err := git("rev-parse", "--verify", expected+"^{tree}")
-		return err == nil && strings.TrimSpace(string(actual)) == strings.TrimSpace(string(tree)), err
+func projectionMatches(git func(...string) ([]byte, error), from, head, onto, expected string) (bool, error) {
+	actual, err := git("merge-tree", "--write-tree", "--no-messages", "--merge-base="+from, onto, head)
+	if mergeConflict(err) {
+		return false, nil
 	}
+	if err != nil {
+		return false, err
+	}
+	tree, err := git("rev-parse", "--verify", expected+"^{tree}")
+	return err == nil && strings.TrimSpace(string(actual)) == strings.TrimSpace(string(tree)), err
+}
+
+func sameChange(git func(...string) ([]byte, error), sourceBase, sourceHead, landedBase, landedTip string) (bool, error) {
 	// The reverse projection detects PR changes already present in a candidate parent.
-	match, err := project(landedBase, landedTip, sourceBase, sourceHead)
+	match, err := projectionMatches(git, landedBase, landedTip, sourceBase, sourceHead)
 	if err != nil || !match {
 		return match, err
 	}
-	return project(sourceBase, sourceHead, landedBase, landedTip)
+	return projectionMatches(git, sourceBase, sourceHead, landedBase, landedTip)
 }
 
 func gitMatches(git func(...string) ([]byte, error), args ...string) (bool, error) {

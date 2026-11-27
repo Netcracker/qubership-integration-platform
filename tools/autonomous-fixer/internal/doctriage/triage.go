@@ -43,7 +43,8 @@ type Packet struct {
 // CanClassify also accepts a landed diff with gaps confined to supplementary retrieval.
 func (p Packet) CanClassify() bool {
 	return p.Complete || (p.PartialContext && p.BaseSHA != "" && p.HeadSHA != "" && p.DocsSHA != "" &&
-		len(p.ChangedPaths) > 0 && len(p.Diff) <= classifierContextBytes && strings.Contains(p.Diff, "diff --git ") && hasClassifierPage(p.Documentation))
+		len(p.ChangedPaths) > 0 && len(p.Diff) <= classifierContextBytes && strings.Contains(p.Diff, "diff --git ") &&
+		(len(p.HelpExcerpts) > 0 || hasClassifierPage(p.Documentation)))
 }
 
 const classifierContextBytes = 128 * 1024
