@@ -109,6 +109,53 @@ describe("duplicateChain", () => {
     expect(tree[SCRIPT_FILE]).toBe("log.info('hi')");
   });
 
+  test("points a reference to a trigger of the chain at its copy and keeps one to another chain", async () => {
+    seedWorkspace({
+      "chains/calls/calls.chain.cip.yaml": `id: calls
+name: Calls
+content:
+  elements:
+    - id: http
+      name: HTTP Trigger
+      type: http-trigger
+      properties:
+        handleChainFailureAction: chain-call
+        chainFailureHandlerContainer:
+          elementId: trigger
+        idempotency:
+          enabled: true
+          actionOnDuplicate: execute-subchain
+          chainTriggerParameters:
+            triggerElementId: trigger
+    - id: own-call
+      name: Own Call
+      type: chain-call-2
+      properties:
+        elementId: trigger
+    - id: foreign-call
+      name: Foreign Call
+      type: chain-call-2
+      properties:
+        elementId: foreign
+    - id: trigger
+      name: Chain Trigger
+      type: chain-trigger-2
+      properties:
+        elementId: trigger
+`,
+    });
+
+    const result = await duplicateChain(workspaceUri("chains/calls/calls.chain.cip.yaml"));
+
+    const copy = parse(workspaceTree()[result.uri.path.replace("/workspace/", "")]);
+    const [http, ownCall, foreignCall, trigger] = copy.content.elements;
+    expect(trigger.id).not.toBe("trigger");
+    expect(http.properties.chainFailureHandlerContainer.elementId).toBe(trigger.id);
+    expect(http.properties.idempotency.chainTriggerParameters.triggerElementId).toBe(trigger.id);
+    expect(ownCall.properties.elementId).toBe(trigger.id);
+    expect(foreignCall.properties.elementId).toBe("foreign");
+  });
+
   test("puts the copy of a chain stored in the workspace root under the root", async () => {
     seedWorkspace({ "root.chain.cip.yaml": "id: root\nname: Root\ncontent: {}\n" });
 
