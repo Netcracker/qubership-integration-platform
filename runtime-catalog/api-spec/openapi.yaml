@@ -1307,6 +1307,11 @@ paths:
               properties:
                 chainCommitRequests:
                   type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChainCommitRequest"
                   description: "Import requests, as a JSON array of ChainCommitRequest\
                     \ objects"
                 file:
@@ -5521,6 +5526,11 @@ paths:
               properties:
                 chainCommitRequests:
                   type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChainCommitRequest"
                   description: "Import requests, as a JSON array of ChainCommitRequest\
                     \ objects"
                 file:
@@ -5836,8 +5846,11 @@ paths:
                   format: binary
                   description: Archive file
                 importRequest:
-                  $ref: "#/components/schemas/ImportRequest"
-                  description: Import request object
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    $ref: "#/components/schemas/ImportRequest"
+                  description: "Import request, as a JSON-encoded ImportRequest object"
                 validateByHash:
                   type: boolean
                   default: false
@@ -5867,14 +5880,15 @@ paths:
               type: object
               properties:
                 diffRequest:
-                  type: object
-                  description: Chain difference request object
+                  type: string
+                  contentMediaType: application/json
+                  contentSchema:
+                    $ref: "#/components/schemas/ChainDifferenceRequest"
+                  description: "Chain difference request, as a JSON-encoded ChainDifferenceRequest\
+                    \ object"
                   examples:
                   - "{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"\
                     rightChainId\":\"string\"}"
-                  required:
-                  - leftChainId
-                  - rightChainId
                 file:
                   type: string
                   format: binary

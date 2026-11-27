@@ -92,7 +92,9 @@ public class ImportControllerV2 {
                         @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
                         @SchemaProperty(name = "chainCommitRequests", schema = @Schema(
                                 type = "string",
-                                description = "Import requests, as a JSON array of ChainCommitRequest objects"))
+                                description = "Import requests, as a JSON array of ChainCommitRequest objects",
+                                contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                                contentSchema = ChainCommitRequest[].class))
                     })),
             responses = @ApiResponse(responseCode = "202", description = "Accepted",
                     headers = {

@@ -116,8 +116,10 @@ public class ImportControllerV3 {
                     description = "Archive file"
                 )),
                 @SchemaProperty(name = "importRequest", schema = @Schema(
-                    implementation = ImportRequest.class,
-                    description = "Import request object"
+                    type = "string",
+                    description = "Import request, as a JSON-encoded ImportRequest object",
+                    contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                    contentSchema = ImportRequest.class
                 )),
                 @SchemaProperty(name = "validateByHash", schema = @Schema(
                     implementation = Boolean.class,
@@ -194,9 +196,10 @@ public class ImportControllerV3 {
                     description = "Archive file"
                 )),
                 @SchemaProperty(name = "diffRequest", schema = @Schema(
-                    type = "object",
-                    description = "Chain difference request object",
-                    requiredProperties = {"leftChainId", "rightChainId"},
+                    type = "string",
+                    description = "Chain difference request, as a JSON-encoded ChainDifferenceRequest object",
+                    contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                    contentSchema = ChainDifferenceRequest.class,
                     examples = {"{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"}
                 ))
             }

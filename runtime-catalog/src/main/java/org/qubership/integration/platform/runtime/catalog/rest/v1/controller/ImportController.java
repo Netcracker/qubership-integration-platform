@@ -75,7 +75,9 @@ public class ImportController {
                         @SchemaProperty(name = "file", schema = @Schema(type = "string", format = "binary", description = "File")),
                         @SchemaProperty(name = "chainCommitRequests", schema = @Schema(
                                 type = "string",
-                                description = "Import requests, as a JSON array of ChainCommitRequest objects"))
+                                description = "Import requests, as a JSON array of ChainCommitRequest objects",
+                                contentMediaType = MediaType.APPLICATION_JSON_VALUE,
+                                contentSchema = ChainCommitRequest[].class))
                     })))
     public ResponseEntity<ImportDTO> importFile(@RequestParam("file") MultipartFile file,
                                                 @RequestParam(required = false) @Parameter(hidden = true) String chainCommitRequests,
