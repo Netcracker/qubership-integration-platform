@@ -469,6 +469,16 @@ public class ChainService extends ChainBaseService {
             copiedElements.add(element);
         }
 
+        // The trigger picker also lists this chain's own triggers; a reference to another chain keeps its id.
+        for (ChainElement element : copiedElements) {
+            Map<String, Object> properties = element.getProperties();
+            remapTriggerReference(properties, "elementId", elementIdMap);
+            remapTriggerReference(properties.get("chainFailureHandlerContainer"), "elementId", elementIdMap);
+            if (properties.get("idempotency") instanceof Map<?, ?> idempotency) {
+                remapTriggerReference(idempotency.get("chainTriggerParameters"), "triggerElementId", elementIdMap);
+            }
+        }
+
         for (Map.Entry<String, ChainElement> copiedElement : copiedElementsMap.entrySet()) {
             ContainerChainElement parent = originalElementsMap.get(copiedElement.getKey()).getParent();
             if (parent != null) {
@@ -479,6 +489,13 @@ public class ChainService extends ChainBaseService {
         setDependencies(originalElements, copiedElementsMap);
 
         return copiedElements;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void remapTriggerReference(Object holder, String key, Map<String, String> elementIdMap) {
+        if (holder instanceof Map<?, ?> map && map.get(key) instanceof String id && elementIdMap.containsKey(id)) {
+            ((Map<String, Object>) map).put(key, elementIdMap.get(id));
+        }
     }
 
     private ChainElement copyElement(ChainElement originalElement) {

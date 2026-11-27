@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/fixer"
@@ -83,9 +84,16 @@ func ReplyToDocumentationCommand(ctx context.Context, c *Client, command Documen
 	if err != nil || bot.ID <= 0 {
 		return fmt.Errorf("GitHub Actions comment author is unavailable")
 	}
+	author := bot
+	if c.useOrgBot {
+		author, err = authorizePublisher(ctx, c)
+		if err != nil {
+			return err
+		}
+	}
 	path := fmt.Sprintf("/issues/%d/comments", command.Issue)
 	marker := fmt.Sprintf("<!-- qip-docs-command:v1 %d -->\n", command.CommentID)
-	found := func() (bool, error) {
+	found := func(authors ...int64) (bool, error) {
 		rows, err := c.API.List(ctx, path, "")
 		if err != nil {
 			return false, err
@@ -95,18 +103,18 @@ func ReplyToDocumentationCommand(ctx context.Context, c *Client, command Documen
 			if err := json.Unmarshal(raw, &comment); err != nil {
 				return false, err
 			}
-			if comment.User.ID == bot.ID && strings.HasPrefix(comment.Body, marker) {
+			if slices.Contains(authors, comment.User.ID) && strings.HasPrefix(comment.Body, marker) {
 				return true, nil
 			}
 		}
 		return false, nil
 	}
-	if exists, err := found(); err != nil || exists {
+	if exists, err := found(author.ID, bot.ID); err != nil || exists {
 		return err
 	}
 	body := fmt.Sprintf("%s\n%s [Read the documentation run](https://github.com/%s/actions/runs/%d).", marker, message, c.Repository, runID)
 	requestErr := c.Request(ctx, "POST", path, map[string]string{"body": body}, nil)
-	if exists, err := found(); err == nil && exists {
+	if exists, err := found(author.ID); err == nil && exists {
 		return nil
 	}
 	if requestErr != nil {

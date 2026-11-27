@@ -1,11 +1,12 @@
 import React, { useMemo } from "react";
 import { FieldProps } from "@rjsf/utils";
 import type { RJSFSchema } from "@rjsf/utils";
-import { Select, Input, Button, SelectProps } from "antd";
+import { AutoComplete, Select, Input, Button, SelectProps } from "antd";
 import styles from "./BodyParametersField.module.css";
 import { CollapsibleSection } from "../../../CollapsibleSection.tsx";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { FormContext } from "../ChainElementModificationContext";
+import { MEDIA_TYPE_SUGGESTIONS } from "../mediaTypeSuggestions.ts";
 import {
   BodyFormEntry,
   createEmptyBodyFormEntry,
@@ -22,11 +23,15 @@ const MIME_TYPE_OPTIONS: SelectProps["options"] = [
   },
 ];
 
+const PART_MIME_TYPE_OPTIONS = MEDIA_TYPE_SUGGESTIONS.map((value) => ({
+  value,
+}));
+
 const BodyMimeTypeField: React.FC<
   FieldProps<string | undefined, RJSFSchema, FormContext>
 > = ({ formData, onChange, disabled, readonly, fieldPathId, registry }) => {
   const bodyMimeType = formData ?? "Inherit";
-  const formContext = registry.formContext;
+  const { formContext } = registry;
 
   const bodyFormData = useMemo(
     () => toBodyFormData(formContext.bodyFormData),
@@ -128,13 +133,17 @@ const BodyMimeTypeField: React.FC<
                   </td>
                   {isMultipartFormData && (
                     <td className={styles.td}>
-                      <Input
-                        value={entry.mimeType}
-                        onChange={(e) =>
-                          handleFieldChange(idx, "mimeType", e.target.value)
+                      <AutoComplete<string, { value: string }>
+                        aria-label="MIME Type"
+                        value={entry.mimeType ?? ""}
+                        options={PART_MIME_TYPE_OPTIONS}
+                        showSearch={{ filterOption: true }}
+                        onChange={(value) =>
+                          handleFieldChange(idx, "mimeType", value)
                         }
                         disabled={disabled || readonly}
                         placeholder="text/plain"
+                        style={{ width: "100%" }}
                       />
                     </td>
                   )}

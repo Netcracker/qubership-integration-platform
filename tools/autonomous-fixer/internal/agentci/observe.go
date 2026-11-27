@@ -203,16 +203,13 @@ func observePullRequest(ctx context.Context, client *fixer.GitHubClient, repo fi
 			return nil, nil
 		}
 	}
-	checks, diagnostics := Required(ctx, client, pr.Base.Ref, options.RequiredChecks)
-	snapshot, err := Read(ctx, client, pr.Head.SHA, pr.MergeSHA, checks)
+	snapshot, err := ReadPullRequestSnapshot(ctx, client, pr.Base.Ref, pr.Head.SHA, pr.MergeSHA, options.RequiredChecks)
 	if err != nil {
 		return nil, err
 	}
 	if ciCompletion && options.Event.WorkflowRun.HeadSHA != pr.Head.SHA && snapshot.TestMergeSHA == "" {
 		return nil, nil
 	}
-	snapshot.Diagnostics = append(snapshot.Diagnostics, diagnostics...)
-	snapshot.Status = summarize(snapshot)
 	report := &Report{ObservedAt: time.Now().UTC(), Repository: repo.FullName, PullRequest: number, Issue: state.IssueNumber,
 		PublicationSHA: state.HostedPublication.SHA, WorkerRun: *execution.Run, Disposition: "observed", CI: snapshot}
 	if options.Apply {

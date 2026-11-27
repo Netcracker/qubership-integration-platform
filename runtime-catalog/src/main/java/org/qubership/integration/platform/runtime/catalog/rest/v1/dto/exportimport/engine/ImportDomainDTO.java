@@ -26,7 +26,6 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 public class ImportDomainDTO {
-    private String id;
     private String name;
     private String errorMessage;
 }

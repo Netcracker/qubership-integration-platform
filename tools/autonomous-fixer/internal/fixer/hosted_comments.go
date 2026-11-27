@@ -42,7 +42,7 @@ func (a *GitHubAdapter) findHostedReport(ctx context.Context, effect Effect, mar
 		if err := json.Unmarshal(item, &comment); err != nil {
 			return nil, err
 		}
-		if comment.User.ID != a.Store.botID || comment.User.Type != "Bot" || !strings.Contains("\n"+comment.Body+"\n", "\n"+marker+"\n") {
+		if !a.Store.authors.Contains(comment.User) || !strings.Contains("\n"+comment.Body+"\n", "\n"+marker+"\n") {
 			continue
 		}
 		if found != nil || comment.ID <= 0 || (effect.Result != nil && effect.Result.CommentID != comment.ID) {
@@ -62,7 +62,7 @@ func (a *GitHubAdapter) postHostedReport(ctx context.Context, effect Effect) err
 	if err != nil || comment != nil {
 		return err
 	}
-	return a.Client.Request(ctx, "POST", fmt.Sprintf("/issues/%d/comments", a.Task.IssueNumber), map[string]string{"body": body}, nil)
+	return a.Client.CreateIssueComment(ctx, a.Task.IssueNumber, a.Store.authors.Writer(), body, nil)
 }
 
 func (a *GitHubAdapter) observeHostedReport(ctx context.Context, effect Effect) (Observation, error) {
@@ -78,8 +78,7 @@ func (a *GitHubAdapter) observeHostedReport(ctx context.Context, effect Effect) 
 	footer := body[strings.LastIndexByte(body, '\n')+1:]
 	signed := agentsignature.Strip(comment.Body) + "\n\n" + footer
 	if comment.Body != signed {
-		path := fmt.Sprintf("/issues/comments/%d", comment.ID)
-		updateErr := a.Client.Request(ctx, "PATCH", path, map[string]string{"body": signed}, nil)
+		updateErr := a.Client.UpdateIssueComment(ctx, comment.ID, comment.User, signed)
 		receipt := effect
 		receipt.Result = &EffectResult{CommentID: comment.ID}
 		comment, err = a.findHostedReport(ctx, receipt, marker)

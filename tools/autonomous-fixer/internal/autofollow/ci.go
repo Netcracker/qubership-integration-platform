@@ -14,12 +14,10 @@ import (
 )
 
 func (c *controller) plan(ctx context.Context, book ledger, seen map[string]bool) (agentci.RepairPlan, bool, error) {
-	required, diagnostics := agentci.Required(ctx, c.client, c.pr.Base.Ref, c.options.RequiredChecks)
-	snapshot, err := agentci.Read(ctx, c.client, c.pr.Head.SHA, c.pr.MergeSHA, required)
+	snapshot, err := agentci.ReadPullRequestSnapshot(ctx, c.client, c.pr.Base.Ref, c.pr.Head.SHA, c.pr.MergeSHA, c.options.RequiredChecks)
 	if err != nil {
 		return agentci.RepairPlan{}, false, err
 	}
-	snapshot.Diagnostics = append(snapshot.Diagnostics, diagnostics...)
 	plan, err := agentci.PlanRepair(ctx, c.client, snapshot)
 	if err != nil {
 		return plan, false, err

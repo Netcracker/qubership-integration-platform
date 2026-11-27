@@ -249,16 +249,21 @@ paths:
     post:
       description: Import session(s) from file
       operationId: importSessions
-      parameters:
-      - description: List of files to import
-        in: query
-        name: files
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  description: List of files to import
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - files
         required: true
-        schema:
-          type: array
-          items:
-            type: string
-            format: binary
       responses:
         "200":
           content:

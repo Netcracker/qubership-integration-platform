@@ -136,7 +136,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	repository := os.Getenv("GITHUB_REPOSITORY")
-	client, err := fixer.NewGitHubClient(repository, os.Getenv("GITHUB_TOKEN"), nil, githubAPIURL)
+	client, err := fixer.EngineeringClientFromEnv(repository, os.Getenv("GITHUB_TOKEN"), githubAPIURL)
 	if err != nil {
 		return err
 	}

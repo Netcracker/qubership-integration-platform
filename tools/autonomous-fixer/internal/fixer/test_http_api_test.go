@@ -272,5 +272,5 @@ func (a *testAPI) adapter(t *testing.T) *GitHubAdapter {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &GitHubAdapter{Client: client, Store: NewCommentStore(client, a.Repository, 1, a.Bot.ID, "task"), Task: Seed{TaskID: "task", Repository: a.Repository, IssueNumber: 1, BaseSHA: a.CurrentSHA, TrustedSHA: a.CurrentSHA, Requirements: "Repair behavior", ScopePaths: []string{"engine/"}}, DefaultBranch: "main", WorkflowID: 42, AllowedActors: func(_ context.Context) (string, error) { return "alice", nil }}
+	return &GitHubAdapter{Client: client, Store: NewEngineeringCommentStore(client, a.Repository, 1, EngineeringAuthors{Actions: a.Bot}, "task"), Task: Seed{TaskID: "task", Repository: a.Repository, IssueNumber: 1, BaseSHA: a.CurrentSHA, TrustedSHA: a.CurrentSHA, Requirements: "Repair behavior", ScopePaths: []string{"engine/"}}, DefaultBranch: "main", WorkflowID: 42, AllowedActors: func(_ context.Context) (string, error) { return "alice", nil }}
 }

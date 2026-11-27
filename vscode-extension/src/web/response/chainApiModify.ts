@@ -1472,6 +1472,19 @@ export async function duplicateChain(
     }
   }
 
+  // The trigger picker also lists this chain's own triggers; a reference to another chain keeps its id.
+  const remapTriggerReference = (holder: any, key: string) => {
+    if (newIds.has(holder?.[key])) {
+      holder[key] = newIds.get(holder[key]);
+    }
+  };
+  for (const element of elements) {
+    const properties = element.properties as any;
+    remapTriggerReference(properties, "elementId");
+    remapTriggerReference(properties?.chainFailureHandlerContainer, "elementId");
+    remapTriggerReference(properties?.idempotency?.chainTriggerParameters, "triggerElementId");
+  }
+
   (content.dependencies as Dependency[] | undefined)?.forEach((dependency) => {
     dependency.from = newId(dependency.from);
     dependency.to = newId(dependency.to);

@@ -48,10 +48,10 @@ func pullComments(ctx context.Context, client *fixer.GitHubClient, pr int64) ([]
 	return result, nil
 }
 
-func findOutcome(comments []fixer.Comment, botID, pr int64) (*savedOutcome, error) {
+func findOutcome(comments []fixer.Comment, authors fixer.EngineeringAuthors, pr int64) (*savedOutcome, error) {
 	var result *savedOutcome
 	for _, comment := range comments {
-		if comment.User.ID != botID || comment.User.Type != "Bot" || !strings.HasPrefix(comment.Body, markerPrefix) {
+		if !authors.Contains(comment.User) || !strings.HasPrefix(comment.Body, markerPrefix) {
 			continue
 		}
 		fields := outcomeMarker.FindStringSubmatch(comment.Body)
@@ -108,20 +108,19 @@ func outcomeBody(report Report) string {
 	return strings.Join(lines, "\n")
 }
 
-func saveOutcome(ctx context.Context, client *fixer.GitHubClient, botID int64, previous *savedOutcome, report Report) error {
+func saveOutcome(ctx context.Context, client *fixer.GitHubClient, authors fixer.EngineeringAuthors, previous *savedOutcome, report Report) error {
 	body := outcomeBody(report)
-	payload := map[string]string{"body": body}
 	var writeErr error
 	if previous == nil {
-		writeErr = client.Request(ctx, "POST", fmt.Sprintf("/issues/%d/comments", report.PullRequest), payload, nil)
+		writeErr = client.CreateIssueComment(ctx, report.PullRequest, authors.Writer(), body, nil)
 	} else {
-		writeErr = client.Request(ctx, "PATCH", fmt.Sprintf("/issues/comments/%d", previous.comment.ID), payload, nil)
+		writeErr = client.UpdateIssueComment(ctx, previous.comment.ID, previous.comment.User, body)
 	}
 	comments, err := pullComments(ctx, client, report.PullRequest)
 	if err != nil {
 		return errors.Join(writeErr, err)
 	}
-	current, err := findOutcome(comments, botID, report.PullRequest)
+	current, err := findOutcome(comments, authors, report.PullRequest)
 	if err != nil {
 		return errors.Join(writeErr, err)
 	}

@@ -198,11 +198,9 @@ export const ChainProperties: React.FC = () => {
         )}
         <Form<FormData>
           id="chain-properties-form"
+          layout="vertical"
           form={form}
           disabled={isUpdating || disabled}
-          labelCol={{ flex: "150px" }}
-          wrapperCol={{ flex: "auto" }}
-          labelWrap
           onChange={() => setHasChanges(true)}
           onFinish={(values) => {
             void handleFinish(values);

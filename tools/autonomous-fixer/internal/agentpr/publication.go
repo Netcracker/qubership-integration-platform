@@ -58,12 +58,12 @@ func Read(ctx context.Context, client *fixer.GitHubClient, repository fixer.Repo
 	if err != nil || issue == number {
 		return pr, nil, ErrNotPublished
 	}
-	bot, err := Bot(ctx, client)
+	authors, err := client.EngineeringAuthors(ctx)
 	if err != nil {
 		return pr, nil, err
 	}
 	taskID := fmt.Sprintf("qip-%d", issue)
-	store := fixer.NewCommentStore(client, repository.FullName, issue, bot.ID, taskID)
+	store := fixer.NewEngineeringCommentStore(client, repository.FullName, issue, authors, taskID)
 	read, err := store.ReadState(ctx)
 	if err != nil {
 		return pr, nil, err
@@ -108,12 +108,4 @@ func PublicationExecution(state *fixer.State) (fixer.Execution, bool) {
 
 func SameRepository(left, right fixer.Repository) bool {
 	return left.ID > 0 && left.ID == right.ID && left.FullName == right.FullName
-}
-
-func Bot(ctx context.Context, client *fixer.GitHubClient) (fixer.GitHubUser, error) {
-	bot, err := client.User(ctx, "github-actions[bot]")
-	if err == nil && (bot.ID <= 0 || bot.Type != "Bot" || bot.Login != "github-actions[bot]") {
-		err = fmt.Errorf("invalid GitHub Actions bot identity")
-	}
-	return bot, err
 }

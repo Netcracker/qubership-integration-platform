@@ -24,7 +24,7 @@ func documentationCommand(ctx context.Context, client *docgithub.Client, actor, 
 }
 
 func handleDocumentationCommand(ctx context.Context, repository, actor, reason string, reply bool) error {
-	client, err := github(repository)
+	client, err := githubRepository(repository)
 	if err != nil {
 		return err
 	}

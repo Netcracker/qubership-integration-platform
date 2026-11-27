@@ -78,6 +78,16 @@ const ObserverWorkflow = "QIP agent CI observation"
 
 var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+func ReadPullRequestSnapshot(ctx context.Context, client *fixer.GitHubClient, baseRef, headSHA, mergeSHA, configuredChecks string) (Snapshot, error) {
+	required, diagnostics := Required(ctx, client, baseRef, configuredChecks)
+	snapshot, err := Read(ctx, client, headSHA, mergeSHA, required)
+	snapshot.Diagnostics = append(snapshot.Diagnostics, diagnostics...)
+	if err == nil && len(diagnostics) > 0 {
+		snapshot.Status = summarize(snapshot)
+	}
+	return snapshot, err
+}
+
 func Read(ctx context.Context, client *fixer.GitHubClient, headSHA, mergeSHA string, required []Requirement) (Snapshot, error) {
 	snapshot := Snapshot{HeadSHA: headSHA, Checks: []Check{}}
 	if !commitSHA.MatchString(headSHA) {

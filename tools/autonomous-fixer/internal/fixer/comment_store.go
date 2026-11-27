@@ -96,23 +96,25 @@ func DecodeStateComment(body string) (*State, error) {
 }
 
 type CommentStore struct {
-	client        *GitHubClient
-	repository    string
-	issue, botID  int64
-	taskID        string
-	canonicalID   int64
-	observed      *State
-	read, unknown bool
+	client          *GitHubClient
+	repository      string
+	issue           int64
+	authors         EngineeringAuthors
+	taskID          string
+	canonicalID     int64
+	canonicalAuthor GitHubUser
+	observed        *State
+	read, unknown   bool
 }
 
-func NewCommentStore(client *GitHubClient, repo string, issue int64, botID int64, taskID string) *CommentStore {
-	return &CommentStore{client: client, repository: repo, issue: issue, botID: botID, taskID: taskID}
+func NewEngineeringCommentStore(client *GitHubClient, repo string, issue int64, authors EngineeringAuthors, taskID string) *CommentStore {
+	return &CommentStore{client: client, repository: repo, issue: issue, authors: authors, taskID: taskID}
 }
 func (s *CommentStore) binding(state *State) bool {
 	return state != nil && state.Repository == s.repository && state.IssueNumber == s.issue && state.TaskID == s.taskID
 }
 func (s *CommentStore) inspect(ctx context.Context) (*State, error) {
-	if s.client == nil || s.issue <= 0 || s.botID <= 0 || s.taskID == "" {
+	if s.client == nil || s.issue <= 0 || s.authors.Actions.ID <= 0 || s.taskID == "" {
 		return nil, fmt.Errorf("invalid comment store identity")
 	}
 	items, err := s.client.List(ctx, fmt.Sprintf("/issues/%d/comments", s.issue), "")
@@ -125,20 +127,21 @@ func (s *CommentStore) inspect(ctx context.Context) (*State, error) {
 		if json.Unmarshal(item, &comment) != nil {
 			return nil, fmt.Errorf("invalid comment")
 		}
-		if comment.User.ID == s.botID && comment.User.Type == "Bot" && strings.Contains(comment.Body, stateMarker) {
+		if s.authors.Contains(comment.User) && strings.Contains(comment.Body, stateMarker) {
 			marked = append(marked, comment)
 		}
 	}
 	if len(marked) > 1 {
 		return nil, fmt.Errorf("duplicate state comments")
 	}
-	if s.canonicalID != 0 && (len(marked) != 1 || marked[0].ID != s.canonicalID) {
+	if s.canonicalID != 0 && (len(marked) != 1 || marked[0].ID != s.canonicalID || marked[0].User != s.canonicalAuthor) {
 		return nil, fmt.Errorf("canonical state comment changed")
 	}
 	if len(marked) == 0 {
 		return nil, nil
 	}
 	s.canonicalID = marked[0].ID
+	s.canonicalAuthor = marked[0].User
 	if s.canonicalID <= 0 {
 		return nil, fmt.Errorf("invalid state comment identity")
 	}
@@ -189,16 +192,15 @@ func (s *CommentStore) WriteState(ctx context.Context, state *State) error {
 	if !reflect.DeepEqual(live, s.observed) {
 		return fmt.Errorf("task state changed before writing")
 	}
-	payload := struct {
-		Body string `json:"body"`
-	}{body}
 	if s.canonicalID == 0 {
 		var created Comment
-		err = s.client.Request(ctx, "POST", fmt.Sprintf("/issues/%d/comments", s.issue), payload, &created)
+		author := s.authors.Writer()
+		err = s.client.CreateIssueComment(ctx, s.issue, author, body, &created)
 		if err == nil && created.ID > 0 {
 			s.canonicalID = created.ID
+			s.canonicalAuthor = author
 		}
 		return err
 	}
-	return s.client.Request(ctx, "PATCH", fmt.Sprintf("/issues/comments/%d", s.canonicalID), payload, nil)
+	return s.client.UpdateIssueComment(ctx, s.canonicalID, s.canonicalAuthor, body)
 }

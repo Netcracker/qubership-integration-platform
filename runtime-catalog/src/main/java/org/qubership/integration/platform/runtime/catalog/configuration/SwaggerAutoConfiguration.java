@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
+import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -23,6 +24,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -47,6 +49,13 @@ public class SwaggerAutoConfiguration {
                     .toList());
             }
         };
+    }
+
+    // springdoc does not add a schema that only a contentSchema references to the components.
+    @Bean
+    public OpenApiCustomizer registerContentSchemas() {
+        return openApi -> ModelConverters.getInstance(true).readAll(ImportRequest.class)
+            .forEach(openApi.getComponents()::addSchemas);
     }
 
     @Bean

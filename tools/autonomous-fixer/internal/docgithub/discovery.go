@@ -96,7 +96,7 @@ func projectReviewIssues(ctx context.Context, c *Client, number int) ([]int, []S
 				}
 			}
 		}
-		if err := c.GraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "project": number, "cursor": cursor}, &data); err != nil {
+		if err := c.projectGraphQL(ctx, query, map[string]any{"owner": owner, "repo": repo, "project": number, "cursor": cursor}, &data); err != nil {
 			return nil, nil, err
 		}
 		project := data.Repository.Owner.Project
@@ -276,10 +276,8 @@ func scheduleIssueBlock(ctx context.Context, c *Client, actions *fixer.GitHubCli
 			continue
 		}
 		if strings.HasPrefix(comment.Body, "<!-- qip-docs:") {
-			publication, err := decodePublicationState(comment.Body)
-			if err != nil || publication.Plan == nil || validatePublicationPlan(*publication.Plan) != nil ||
-				publication.Plan.Repository != c.Repository || publication.Plan.IssueNumber != plan.IssueNumber ||
-				publication.PlanID != publication.Plan.ID || !strings.HasPrefix(comment.Body, marker(*publication.Plan)+"\n") {
+			publication, err := readPublicationRecord(comment.Body, c.Repository, plan.IssueNumber)
+			if err != nil {
 				return "", false, fmt.Errorf("invalid owned documentation publication state")
 			}
 			if publication.Status == "superseded" {
@@ -362,7 +360,7 @@ func Discover(ctx context.Context, c *Client, actions *fixer.GitHubClient, proje
 			return report, err
 		}
 	}
-	login, err := c.API.RepositoryVariable(ctx, "AGENT_DOCS_PUBLISHER_LOGIN")
+	login, _, err := c.configuredPublisherLogin(ctx)
 	if err != nil {
 		return report, err
 	}

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strconv"
@@ -36,18 +35,12 @@ func scheduleFixture(t *testing.T) (*Client, *scheduleAPI, Plan) {
 	base := strings.Repeat("a", 40)
 	a := &scheduleAPI{
 		publicationAPI: publicationAPI{
-			viewerLogin: "agent-bot", plan: Plan{Repository: "org/repo", IssueTitle: "Document the change", BaseSHA: base},
+			viewerLogin: "agent-bot", orgBotLogin: "agent-bot", plan: Plan{Repository: "org/repo", IssueTitle: "Document the change", BaseSHA: base},
 			state: "closed", project: "REVIEW", head: base,
 		},
 		attempts: map[string]fixer.WorkflowRun{}, jobs: map[string][]any{}, enabled: true, apply: true,
 	}
-	server := httptest.NewServer(http.HandlerFunc(a.serve))
-	t.Cleanup(server.Close)
-	api, err := fixer.NewGitHubClient(a.plan.Repository, "test", server.Client(), server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := &Client{API: api, Repository: a.plan.Repository}
+	c := projectClientFixture(t, a.plan.Repository, a.serve)
 	prepared, err := Prepare(t.Context(), c, 1, 12)
 	if err != nil {
 		t.Fatal(err)
@@ -108,6 +101,8 @@ func (a *scheduleAPI) serve(w http.ResponseWriter, r *http.Request) {
 		write(map[string]string{"default_branch": "main"})
 	case path == "/users/agent-bot":
 		write(fixer.GitHubUser{Login: "agent-bot", ID: 99})
+	case path == "/users/org-bot":
+		write(fixer.GitHubUser{Login: "org-bot", ID: 99})
 	case path == "/actions/variables/AGENT_DOCS_SCHEDULE_ENABLED":
 		write(map[string]string{"value": strconv.FormatBool(a.enabled)})
 	case path == "/actions/variables/AGENT_DOCS_SCHEDULE_APPLY":
@@ -253,6 +248,33 @@ func TestScheduledClaimRevalidatesIssueBeforeWriting(t *testing.T) {
 	claimed, reason, err := ClaimSchedule(t.Context(), c, c.API, plan, scheduleBasis(plan), "alice", ScheduledAttempt{RunID: 500, Attempt: 1}, true)
 	if err != nil || claimed || reason != "outside-doc-review" || a.commentCreates != 0 {
 		t.Fatal(claimed, reason, err, a.commentCreates)
+	}
+}
+
+func TestScheduleUsesOrganizationPublisherInSplitMode(t *testing.T) {
+	c, api, plan := scheduleFixture(t)
+	api.orgBotLogin = ""
+	ctx := t.Context()
+	basis := scheduleBasis(plan)
+	attempt := ScheduledAttempt{RunID: 500, Attempt: 1}
+	if _, err := Discover(ctx, c, c.API, 12, 1); err == nil || !strings.Contains(err.Error(), "AGENT_ORG_BOT_LOGIN") {
+		t.Fatalf("discovery with an empty organization login: %v", err)
+	}
+	if _, _, err := ClaimSchedule(ctx, c, c.API, plan, basis, "alice", attempt, true); err == nil || !strings.Contains(err.Error(), "AGENT_ORG_BOT_LOGIN") || api.commentCreates != 0 {
+		t.Fatalf("claim with an empty organization login: %v, comments=%d", err, api.commentCreates)
+	}
+	api.orgBotLogin = "org-bot"
+	if _, _, err := ClaimSchedule(ctx, c, c.API, plan, basis, "alice", attempt, true); err == nil || !strings.Contains(err.Error(), "authenticated publisher does not match AGENT_ORG_BOT_LOGIN") || api.commentCreates != 0 {
+		t.Fatalf("claim with legacy publisher token: %v, comments=%d", err, api.commentCreates)
+	}
+	api.viewerLogin = "org-bot"
+	report, err := Discover(ctx, c, c.API, 12, 1)
+	if err != nil || !reflect.DeepEqual(report.Eligible, []ScheduleCandidate{{Issue: 1, Basis: basis}}) {
+		t.Fatalf("discovery with the organization login: %+v, %v", report, err)
+	}
+	claimed, reason, err := ClaimSchedule(ctx, c, c.API, plan, basis, "alice", attempt, true)
+	if err != nil || !claimed || reason != "" || api.commentCreates != 1 || api.comments[0].User.Login != "org-bot" {
+		t.Fatalf("organization claim: claimed=%v, reason=%q, comments=%d, error=%v", claimed, reason, api.commentCreates, err)
 	}
 }
 

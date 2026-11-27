@@ -19,8 +19,12 @@ import (
 )
 
 func automaticFixture(t *testing.T) (*fixture, autorequest.Request) {
+	return automaticFixtureForOrganizationBot(t, false)
+}
+
+func automaticFixtureForOrganizationBot(t *testing.T, useOrganizationBot bool) (*fixture, autorequest.Request) {
 	t.Helper()
-	f := revisionFixture(t)
+	f := revisionFixtureForOrganizationBot(t, useOrganizationBot)
 	original := f.cfg.Payload.Comment.User
 	f.reviewer = fixer.GitHubUser{ID: 35, Login: "reviewer", Type: "User"}
 	f.allowlist = original.Login + "," + f.reviewer.Login
@@ -91,6 +95,33 @@ func TestAutomaticRevisionUsesCurrentReviewAndInlineFeedback(t *testing.T) {
 	f.change(func() { f.permission = "read" })
 	if _, err := c.Verify(ctx, a); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("revoked reviewer permission = %v", err)
+	}
+}
+
+func TestAutomaticRevisionAcceptsOrganizationBotCommentsWithActionsDispatch(t *testing.T) {
+	f, _ := automaticFixtureForOrganizationBot(t, true)
+	command := f.commands[13]
+	command.User = f.organization
+	f.change(func() { f.commands[13] = command })
+	controller := openFixture(t, f.cfg)
+	a := accepted(t, controller)
+	if a.Actor != f.organization || len(f.comments) != 1 || f.comments[0].User != f.organization {
+		t.Fatalf("assignment actor = %#v, receipts = %#v", a.Actor, f.comments)
+	}
+	workConfig := f.cfg
+	workConfig.Client = f.readClient
+	worker := openFixture(t, workConfig)
+	loaded, found, err := worker.Assignment(t.Context())
+	if err != nil || !found {
+		t.Fatalf("read assignment = %#v, %t, %v", loaded, found, err)
+	}
+	if _, _, err := worker.VerifyWork(t.Context(), loaded); err != nil {
+		t.Fatalf("verify assignment: %v", err)
+	}
+	workConfig.Actor, workConfig.TriggerActor = f.organization.Login, f.organization.Login
+	workConfig.Payload.Sender = f.organization
+	if _, err := Open(t.Context(), workConfig); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("organization bot dispatch = %v", err)
 	}
 }
 
@@ -203,7 +234,7 @@ func TestAutomaticRevisionConsumesEachReviewOnlyOnce(t *testing.T) {
 	if err := first.Report(ctx, a, Result{Status: "published", Commit: tip}); err != nil {
 		t.Fatal(err)
 	}
-	published := PublishedRevisions(f.comments, f.bot, f.pr.Base.Repo.ID, f.pr.Number)
+	published := PublishedRevisions(f.comments, fixer.EngineeringAuthors{Actions: f.bot}, f.pr.Base.Repo.ID, f.pr.Number)
 	if published[tip] != 13 {
 		t.Fatalf("published revision = %v", published)
 	}
@@ -466,12 +497,12 @@ func TestRevisionResultRecordedRequiresTheExactBotResult(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			comment := result
 			test.edit(&comment)
-			if RevisionResultRecorded([]fixer.Comment{comment}, f.bot, a) {
+			if RevisionResultRecorded([]fixer.Comment{comment}, fixer.EngineeringAuthors{Actions: f.bot}, a) {
 				t.Fatal("accepted a noncanonical terminal result")
 			}
 		})
 	}
-	if !RevisionResultRecorded([]fixer.Comment{result}, f.bot, a) {
+	if !RevisionResultRecorded([]fixer.Comment{result}, fixer.EngineeringAuthors{Actions: f.bot}, a) {
 		t.Fatal("missed the canonical terminal result")
 	}
 }

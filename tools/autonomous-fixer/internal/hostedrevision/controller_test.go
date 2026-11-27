@@ -23,6 +23,8 @@ type fixture struct {
 	issue          fixer.Issue
 	origin         string
 	bot            fixer.GitHubUser
+	organization   fixer.GitHubUser
+	readClient     *fixer.GitHubClient
 	state          fixer.Comment
 	permission     string
 	allowlist      string
@@ -48,6 +50,10 @@ type fixture struct {
 }
 
 func revisionFixture(t *testing.T) *fixture {
+	return revisionFixtureForOrganizationBot(t, false)
+}
+
+func revisionFixtureForOrganizationBot(t *testing.T, useOrganizationBot bool) *fixture {
 	t.Helper()
 	repo := fixer.Repository{ID: 10, FullName: "org/repo", DefaultBranch: "main"}
 	user := fixer.GitHubUser{ID: 34, Login: "maintainer", Type: "User"}
@@ -94,9 +100,16 @@ func revisionFixture(t *testing.T) *fixture {
 		comments: []fixer.Comment{}, comparison: "ahead", status: "in_progress", ciRunStatus: "completed", commands: map[int64]fixer.Comment{13: command},
 		commandPull: 4, runs: make(map[int64]fixer.WorkflowRun),
 	}
+	if useOrganizationBot {
+		f.organization = fixer.GitHubUser{ID: 57, Login: "QipAutomation", Type: "User"}
+	}
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
-	client, err := fixer.NewGitHubClient(repo.FullName, "token", server.Client(), server.URL)
+	client, err := fixer.NewEngineeringGitHubClient(repo.FullName, "token", "org-token", f.organization.Login, useOrganizationBot, server.Client(), server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.readClient, err = fixer.NewEngineeringGitHubClient(repo.FullName, "token", "", f.organization.Login, useOrganizationBot, server.Client(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +125,10 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case p == "/users/github-actions[bot]":
 		send(f.bot)
+	case p == "/users/"+f.organization.Login:
+		send(f.organization)
+	case p == "/user" && r.Header.Get("Authorization") == "Bearer org-token":
+		send(f.organization)
 	case p == "":
 		send(f.cfg.Payload.Repository)
 	case p == "/pulls/4":
@@ -130,6 +147,9 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reply := fixer.Comment{ID: int64(200 + f.writes), User: f.bot, Body: input.Body}
+		if r.Header.Get("Authorization") == "Bearer org-token" {
+			reply.User = f.organization
+		}
 		f.writes++
 		f.comments = append(f.comments, reply)
 		send(reply)
@@ -402,11 +422,12 @@ func TestRevisionRecognizesAConfirmedPushWhenThePublisherRetries(t *testing.T) {
 	}
 	forged := f.comments[1]
 	forged.User = f.cfg.Payload.Comment.User
-	published := PublishedCommits([]fixer.Comment{f.comments[1], forged}, f.bot, f.pr.Head.Repo.ID, f.pr.Number)
+	authors := fixer.EngineeringAuthors{Actions: f.bot}
+	published := PublishedCommits([]fixer.Comment{f.comments[1], forged}, authors, f.pr.Head.Repo.ID, f.pr.Number)
 	if len(published) != 1 || published[tip] != f.comments[1].ID {
 		t.Fatalf("published commits = %v", published)
 	}
-	if wronglyAttributed := PublishedCommits([]fixer.Comment{forged}, f.bot, f.pr.Head.Repo.ID, f.pr.Number); len(wronglyAttributed) != 0 {
+	if wronglyAttributed := PublishedCommits([]fixer.Comment{forged}, authors, f.pr.Head.Repo.ID, f.pr.Number); len(wronglyAttributed) != 0 {
 		t.Fatalf("forged publication = %v", wronglyAttributed)
 	}
 }

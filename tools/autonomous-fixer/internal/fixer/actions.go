@@ -128,12 +128,12 @@ func loadAction(ctx context.Context, cfg ActionConfig) (*actionSession, error) {
 	if session.issue.Number != issueNumber || (len(session.issue.PullRequest) > 0 && string(session.issue.PullRequest) != "null") {
 		return nil, fmt.Errorf("target is not an issue")
 	}
-	bot, err := cfg.Client.User(ctx, "github-actions[bot]")
+	authors, err := cfg.Client.EngineeringAuthors(ctx)
 	if err != nil {
 		return nil, err
 	}
-	session.bot = bot
-	store := NewCommentStore(cfg.Client, cfg.Repository, issueNumber, bot.ID, fmt.Sprintf("qip-%d", issueNumber))
+	session.bot = authors.Actions
+	store := NewEngineeringCommentStore(cfg.Client, cfg.Repository, issueNumber, authors, fmt.Sprintf("qip-%d", issueNumber))
 	observed, err := store.ReadState(ctx)
 	if err != nil {
 		return nil, err
@@ -492,7 +492,7 @@ func RunAction(ctx context.Context, mode string, cfg ActionConfig) (ActionResult
 			err = session.adapter.repairHostedReport(ctx, RunIdentity{RunID: session.run.ID, RunAttempt: session.run.RunAttempt})
 		}
 		if err == nil && result.State != nil && result.Disposition != "recovery-required" {
-			err = SyncStopLabels(ctx, cfg.Client, session.issue.Number, result.State)
+			err = SyncStopLabels(ctx, cfg.Client, session.adapter.Store.authors.Writer(), session.issue.Number, result.State)
 		}
 		if cfg.IsCompletionEvent() && err == nil && result.State != nil && result.State.Phase == "awaiting-publication" && result.State.HostedCandidate != nil {
 			candidate := result.State.HostedCandidate

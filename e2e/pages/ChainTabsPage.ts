@@ -39,9 +39,9 @@ export class ChainTabsPage {
     await this.page.goto(`/chains/${chainId}/${tab}`);
   }
 
-  /** A form field by its label, which antd names with a trailing colon and, when required, a leading `* `. */
+  /** A form field by its label, which antd names with a leading `* ` when the field is required. */
   field(role: "textbox" | "combobox", label: string): Locator {
-    return this.page.getByRole(role, { name: new RegExp(`^(\\* )?${label} :$`) });
+    return this.page.getByRole(role, { name: new RegExp(`^(\\* )?${label}$`) });
   }
 
   /** An item of the header's breadcrumb, whose last item is the chain's name. */
