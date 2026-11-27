@@ -131,15 +131,6 @@ export const LoggingSettings: React.FC = () => {
     }
   };
 
-  const formItemLayout = {
-    labelCol: { flex: "150px" },
-    wrapperCol: { flex: "auto" },
-  };
-
-  const formItemStyle = {
-    style: { marginLeft: 150 },
-  };
-
   const sessionLevelOptions: SelectProps<SessionsLoggingLevel>["options"] =
     Object.values(SessionsLoggingLevel).map((value) => {
       return {
@@ -194,10 +185,9 @@ export const LoggingSettings: React.FC = () => {
         ) : null}
         <Form<LogSettingsFormState>
           id="logging-settings-form"
+          layout="vertical"
           disabled={formDisabled}
-          labelWrap
           form={form}
-          {...formItemLayout}
           onValuesChange={(changedValues: Partial<LogSettingsFormState>) => {
             if (changedValues.custom !== undefined) {
               setIsCustom(changedValues.custom);
@@ -205,12 +195,7 @@ export const LoggingSettings: React.FC = () => {
           }}
           onFinish={(formState) => void setLoggingProperties(formState)}
         >
-          <Form.Item
-            label={null}
-            name="custom"
-            valuePropName="checked"
-            {...formItemStyle}
-          >
+          <Form.Item label={null} name="custom" valuePropName="checked">
             <Checkbox>Override default properties</Checkbox>
           </Form.Item>
           <Form.Item
@@ -252,18 +237,12 @@ export const LoggingSettings: React.FC = () => {
             label={null}
             name="dptEventsEnabled"
             valuePropName="checked"
-            {...formItemStyle}
           >
             <Checkbox disabled={formDisabled || !isCustom}>
               Produce DPT Events
             </Checkbox>
           </Form.Item>
-          <Form.Item
-            label={null}
-            name="maskingEnabled"
-            valuePropName="checked"
-            {...formItemStyle}
-          >
+          <Form.Item label={null} name="maskingEnabled" valuePropName="checked">
             <Checkbox disabled={formDisabled || !isCustom}>
               Enable logging masking
             </Checkbox>

@@ -88,8 +88,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
           domains: initialDomains ?? [],
         }}
         onFinish={(values) => handleOk(values.domains, values.snapshot)}
-        layout="horizontal"
-        labelCol={{ span: 4 }}
+        layout="vertical"
         style={{ maxWidth: 600 }}
         disabled={snapshotsLoading}
       >

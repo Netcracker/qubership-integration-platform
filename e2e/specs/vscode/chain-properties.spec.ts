@@ -30,9 +30,9 @@ import { chainFile, MOCHA_CHAIN_ID, parseChain } from "../../support/vscode-work
 
 const CHAIN = chainFile(MOCHA_CHAIN_ID);
 
-/** A field of the Properties form by its label, which antd names with a trailing colon and, when required, a leading `* `. */
+/** A field of the Properties form by its label, which antd names with a leading `* ` when the field is required. */
 const field = (webview: FrameLocator, role: "textbox" | "combobox", label: string) =>
-  webview.getByRole(role, { name: new RegExp(`^(\\* )?${label} :$`) });
+  webview.getByRole(role, { name: new RegExp(`^(\\* )?${label}$`) });
 
 const maskedNames = (text: string) => (parseChain(text).content.maskedFields ?? []).map((each) => each.name);
 

@@ -6,7 +6,7 @@ import {
 } from "../../mapper/model/model.ts";
 import React, { useEffect, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import { Button, Checkbox, Flex, Form, Input, Modal, Select } from "antd";
+import { Button, Checkbox, Form, Input, Modal, Select } from "antd";
 import { buildTypeOptions } from "./InlineTypeEdit.tsx";
 import { DataTypes } from "../../mapper/util/types.ts";
 
@@ -73,9 +73,7 @@ export const EditAttributeDialog: React.FC<EditAttributeDialogProps> = ({
     >
       <Form<FormData>
         id="attributeEditForm"
-        labelCol={{ flex: "70px" }}
-        wrapperCol={{ flex: "auto" }}
-        labelWrap
+        layout="vertical"
         initialValues={{
           ...attribute,
           hasDefaultValue: attribute.defaultValue !== undefined,
@@ -120,26 +118,21 @@ export const EditAttributeDialog: React.FC<EditAttributeDialogProps> = ({
         >
           <Select options={options} />
         </Form.Item>
-        <Flex vertical={false} style={{ marginLeft: 70 }}>
-          <Form.Item
-            label={null}
-            name={"hasDefaultValue"}
-            valuePropName={"checked"}
-          >
-            <Checkbox style={{ color: "var(--vscode-foreground)" }}>
-              Default value
-            </Checkbox>
-          </Form.Item>
-          <Form.Item style={{ flexGrow: 1 }} label={null} name={"defaultValue"}>
-            <Input disabled={!hasDefaultValue} />
-          </Form.Item>
-        </Flex>
         <Form.Item
-          style={{ marginLeft: 70 }}
           label={null}
-          name={"required"}
+          name={"hasDefaultValue"}
           valuePropName={"checked"}
         >
+          <Checkbox style={{ color: "var(--vscode-foreground)" }}>
+            Has default value
+          </Checkbox>
+        </Form.Item>
+        {hasDefaultValue && (
+          <Form.Item label={"Default value"} name={"defaultValue"}>
+            <Input disabled={!hasDefaultValue} />
+          </Form.Item>
+        )}
+        <Form.Item label={null} name={"required"} valuePropName={"checked"}>
           <Checkbox style={{ color: "var(--vscode-foreground)" }}>
             Required
           </Checkbox>

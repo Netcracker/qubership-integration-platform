@@ -47,7 +47,20 @@ export const CreateDesignTemplateModal: React.FC<
       centered
       open={true}
       onCancel={closeContainingModal}
-      footer={null}
+      footer={[
+        <Button key={"cancel"} size="middle" onClick={closeContainingModal}>
+          Cancel
+        </Button>,
+        <Button
+          key={"create"}
+          type="primary"
+          size="middle"
+          htmlType="submit"
+          form="designTemplateForm"
+        >
+          Create
+        </Button>,
+      ]}
     >
       <Form<DesignTemplateFormValues>
         form={form}
@@ -100,21 +113,6 @@ export const CreateDesignTemplateModal: React.FC<
             <p className="ant-upload-text">Drag .ftl file here to attach</p>
           </Dragger>
         </Form.Item>
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <Button size="middle" onClick={closeContainingModal}>
-            Cancel
-          </Button>
-          <Button type="primary" size="middle" htmlType="submit">
-            Create
-          </Button>
-        </div>
       </Form>
     </Modal>
   );

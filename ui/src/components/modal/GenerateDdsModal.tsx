@@ -80,13 +80,11 @@ export const GenerateDdsModal: React.FC<GenerateDdsModalProps> = ({
     >
       <Form<GenerateDdsFormData>
         id="generateDdsForm"
+        layout="vertical"
         disabled={confirmLoading}
-        labelCol={{ flex: "150px" }}
-        wrapperCol={{ flex: "auto" }}
         initialValues={{
           fileName: "chain-documentation-" + formatDate(new Date()),
         }}
-        labelWrap
         onFinish={(values) => {
           setConfirmLoading(true);
           try {

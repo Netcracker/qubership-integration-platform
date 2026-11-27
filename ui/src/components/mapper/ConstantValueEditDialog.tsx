@@ -81,9 +81,7 @@ export const ConstantValueEditDialog: React.FC<
         generator?: ValueGenerator;
       }>
         id="valueEditForm"
-        labelCol={{ flex: "150px" }}
-        wrapperCol={{ flex: "auto" }}
-        labelWrap
+        layout="vertical"
         initialValues={{
           generated: valueSupplier?.kind === "generated",
           value:
@@ -116,11 +114,7 @@ export const ConstantValueEditDialog: React.FC<
         }}
       >
         {generators.length > 0 ? (
-          <Form.Item
-            style={{ marginLeft: 150 }}
-            name="generated"
-            valuePropName="checked"
-          >
+          <Form.Item name="generated" valuePropName="checked">
             <Checkbox>generated</Checkbox>
           </Form.Item>
         ) : (
@@ -143,7 +137,6 @@ export const ConstantValueEditDialog: React.FC<
             {isDateTimeGenerator(data.generator?.name ?? "") ? (
               <>
                 <Form.Item
-                  style={{ marginLeft: 150 }}
                   name={["generator", "parameters", 0]}
                   getValueProps={(value) => ({ checked: value === "true" })}
                   normalize={(value: CheckboxChangeEvent) =>

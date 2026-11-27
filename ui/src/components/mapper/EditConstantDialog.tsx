@@ -160,9 +160,7 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
       <Form<FormData>
         form={form}
         id="constantEditForm"
-        labelCol={{ flex: "100px" }}
-        wrapperCol={{ flex: "auto" }}
-        labelWrap
+        layout="vertical"
         initialValues={{ ...constant }}
         onValuesChange={(_changes: Partial<Constant>, values) => {
           setIsGenerated(values.valueSupplier.kind === "generated");
@@ -207,59 +205,55 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
         >
           <Select options={typeOptions} />
         </Form.Item>
-        <Flex vertical={false} style={{ marginLeft: 100 }}>
-          {generatorOptions?.length === 0 ? (
-            <></>
-          ) : (
-            <Form.Item
-              label={null}
-              name={"valueSupplier"}
-              valuePropName={"checked"}
-              getValueProps={(supplier: ValueSupplier) => {
-                return { checked: supplier.kind === "generated" };
-              }}
-              normalize={(generated: boolean) => {
-                return generated
-                  ? {
-                      kind: "generated",
-                      generator: { name: "generateUUID", parameters: [] },
-                    }
-                  : { kind: "given", value: "" };
-              }}
+        {generatorOptions?.length === 0 ? (
+          <></>
+        ) : (
+          <Form.Item
+            label={null}
+            name={"valueSupplier"}
+            valuePropName={"checked"}
+            getValueProps={(supplier: ValueSupplier) => {
+              return { checked: supplier.kind === "generated" };
+            }}
+            normalize={(generated: boolean) => {
+              return generated
+                ? {
+                    kind: "generated",
+                    generator: { name: "generateUUID", parameters: [] },
+                  }
+                : { kind: "given", value: "" };
+            }}
+          >
+            <Checkbox
+              onChange={(event) => setIsGenerated(event.target.checked)}
             >
-              <Checkbox
-                onChange={(event) => setIsGenerated(event.target.checked)}
-              >
-                Generated
-              </Checkbox>
-            </Form.Item>
-          )}
-          {isGenerated ? (
-            <Form.Item
-              style={{ width: "100%" }}
-              label={null}
-              name={["valueSupplier", "generator", "name"]}
-            >
-              <Select<string> options={generatorOptions} />
-            </Form.Item>
-          ) : (
-            <Form.Item
-              style={{ flexGrow: 1 }}
-              label={null}
-              name={"valueSupplier"}
-              getValueProps={(valueSupplier: GivenValue) => {
-                return {
-                  value: valueSupplier.value,
-                };
-              }}
-              normalize={(value: string): GivenValue => {
-                return { kind: "given", value: value };
-              }}
-            >
-              <Input />
-            </Form.Item>
-          )}
-        </Flex>
+              Generated
+            </Checkbox>
+          </Form.Item>
+        )}
+        {isGenerated ? (
+          <Form.Item
+            label={"Generator"}
+            name={["valueSupplier", "generator", "name"]}
+          >
+            <Select<string> options={generatorOptions} />
+          </Form.Item>
+        ) : (
+          <Form.Item
+            label={"Value"}
+            name={"valueSupplier"}
+            getValueProps={(valueSupplier: GivenValue) => {
+              return {
+                value: valueSupplier.value,
+              };
+            }}
+            normalize={(value: string): GivenValue => {
+              return { kind: "given", value: value };
+            }}
+          >
+            <Input />
+          </Form.Item>
+        )}
         <Flex vertical style={{ overflowY: "auto", flexGrow: 1 }}>
           {parametersComponent}
         </Flex>
