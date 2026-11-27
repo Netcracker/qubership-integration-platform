@@ -207,6 +207,68 @@ class ProvidedIdsFlowTasksTest {
   }
 
   @Test
+  void acceptedCommandKeepsTheCredentialAfterADisconnectUntilTheStageStarts() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+    AtomicReference<Optional<String>> atStageStart = new AtomicReference<>();
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning")).thenAnswer(invocation -> {
+      atStageStart.set(UserTokenStore.get("conversation-1"));
+      return Uni.createFrom().item(approval("design-planning"));
+    });
+    try {
+      turn.release();
+      command.dispatched();
+
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.of("caller-token"), atStageStart.get());
+      assertEquals(Optional.empty(), UserTokenStore.get("conversation-1"));
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void acceptedCommandThatDoesNotDispatchReleasesItsCredential() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", tokenOf("alice"));
+    try {
+      ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+      turn.release();
+
+      command.close();
+
+      assertDoesNotThrow(() -> UserTokenStore.acquire("conversation-1", tokenOf("bob")).release());
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
+  void nonDispatchingCommandWhileAStageHoldsTheRunLeavesThatHoldInPlace() {
+    UserTokenStore.Hold turn = UserTokenStore.acquire("conversation-1", "caller-token");
+    AtomicReference<Optional<String>> duringStage = new AtomicReference<>();
+    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
+    when(executor.execute(RUN_ID, "design-planning")).thenAnswer(invocation -> {
+      turn.release();
+      ProvidedIdsFlowTasks.CommandClaim command = tasks.acceptCommand(RUN_ID, "conversation-1");
+      command.close();
+      duringStage.set(UserTokenStore.get("conversation-1"));
+      return Uni.createFrom().item(approval("design-planning"));
+    });
+    try {
+      tasks.executeCurrentStage(context());
+
+      assertEquals(Optional.of("caller-token"), duringStage.get());
+    } finally {
+      turn.release();
+      UserTokenStore.clear("conversation-1");
+    }
+  }
+
+  @Test
   void stageRunsWithoutACredentialWhenTheConversationHasNone() {
     when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
     when(executor.execute(RUN_ID, "design-planning"))

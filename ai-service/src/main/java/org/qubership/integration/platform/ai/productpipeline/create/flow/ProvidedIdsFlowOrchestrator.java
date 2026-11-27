@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
@@ -68,11 +69,24 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     Optional<ProductPipelineRunDocument> existing =
         runStore.loadByConversation(command.conversationId());
     if (existing.isEmpty()) {
-      return startPersistedInstance(command);
+      return acceptedCommand(
+          command.runId(), command.conversationId(), claim -> startPersistedInstance(command, claim));
     }
     ProductPipelineRunDocument document = existing.get();
     rejectUnboundManualRun(document);
+    // Restore only reads the run and never dispatches Flow, so it takes no hold.
     return runSupport.restoreForExternalWorkflow(command);
+  }
+
+  /**
+   * Hands the command its run credential before any recording or dispatch. The work it returns
+   * closes the claim once it ends, so a disconnect does not release the credential early.
+   */
+  private Multi<PipelineSignal> acceptedCommand(
+      String runId,
+      String conversationId,
+      Function<ProvidedIdsFlowTasks.CommandClaim, Multi<PipelineSignal>> command) {
+    return command.apply(tasks.acceptCommand(runId, conversationId));
   }
 
   @Override
@@ -82,9 +96,10 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   @Override
   public Multi<PipelineSignal> restart(RestartRunCommand command) {
-    return streamWhileSettling(
+    return acceptedCommand(
         command.childRunId(),
-        () -> {
+        command.conversationId(),
+        claim -> streamWhileSettling(command.childRunId(), claim, () -> {
           ProductPipelineRunDocument active =
               runStore
                   .loadByConversation(command.conversationId())
@@ -101,6 +116,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
                   ProvidedIdsFlow.ACTIVATION_EVENT_TYPE,
                   active.run().flowInstanceId(),
                   activationContext(command));
+              claim.dispatched();
               waitUntil(
                   "restarted create-chain Flow instance "
                       + active.run().flowInstanceId()
@@ -167,6 +183,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
             }
             throw activationFailure;
           }
+          claim.dispatched();
           waitUntil(
               "restarted create-chain Flow instance "
                   + instance.id()
@@ -194,7 +211,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
               .asList()
               .await()
               .indefinitely();
-        });
+        }));
   }
 
   private static ProvidedIdsFlow.RunContext activationContext(RestartRunCommand command) {
@@ -206,14 +223,17 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         null);
   }
 
-  private Multi<PipelineSignal> startPersistedInstance(StartOrResumeCommand command) {
+  private Multi<PipelineSignal> startPersistedInstance(
+      StartOrResumeCommand command, ProvidedIdsFlowTasks.CommandClaim claim) {
     return streamWhileSettling(
         command.runId(),
+        claim,
         () -> {
           ProvidedIdsFlow.RunContext context = contextOf(command);
           WorkflowInstance instance = flow.instance(context);
           runSupport.bootstrap(command, instance.id());
           instance.start();
+          claim.dispatched();
           waitUntil(
               "create-chain Flow instance " + instance.id() + " must reach a listen wait",
               () ->
@@ -244,15 +264,20 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         .equals(org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text()))) {
       return Multi.createFrom().empty();
     }
-    return resumeBoundInstance(
-        runSupport.recordInput(command),
+    return acceptedCommand(
         command.runId(),
-        document.run().flowInstanceId(),
-        alreadyApplied,
-        ProvidedIdsFlow.INPUT_EVENT_TYPE,
-        RunStatus.WAITING_FOR_INPUT,
-        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.CONTINUE_REPAIR_ACTION.equals(
-            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text())));
+        document.run().conversationId(),
+        claim ->
+            resumeBoundInstance(
+                runSupport.recordInput(command),
+                command.runId(),
+                document.run().flowInstanceId(),
+                alreadyApplied,
+                ProvidedIdsFlow.INPUT_EVENT_TYPE,
+                RunStatus.WAITING_FOR_INPUT,
+                org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.CONTINUE_REPAIR_ACTION.equals(
+                    org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text())),
+                claim));
   }
 
   @Override
@@ -261,13 +286,19 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     rejectUnboundManualRun(document);
     boolean alreadyApplied =
         document.appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent();
-    return resumeBoundInstance(
-        runSupport.recordApprove(command),
+    return acceptedCommand(
         command.runId(),
-        document.run().flowInstanceId(),
-        alreadyApplied,
-        ProvidedIdsFlow.APPROVAL_EVENT_TYPE,
-        RunStatus.WAITING_FOR_APPROVAL, false);
+        document.run().conversationId(),
+        claim ->
+            resumeBoundInstance(
+                runSupport.recordApprove(command),
+                command.runId(),
+                document.run().flowInstanceId(),
+                alreadyApplied,
+                ProvidedIdsFlow.APPROVAL_EVENT_TYPE,
+                RunStatus.WAITING_FOR_APPROVAL,
+                false,
+                claim));
   }
 
   @Override
@@ -276,13 +307,19 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     rejectUnboundManualRun(document);
     boolean alreadyApplied =
         document.appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent();
-    return resumeBoundInstance(
-        runSupport.recordImplement(command),
+    return acceptedCommand(
         command.runId(),
-        document.run().flowInstanceId(),
-        alreadyApplied,
-        ProvidedIdsFlow.IMPLEMENT_EVENT_TYPE,
-        RunStatus.WAITING_FOR_IMPLEMENT, false);
+        document.run().conversationId(),
+        claim ->
+            resumeBoundInstance(
+                runSupport.recordImplement(command),
+                command.runId(),
+                document.run().flowInstanceId(),
+                alreadyApplied,
+                ProvidedIdsFlow.IMPLEMENT_EVENT_TYPE,
+                RunStatus.WAITING_FOR_IMPLEMENT,
+                false,
+                claim));
   }
 
   @Override
@@ -327,9 +364,11 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
       boolean alreadyApplied,
       String eventType,
       RunStatus waitingStatus,
-      boolean requireAcceptedGrant) {
+      boolean requireAcceptedGrant,
+      ProvidedIdsFlowTasks.CommandClaim claim) {
     return streamWhileSettling(
         runId,
+        claim,
         () -> {
           List<PipelineSignal> recordedSignals = recorded
               .onItem()
@@ -351,6 +390,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
           if (!alreadyApplied || afterRecord.run().status() == RunStatus.RUNNING) {
             WorkflowInstance resumed = instance.orElseThrow(() -> new IllegalStateException(
                 "Create-chain Flow instance " + flowInstanceId + " is not active."));
+            claim.dispatched();
             waitUntil(
                 "create-chain Flow instance " + flowInstanceId + " must resume",
                 () -> {
@@ -372,7 +412,9 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
    * the server, so closing a chat cannot strand a committed command before its resume event.
    */
   private Multi<PipelineSignal> streamWhileSettling(
-      String runId, Supplier<List<PipelineSignal>> waitThenDrain) {
+      String runId,
+      ProvidedIdsFlowTasks.CommandClaim claim,
+      Supplier<List<PipelineSignal>> waitThenDrain) {
     return Multi.createFrom()
         .emitter(
             emitter -> {
@@ -393,6 +435,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
                           return waitThenDrain.get();
                         } finally {
                           PipelineSignalLiveSink.unbind(runId, observer);
+                          claim.close();
                         }
                       })
                   .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())

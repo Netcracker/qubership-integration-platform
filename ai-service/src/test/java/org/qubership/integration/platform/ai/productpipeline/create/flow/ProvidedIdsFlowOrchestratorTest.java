@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
@@ -64,6 +66,8 @@ class ProvidedIdsFlowOrchestratorTest {
     runStore = mock(ProductPipelineRunStore.class);
     flow = mock(ProvidedIdsFlow.class);
     tasks = mock(ProvidedIdsFlowTasks.class);
+    when(tasks.acceptCommand(any(), any()))
+        .thenReturn(mock(ProvidedIdsFlowTasks.CommandClaim.class));
     application = mock(WorkflowApplication.class);
     when(application.eventPublishers()).thenReturn(List.of());
     var definition = mock(io.serverlessworkflow.impl.WorkflowDefinition.class);
@@ -924,6 +928,67 @@ class ProvidedIdsFlowOrchestratorTest {
     when(instance.status()).thenReturn(WorkflowStatus.WAITING);
     when(instance.start()).thenReturn(CompletableFuture.completedFuture(mock(WorkflowModel.class)));
     return instance;
+  }
+
+  @Test
+  void approvalThatLeavesTheRunWaitingReleasesItsCredentialWithoutDispatching() {
+    useRealTasks();
+    ApproveCommand command = approveCommand();
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_APPROVAL, "design-input", "flow-1")));
+    when(runSupport.recordApprove(command)).thenReturn(Multi.createFrom().empty());
+    UserTokenStore.Hold turn = UserTokenStore.acquire(CONVERSATION_ID, tokenOf("alice"));
+    try {
+      orchestrator.approve(command).collect().asList().await().indefinitely();
+
+      turn.release();
+      assertDoesNotThrow(() -> UserTokenStore.acquire(CONVERSATION_ID, tokenOf("bob")).release());
+    } finally {
+      turn.release();
+      UserTokenStore.clear(CONVERSATION_ID);
+    }
+  }
+
+  @Test
+  void approvalThatFailsBeforeDispatchReleasesItsCredential() {
+    useRealTasks();
+    ApproveCommand command = approveCommand();
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_APPROVAL, "design-input", "flow-1")));
+    when(runSupport.recordApprove(command))
+        .thenReturn(Multi.createFrom().failure(new IllegalStateException("record failed")));
+    UserTokenStore.Hold turn = UserTokenStore.acquire(CONVERSATION_ID, tokenOf("alice"));
+    try {
+      assertThrows(
+          IllegalStateException.class,
+          () -> orchestrator.approve(command).collect().asList().await().indefinitely());
+
+      turn.release();
+      assertDoesNotThrow(() -> UserTokenStore.acquire(CONVERSATION_ID, tokenOf("bob")).release());
+    } finally {
+      turn.release();
+      UserTokenStore.clear(CONVERSATION_ID);
+    }
+  }
+
+  private void useRealTasks() {
+    orchestrator = new ProvidedIdsFlowOrchestrator(
+        runSupport, runStore, flow, new ProvidedIdsFlowTasks(runSupport), application);
+  }
+
+  private static ApproveCommand approveCommand() {
+    ApproveCommand command = mock(ApproveCommand.class);
+    when(command.runId()).thenReturn(RUN_ID);
+    when(command.commandId()).thenReturn("cmd-approve-1");
+    when(command.commandPayloadHash()).thenReturn("hash-approve-1");
+    return command;
+  }
+
+  private static String tokenOf(String subject) {
+    return "h."
+        + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+            ("{\"sub\":\"" + subject + "\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        + ".s";
   }
 
   private static ProductPipelineRunDocument document(RunStatus status, String stageId) {

@@ -232,9 +232,10 @@ _Avoid_: the access token currently held in the browser, user token, caller toke
 **Token renewal**:
 While a chat turn streams, the UI posts each token the host app renews to
 `POST /api/v1/chat/{conversationId}/token`. The turn takes it only when its `sub` matches the turn
-bearer's. The service never waits for a renewal: a call made after the bearer expired gets a
-catalog rejection. The service does not validate bearer signatures or expiry itself, relying on the
-platform perimeter to do so before requests reach it, and renewal only compares the JWT `sub` claim.
+bearer's. The service never waits for a renewal: a call made after the bearer expired is rejected
+locally by the service, which ends the turn with the same session-expired message as a catalog 401.
+The service does not validate bearer signatures or expiry itself, relying on the platform perimeter
+to do so before requests reach it, and renewal only compares the JWT `sub` claim.
 _Avoid_: token refresh (the host app refreshes; the AI service only receives the result)
 
 **Catalog rejection**:

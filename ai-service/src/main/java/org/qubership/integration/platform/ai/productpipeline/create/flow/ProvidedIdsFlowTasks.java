@@ -74,7 +74,7 @@ public class ProvidedIdsFlowTasks {
       return input;
     }
     rockySkills.requireAvailable();
-    holdRun(input.runId());
+    pinRun(input.runId(), runSupport.currentRunSnapshot(input.runId()).conversationId());
     try {
       return runCurrentStage(input);
     } catch (RuntimeException | Error failure) {
@@ -131,13 +131,53 @@ public class ProvidedIdsFlowTasks {
   }
 
   /**
-   * Keeps the conversation's credential while a stage of an unsettled run executes, past the turn
-   * that started it. Empty when the conversation has no credential: the stage then runs without one
-   * and the catalog filter fails it honestly.
+   * Takes the run's credential as an accepted command starts, before it records or dispatches, so a
+   * turn that disconnects cannot release it first. The claim gives the hold back unless Flow took
+   * the command.
    */
-  private void holdRun(String runId) {
-    String conversationId = runSupport.currentRunSnapshot(runId).conversationId();
-    holdsByRun.computeIfAbsent(runId, ignored -> UserTokenStore.pin(conversationId).orElse(null));
+  CommandClaim acceptCommand(String runId, String conversationId) {
+    return new CommandClaim(runId, pinRun(runId, conversationId));
+  }
+
+  /**
+   * Keeps the conversation's credential for a run past the turn that started it. Returns the hold
+   * only when this call created it; empty when the run already held one or the conversation has no
+   * credential (the stage then runs without one and the catalog filter fails it honestly).
+   */
+  private UserTokenStore.Hold pinRun(String runId, String conversationId) {
+    UserTokenStore.Hold[] created = new UserTokenStore.Hold[1];
+    holdsByRun.computeIfAbsent(
+        runId, ignored -> created[0] = UserTokenStore.pin(conversationId).orElse(null));
+    return created[0];
+  }
+
+  /** One accepted command's share of its run credential. */
+  final class CommandClaim {
+
+    private final String runId;
+    private final UserTokenStore.Hold created;
+    private boolean dispatched;
+
+    private CommandClaim(String runId, UserTokenStore.Hold created) {
+      this.runId = runId;
+      this.created = created;
+    }
+
+    /** Flow took the command: from now on the stage that Flow runs owns the hold. */
+    public void dispatched() {
+      dispatched = true;
+    }
+
+    /**
+     * Gives back a hold this command created, unless Flow took the command. A hold a running stage
+     * already holds is never returned here.
+     */
+    public void close() {
+      if (created != null && !dispatched) {
+        holdsByRun.remove(runId, created);
+        created.release();
+      }
+    }
   }
 
   /** A saved listen is stale when an accepted command has already advanced the run. */
