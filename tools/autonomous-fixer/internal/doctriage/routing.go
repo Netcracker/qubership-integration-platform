@@ -53,8 +53,9 @@ type Routing struct {
 }
 
 const (
-	legacyRoutingVersion = "docs-routing-v1"
-	routingVersion       = "docs-routing-v2"
+	legacyRoutingVersion   = "docs-routing-v1"
+	previousRoutingVersion = "docs-routing-v2"
+	routingVersion         = "docs-routing-v3"
 )
 
 type RoutingReason string
@@ -122,19 +123,21 @@ func (r Routing) DecisionReason() RoutingReason {
 }
 
 func ReplayRoute(packet Packet, report Report, policy RoutingPolicy, version string) (Routing, error) {
-	if version != legacyRoutingVersion && version != routingVersion {
+	if version != legacyRoutingVersion && version != previousRoutingVersion && version != routingVersion {
 		return Routing{}, fmt.Errorf("unsupported documentation routing version %q", version)
 	}
 	routing, err := SelectRoute(packet, report, policy)
-	if version == legacyRoutingVersion {
-		routing.Version = legacyRoutingVersion
+	if version == legacyRoutingVersion && report.PolicyVersion == previousPolicyVersion {
+		routing.Version = version
 		routing.ReasonCode = ""
+	} else if err == nil && version != routing.Version {
+		return Routing{}, fmt.Errorf("routing version %q differs from the recorded classifier policy %q", version, report.PolicyVersion)
 	}
 	return routing, err
 }
 
 func ValidateReport(packet Packet, report Report) error {
-	if report.PolicyVersion != PolicyVersion {
+	if report.PolicyVersion != PolicyVersion && report.PolicyVersion != previousPolicyVersion {
 		return fmt.Errorf("classifier policy %q does not match %q", report.PolicyVersion, PolicyVersion)
 	}
 	req, err := Request(packet, report.RequestedModel)
@@ -158,7 +161,7 @@ func ValidateReport(packet Packet, report Report) error {
 		return fmt.Errorf("classifier report does not match the evidence packet")
 	}
 	if report.Mode == "preflight" {
-		if packet.Complete || !IsPreflightSkip(report) {
+		if packet.CanClassify() || !IsPreflightSkip(report) {
 			return fmt.Errorf("invalid incomplete-input preflight report")
 		}
 		return nil
@@ -173,6 +176,9 @@ func ValidateReport(packet Packet, report Report) error {
 }
 func SelectRoute(packet Packet, report Report, policy RoutingPolicy) (Routing, error) {
 	r := Routing{Version: routingVersion, Route: "docs-assess", Notes: []string{}, Policy: policy, Recommendation: Recommendation{Action: "investigate", Reason: "insufficient_evidence", Attribution: "unclear"}}
+	if report.PolicyVersion == previousPolicyVersion {
+		r.Version = previousRoutingVersion
+	}
 	for _, v := range []float64{policy.NegativeProbability, policy.PositiveProbability, policy.NegativeMargin, policy.PositiveMargin, policy.ReasonProbability, policy.AttributionProbability} {
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 1 {
 			return r, fmt.Errorf("routing thresholds must be finite probabilities")

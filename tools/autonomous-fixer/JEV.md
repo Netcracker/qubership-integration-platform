@@ -4,7 +4,7 @@ The local classifier uses OpenRouter's Decisions API with `typesafe/jev-1.14`. I
 
 The command runs in **shadow mode**. `effective_route` remains `observe_only`, including when Jev says that documentation is unnecessary. It performs no GitHub operation, starts no coding model, and does not change the current product work cycle. The local worker can consume this report through an explicit routing configuration. It does not require a second model review for every negative classification.
 
-Policy `docs-impact-v5` targets existing product help. Kubernetes/Helm setup, service-account wiring, CI, and developer tooling are outside that audience unless the change makes a concrete existing help statement false. Configuration topics already documented in help, such as retention and token processing, remain in scope. An internal enum or routine confirmation dialog alone does not require a new explanation. The question concerns work remaining against current documentation, not whether a feature historically deserved documentation.
+Policy `docs-impact-v6` targets existing product help. Kubernetes/Helm setup, service-account wiring, CI, and developer tooling are outside that audience unless the change makes a concrete existing help statement false. Configuration topics already documented in help, such as retention and token processing, remain in scope. An internal enum or routine confirmation dialog alone does not require a new explanation. The question concerns work remaining against current documentation, not whether a feature historically deserved documentation.
 
 Three typed questions separate the proposed action (`needed`, `no_change`, or `investigate`), its reason, and the documentation problem's relationship to the implementing change. A visible fix can require no new explanation. An older independent help error is a separate finding, not documentation work caused by this issue.
 
@@ -31,18 +31,29 @@ Provide a JSON packet containing:
 - `documentation`: current help pages in the same form;
 - `search_evidence`: searches actually performed and their results;
 - `limitations`: missing context, narrow scope, or synthetic modifications;
+- `partial_context` (optional): the builder verified the patch and current help, but supplementary retrieval is incomplete. Set `complete` to `false` in this mode.
+- `help_excerpts` (optional): up to three current Markdown sections with their paths, each up to 16 KiB (16384 bytes). On the partial-context path they replace whole pages in the classifier request.
 - `complete`: whether the input contains the evidence needed for its declared scope.
 
-The classifier does not fetch or verify Git objects itself. The caller must assemble the packet from recorded sources; `complete` is a caller declaration, not proof. A partial packet remains eligible for observing Jev's behavior, but its suggested route is always `docs-assess`. A narrow contract check cannot establish that a large issue or PR needs no documentation. Expected labels belong in a separate evaluation manifest and must not be sent to Jev.
+The classifier does not fetch or verify Git objects itself. The caller must assemble the packet from recorded
+sources; `complete` is a caller declaration, not proof. Missing implementation evidence routes to
+`docs-assess`. When only supplementary retrieval is incomplete, Jev can also recommend drafting or completion
+under the routing rules below. A narrow contract check cannot establish that a large issue or PR needs no
+documentation. Expected labels belong in a separate evaluation manifest and must not be sent to Jev.
 
 ## Prepare real issues from Git
 
-`cmd/jev-prepare` builds packets from reviewed issue and PR metadata and local Git objects. It checks that the documentation revision contains every selected merge on `main` and ignores uncommitted files. For a merge commit, the packet includes changes since its first parent. For a squash or rebase merge, the builder verifies the landed range against the original PR before including the diff. Exclude backports and unrelated cross-references from the dataset.
+`cmd/jev-prepare` builds packets from reviewed issue and PR metadata and local Git objects. It checks that the
+documentation revision contains every selected merge on `main` and ignores uncommitted files. For an ordinary
+merge, the packet includes changes since its first parent. If GitHub reports an enclosing merge for a nested
+PR, the builder checks the original head and commit count and takes the diff from the nested PR’s merge base
+to its head. If reapplying the nested diff changes the merged tree or causes a conflict, the issue requires
+assessment.
+The preparation report records both the reported merge and the diff tip. For a squash or rebase merge, the builder verifies the landed range against the original PR before including the diff. Exclude backports and unrelated cross-references from the dataset.
 
 The dataset contains `repository`, `docs_ref`, and `issues`.
 Each issue contains `number`, `title`, `body`, `url`, `timeline_complete`, `primary_linked_merged_prs` (numbers), `prs`, `docs_paths`, and optional `classification_sources`.
-Each PR requires `number`, `merge_sha`, and `target`.
-For a squash or rebase merge, also supply the original PR commit count in `commit_count` and its full head commit SHA in `head_sha`.
+For every merge type, supply `number`, `merge_sha`, `target`, the original PR commit count in `commit_count`, and its full head SHA in `head_sha`.
 Fetch the original PR head into the local repository before preparing the packet.
 If the builder cannot verify the landed range, it writes `error.json` for the issue.
 Keep manual expected outcomes in a separate file.
@@ -64,7 +75,14 @@ Additive mappings from changed Snapshots, Deployments, Domains, and Variables UI
 These mappings add candidates; they do not claim exhaustive coverage or decide that documentation is needed.
 Help image and SVG bodies are not sent as text; conclusions requiring their visual contents need a separate check.
 
-The default extraction limits are 160000 bytes of behavior diff, 80000 bytes of current help, and 64000 bytes of selected current source. These bound packet extraction, not task execution. Every behavior or documentation truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send the issue to full assessment. A live batch should skip known-incomplete packets instead of paying a model to rediscover the missing context.
+The default extraction limits are 160 kB (160000 bytes) of behavior diff, 80 kB (80000 bytes) of current help, and 64 kB (64000 bytes)
+of selected current source. These bound packet extraction, not task execution. Every behavior or documentation
+truncation sets `complete=false` and records what is missing. Increase the relevant limit and rebuild, or send
+the issue to full assessment. Hosted routing skips packets with gaps in the implementing PRs, behavior diff,
+or selected help text. If only supplementary retrieval is incomplete, the classifier can read up to 128 KiB (131072 bytes) each of
+landed diff and whole help pages in retrieval order. For a changed help page or a mapped screen
+named in the issue title, the classifier can receive up to three matching Markdown sections. For changes without a mapped screen or an edited help page, it ranks sections across the retrieved pages by issue terms. It keeps the best issue match and prefers headings that match changed identifiers for the remaining places.
+It falls back to whole pages when no section qualifies. The full packet remains available to the author.
 
 `packet.json` preserves the evidence and revision identities. The classifier request excludes archive IDs and top-level revision metadata; `packet_sha256` binds the full archived packet separately from `input_sha256`, which binds the actual API request. The caller still supplies relevant-page selection and correct issue/PR linkage; this command does not discover them from GitHub.
 
@@ -100,15 +118,20 @@ Each new output directory stores the exact `request.json` and a `report.json` wi
 | `no_change` | `already_covered`, `restored_behavior`, `no_explanation_needed`, `internal_only`, `outside_help_scope`, `preexisting_only` |
 | `investigate` | `insufficient_evidence`, `scope_unclear` |
 
-Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. An incomplete packet or a missing current help page cannot support a claim that the page already covers the behavior.
+Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. With partial retrieval, a negative recommendation can close an issue only for recognized release tooling. Other negative recommendations go to assessment.
 
 `recommendation` contains the validated action, reason, and attribution. `assessment_notes` explains conflicts or missing evidence. The raw answers, probabilities, hashes, and provider usage remain available for evaluation. The selected branch is recorded with its evidence and policy. Negative outcomes need no mandatory second reviewer. A documentation patch retains the existing independent review and final checks.
+
+New evaluations record `docs-impact-v6` and `docs-routing-v3` for partial evidence and section retrieval. Archived v5 reports retain their v1 or v2 routing identity during replay.
 
 The v4 schema replaced v3's mixed impact categories. The v5 request adds general decision examples and makes each question self-contained, since questions are evaluated independently. Archived v3 reports remain unchanged. Re-evaluation creates a new output directory and records the new policy version; it does not reinterpret or overwrite earlier predictions.
 
 The first local evidence set is a smoke and sensitivity check, not an accuracy benchmark. It includes narrowly scoped real source/documents, a single test-only commit, a real configuration-change candidate without an approved gold verdict, and synthetic incomplete/modified-document cases. Descriptive IDs in initial probes were identified as potential answer leakage; neutral-ID observations are recorded separately. No result permits automatic issue closure.
 
-The subsequent real-issue development set uses all selected implementing main PRs and help from a current main snapshot containing those merges. It compares earlier policy variants with improved scope and evidence preparation. These cases guided revisions, so they are not a held-out accuracy benchmark. Unresolved false positives, incomplete packets, and editorial ambiguities remain separate from confirmed outcomes.
+The subsequent real-issue development set uses all selected implementing main PRs and help from a current main
+snapshot containing those merges. It compares earlier policy variants with improved scope and evidence
+preparation. These cases guided revisions, so they are not a held-out accuracy benchmark. Unresolved false
+positives, incomplete packets, and editorial ambiguities remain separate from confirmed outcomes.
 
 Manual expectations also need verification. In the development set, refresh and saved filters appeared covered by seven pages, but a wider consumer check found missing refresh entries in other changed screens. Classifier disagreement is a reason to inspect the evidence, not proof that either the classifier or the manual label is correct.
 

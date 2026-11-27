@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,7 +14,8 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
 
-const PolicyVersion = "docs-impact-v5"
+const PolicyVersion = "docs-impact-v6"
+const previousPolicyVersion = "docs-impact-v5"
 
 const HelpScope = "The target is help/docs, the existing QIP product help for integration designers and users of the product's administration screens. It covers product workflows, element options, user-facing limits, and runtime concepts already explained there. Installation, Kubernetes/Helm provisioning, service accounts, secret mounts, cluster audiences, environment wiring, CI/build tools, and developer testing instructions belong to deployment or developer documentation, not automatically to help. A new environment variable or the absence of a Kubernetes term does not by itself require a help page. Do not expand the help's audience just because the implementation changed. However, if the change makes an existing help statement about product behavior inaccurate, classify the minimal correction to that statement as needed even when the underlying mechanism is infrastructure-related. Existing help topics such as retention or token processing are not excluded merely because configuration is involved. This is an assessment of REMAINING help work NOW, not whether the feature historically deserved documentation: supplied current pages take precedence over deleted lines or old descriptions in a historical diff. General accurate instructions need not enumerate every confirmation dialog, tooltip, or cosmetic improvement. A new internal enum, DTO field, host API discriminator, or source module does not by itself create a new task or concept for a help reader. Require an actual missing reader-facing capability or materially false instruction before recommending more help text. Tie required work to the implementing change: compare the before and after contract. An independent documentation error that was already present and is unaffected by this change is a separate finding, not a reason to expand this issue. Read whole sections and cross-references before treating wording as false. A visible change can require no additional explanation; do not call it internal merely because no help edit is needed."
 
@@ -33,9 +35,51 @@ type Packet struct {
 	Diff           string          `json:"diff"`
 	Sources        []Document      `json:"sources"`
 	Documentation  []Document      `json:"documentation"`
+	HelpExcerpts   []Document      `json:"help_excerpts,omitempty"`
 	SearchEvidence []string        `json:"search_evidence"`
 	Limitations    []string        `json:"limitations"`
 	Complete       bool            `json:"complete"`
+	PartialContext bool            `json:"partial_context,omitempty"`
+}
+
+// MarkImplementationIncomplete records missing PR evidence and requires assessment.
+func (p *Packet) MarkImplementationIncomplete(reasons ...string) {
+	p.Complete = false
+	p.PartialContext = false
+	p.HelpExcerpts = nil
+	p.Limitations = append(p.Limitations, reasons...)
+}
+
+// CanClassify also accepts a landed diff with gaps confined to supplementary retrieval.
+func (p Packet) CanClassify() bool {
+	return p.Complete || (p.PartialContext && p.BaseSHA != "" && p.HeadSHA != "" && p.DocsSHA != "" &&
+		len(p.ChangedPaths) > 0 && len(p.Diff) <= classifierContextBytes && strings.Contains(p.Diff, "diff --git ") &&
+		(len(p.HelpExcerpts) > 0 || hasClassifierPage(p.Documentation)))
+}
+
+const classifierContextBytes = 128 * 1024
+const MaxHelpSections = 3
+const MaxHelpSectionBytes = 16 * 1024
+
+func hasClassifierPage(pages []Document) bool {
+	for _, page := range pages {
+		if len(page.Content) > 0 && len(page.Content) <= classifierContextBytes {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseAutomationOnly(paths []string) bool {
+	for _, path := range paths {
+		switch {
+		case strings.HasPrefix(path, ".github/workflows/"), path == ".github/release-drafter-config.yml",
+			path == "scripts/build-bom.sh":
+		default:
+			return false
+		}
+	}
+	return len(paths) > 0
 }
 
 type Classifier interface {
@@ -73,12 +117,25 @@ func Request(packet Packet, model string) (jev.Request, error) {
 	if packet.ID == "" || packet.Scope == "" || packet.Repository == "" || len(packet.Issue) == 0 || !json.Valid(packet.Issue) {
 		return jev.Request{}, errors.New("packet requires ID, scope, repository, and issue context")
 	}
+	if packet.PartialContext && packet.Complete {
+		return jev.Request{}, errors.New("a complete packet cannot declare partial context")
+	}
+	if len(packet.HelpExcerpts) > MaxHelpSections {
+		return jev.Request{}, fmt.Errorf("help excerpts exceed the limit of %d sections", MaxHelpSections)
+	}
+	for _, excerpt := range packet.HelpExcerpts {
+		if len(excerpt.Content) > MaxHelpSectionBytes {
+			return jev.Request{}, fmt.Errorf("help excerpt in %s exceeds %d bytes", excerpt.Path, MaxHelpSectionBytes)
+		}
+	}
 	if packet.Complete && (packet.BaseSHA == "" || packet.HeadSHA == "" || packet.DocsSHA == "" || len(packet.ChangedPaths) == 0) {
 		return jev.Request{}, errors.New("complete packet requires source and documentation revisions and changed paths")
 	}
-	for _, doc := range append(append([]Document{}, packet.Sources...), packet.Documentation...) {
-		if strings.TrimSpace(doc.Path) == "" || strings.TrimSpace(doc.Content) == "" {
-			return jev.Request{}, errors.New("source and documentation entries require a path and content")
+	for _, documents := range [][]Document{packet.Sources, packet.Documentation, packet.HelpExcerpts} {
+		for _, doc := range documents {
+			if strings.TrimSpace(doc.Path) == "" || strings.TrimSpace(doc.Content) == "" {
+				return jev.Request{}, errors.New("sources, documentation, and help excerpts require a path and content")
+			}
 		}
 	}
 	state := map[string]any{"repository": packet.Repository, "scope": packet.Scope, "issue": packet.Issue, "changed_paths": packet.ChangedPaths, "diff": packet.Diff, "sources": packet.Sources, "documentation": packet.Documentation, "search_evidence": packet.SearchEvidence, "limitations": packet.Limitations, "complete": packet.Complete, "decision_examples": []map[string]string{
@@ -89,6 +146,29 @@ func Request(packet Packet, model string) (jev.Request, error) {
 		{"situation": "A later help update already documents the new behavior and limitations, although the original implementation diff contains no help edit.", "action": "no_change", "reason": "already_covered"},
 		{"situation": "A necessary source or help page is missing from the supplied evidence.", "action": "investigate", "reason": "insufficient_evidence"},
 	}}
+	if packet.PartialContext {
+		// Send whole help pages in retrieval order. The author retains the full evidence packet.
+		var pages []Document
+		var omitted []string
+		remaining := classifierContextBytes
+		for _, page := range packet.Documentation {
+			if len(page.Content) > remaining {
+				omitted = append(omitted, page.Path)
+				continue
+			}
+			pages = append(pages, page)
+			remaining -= len(page.Content)
+		}
+		state["documentation"] = pages
+		state["omitted_help_pages"] = omitted
+		if len(packet.HelpExcerpts) > 0 {
+			state["documentation"] = packet.HelpExcerpts
+			state["documentation_scope"] = "Selected sections of current help. Other sections may cover related behavior."
+			delete(state, "omitted_help_pages")
+		}
+		delete(state, "sources")
+		delete(state, "search_evidence")
+	}
 	return jev.Request{Model: model, State: state, Questions: map[string]jev.Question{
 		"documentation_action": {
 			Type:         "choice",
@@ -211,7 +291,8 @@ func normalize(packet Packet, response jev.Response) (Recommendation, []string, 
 	if !attributionOK {
 		record(RouteAnswersConflict, answersConflictNote)
 	}
-	if !packet.Complete || strings.TrimSpace(packet.Diff) == "" {
+	if !packet.CanClassify() || strings.TrimSpace(packet.Diff) == "" ||
+		(!packet.Complete && rec.Action == "no_change" && !releaseAutomationOnly(packet.ChangedPaths)) {
 		record(RouteIncompleteEvidence, incompleteEvidenceNote)
 	}
 	if len(packet.Documentation) == 0 && (rec.Action == "needed" || rec.Reason == "already_covered" || rec.Reason == "restored_behavior" || rec.Reason == "preexisting_only" || rec.Reason == "no_explanation_needed") {

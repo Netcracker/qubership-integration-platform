@@ -42,6 +42,7 @@ type Config struct {
 	MaxDiffBytes, MaxDocBytes           int
 }
 type PRReport struct {
+	DiffTipSHA string `json:"diff_tip_sha,omitempty"`
 	Number     int    `json:"number"`
 	MergeSHA   string `json:"merge_sha"`
 	BaseSHA    string `json:"base_sha"`
@@ -108,6 +109,8 @@ func autoDocumentationCandidates(paths []string) []DocMapping {
 			page = "help/docs/03__Admin_Tools/7__Design_Templates/readme.md"
 		case strings.HasPrefix(source, "ui/src/components/admin_tools/access-control/"):
 			page = "help/docs/03__Admin_Tools/6__Access_Control/readme.md"
+		case source == "ui/src/components/admin_tools/ActionsLog.tsx":
+			page = "help/docs/03__Admin_Tools/3__Audit/readme.md"
 		case source == "ui/src/components/admin_tools/ImportInstructions.tsx":
 			page = "help/docs/03__Admin_Tools/4__Import_Instructions/readme.md"
 		case strings.HasPrefix(source, "ui/src/components/admin_tools/exchanges/"):
@@ -124,7 +127,7 @@ func autoDocumentationCandidates(paths []string) []DocMapping {
 			page = "help/docs/04__Dev_Tools/2__Diagnostic/readme.md"
 		case strings.Contains(source, "service-call") && (strings.HasPrefix(source, "schemas/") || strings.HasPrefix(source, "integration-build-pipeline/")):
 			page = "help/docs/01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md"
-		case source == "ui/src/pages/Snapshots.tsx":
+		case source == "ui/src/pages/Snapshots.tsx" || source == "ui/src/components/modal/SaveAndDeploy.tsx":
 			page = "help/docs/01__Chains/2__Snapshots/readme.md"
 		case source == "ui/src/pages/Deployments.tsx":
 			page = "help/docs/01__Chains/3__Deployments/readme.md"
@@ -216,21 +219,32 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if _, e = git("merge-base", "--is-ancestor", merge, p.DocsSHA); e != nil {
 			return fail(fmt.Errorf("documentation revision %s does not contain PR #%d merge %s: %w", p.DocsSHA, pr.Number, merge, e))
 		}
-		base, evidence, e := landedBase(ctx, git, c.ResolvePRHead, pr, merge)
+		change, evidence, e := landedRange(ctx, git, c.ResolvePRHead, pr, merge)
 		if e != nil {
 			return fail(fmt.Errorf("resolve landed changes for PR #%d: %w", pr.Number, e))
+		}
+		base, tip := change.base, change.tip
+		if tip != merge {
+			retained, err := projectionMatches(git, change, commitRange{base: merge, tip: merge})
+			if err != nil {
+				return fail(fmt.Errorf("verify nested PR #%d: %w", pr.Number, err))
+			}
+			if !retained {
+				p.Complete = false
+				p.Limitations = append(p.Limitations, fmt.Sprintf("The diff for PR #%d describes its original branch. Merge %s changed or reverted part of it. Assess the merged behavior.", pr.Number, merge))
+			}
 		}
 		if p.BaseSHA == "" {
 			p.BaseSHA = base
 		}
-		p.HeadSHA = merge
-		full, e := git("diff", "--no-ext-diff", "--no-textconv", "--binary", base, merge, "--")
+		p.HeadSHA = tip
+		full, e := git("diff", "--no-ext-diff", "--no-textconv", "--binary", base, tip, "--")
 		if e != nil {
 			return fail(e)
 		}
-		r.PRs = append(r.PRs, PRReport{pr.Number, merge, base, len(full), digest(full)})
-		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("PR #%d landed on main. Base %s, tip %s, and raw diff SHA256 %s (%d bytes). %s", pr.Number, base, merge, digest(full), len(full), evidence))
-		names, e := git("diff", "--name-only", "--no-renames", "-z", base, merge, "--")
+		r.PRs = append(r.PRs, PRReport{Number: pr.Number, MergeSHA: merge, BaseSHA: base, DiffTipSHA: tip, DiffBytes: len(full), DiffSHA256: digest(full)})
+		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("PR #%d landed on main. Base %s, tip %s, and raw diff SHA256 %s (%d bytes). %s", pr.Number, base, tip, digest(full), len(full), evidence))
+		names, e := git("diff", "--name-only", "--no-renames", "-z", base, tip, "--")
 		if e != nil {
 			return fail(e)
 		}
@@ -242,7 +256,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 				continue
 			}
 			paths[path] = true
-			body, e := git("diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--binary", base, merge, "--", path)
+			body, e := git("diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--binary", base, tip, "--", path)
 			if e != nil {
 				return fail(e)
 			}
@@ -284,7 +298,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			}
 			header := ""
 			if !headerIncluded {
-				header = fmt.Sprintf("\nPR #%d: %s..%s\n", pr.Number, base, merge)
+				header = fmt.Sprintf("\nPR #%d: %s..%s\n", pr.Number, base, tip)
 				headerIncluded = true
 			}
 			available := c.MaxDiffBytes - patch.Len()
@@ -322,9 +336,12 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Omitted body PR #%d path %q: %s; %d bytes; SHA256 %s.", o.PRNumber, o.Path, o.Reason, o.Bytes, o.SHA256))
 	}
 
+	landedDiffComplete := p.Complete
+	var screenMappings []DocMapping
 	docPaths := append([]string{}, c.DocsPaths...)
 	if c.AutoRetrieve {
-		for _, candidate := range autoDocumentationCandidates(p.ChangedPaths) {
+		screenMappings = autoDocumentationCandidates(p.ChangedPaths)
+		for _, candidate := range screenMappings {
 			docPaths = append(docPaths, candidate.CurrentPath)
 		}
 	}
@@ -349,7 +366,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			}
 		}
 		mapped := map[string]bool{}
-		for _, candidate := range autoDocumentationCandidates(p.ChangedPaths) {
+		for _, candidate := range screenMappings {
 			mapped[candidate.ChangedPath] = true
 		}
 		for _, changed := range p.ChangedPaths {
@@ -364,6 +381,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Documentation retrieval candidate %s selected by known UI screen mapping from changed source %s; additive retrieval only, not a documentation verdict or exhaustive coverage claim.", candidate.CurrentPath, candidate.ChangedPath))
 	}
 
+	helpComplete := true
 	changedDocs := make([]string, 0, len(autoDocs))
 	for changed := range autoDocs {
 		changedDocs = append(changedDocs, changed)
@@ -374,7 +392,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if _, e := git("cat-file", "-e", p.DocsSHA+":"+current); e != nil {
 			current = pathpkg.Join(pathpkg.Dir(changed), "readme.md")
 			if _, e = git("cat-file", "-e", p.DocsSHA+":"+current); e != nil {
-				p.Complete = false
+				helpComplete = false
 				p.Limitations = append(p.Limitations, "Changed documentation "+changed+" has no current page or same-directory readme.md; resolve its current location and rebuild.")
 				r.DocumentationMappings = append(r.DocumentationMappings, DocMapping{ChangedPath: changed})
 				continue
@@ -385,7 +403,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 	}
 	remaining := c.MaxDocBytes
 	if len(docPaths) == 0 && !(c.AutoRetrieve && buildOnly(p.ChangedPaths)) {
-		p.Complete = false
+		helpComplete = false
 		p.Limitations = append(p.Limitations, "No current documentation pages selected; retrieve relevant help/docs pages and rebuild.")
 	}
 	seenDocs := map[string]bool{}
@@ -399,18 +417,18 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		}
 		b, e := git("show", p.DocsSHA+":"+path)
 		if e != nil {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, fmt.Sprintf("Selected documentation %s is missing at %s; select an existing page.", path, p.DocsSHA))
 			continue
 		}
 		p.SearchEvidence = append(p.SearchEvidence, fmt.Sprintf("Selected current documentation %s at %s; %d bytes; SHA256 %s.", path, p.DocsSHA, len(b), digest(b)))
 		if !utf8.Valid(b) || strings.Contains(string(b), "\x00") {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Inspect binary documentation "+path+" separately.")
 			continue
 		}
 		if len(b) > remaining {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Documentation budget truncated "+path+"; increase MaxDocBytes and rebuild.")
 		}
 		content := bounded(b, remaining)
@@ -418,7 +436,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		if content != "" {
 			p.Documentation = append(p.Documentation, doctriage.Document{Path: path, Content: content})
 		} else {
-			p.Complete = false
+			helpComplete = false
 			p.Limitations = append(p.Limitations, "Selected documentation has no included content: "+path)
 		}
 	}
@@ -457,6 +475,11 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 			p.Complete = false
 			p.Limitations = append(p.Limitations, "Selected source has no included content: "+source)
 		}
+	}
+	p.Complete = p.Complete && helpComplete
+	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
+	if p.PartialContext {
+		p.HelpExcerpts = selectHelpSections(c.Issue, p.Diff, screenMappings, r.DocumentationMappings, p.Documentation)
 	}
 	r.SearchEvidence = append([]string(nil), p.SearchEvidence...)
 	return p, r, nil

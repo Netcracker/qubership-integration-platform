@@ -115,3 +115,46 @@ func TestArchiveIdentifiersDoNotHintAtExpectedOutcome(t *testing.T) {
 		t.Fatal("evidence change did not affect input")
 	}
 }
+
+func TestRequestRejectsIncompleteHelpExcerpts(t *testing.T) {
+	for name, excerpt := range map[string]Document{
+		"blank path":    {Path: " ", Content: "Logging settings"},
+		"blank content": {Path: "help/docs/logging.md", Content: "\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := packet()
+			p.Complete = false
+			p.PartialContext = true
+			p.HelpExcerpts = []Document{p.Documentation[0], excerpt}
+			if _, err := Request(p, jev.DefaultModel); err == nil {
+				t.Fatal("accepted an incomplete help excerpt")
+			}
+		})
+	}
+}
+
+func TestRequestValidatesPartialContextLimits(t *testing.T) {
+	doc := Document{Path: "help/docs/current.md", Content: "text"}
+	for _, tc := range []struct {
+		name     string
+		complete bool
+		excerpts []Document
+		valid    bool
+	}{
+		{"both modes", true, nil, false},
+		{"too many sections", false, []Document{doc, doc, doc, doc}, false},
+		{"oversized section", false, []Document{{Path: doc.Path, Content: strings.Repeat("x", 16385)}}, false},
+		{"boundary", false, []Document{doc, doc, {Path: doc.Path, Content: strings.Repeat("x", 16384)}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := packet()
+			p.PartialContext = true
+			p.Complete = tc.complete
+			p.HelpExcerpts = tc.excerpts
+			_, err := Request(p, jev.DefaultModel)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, err=%v", tc.valid, err)
+			}
+		})
+	}
+}

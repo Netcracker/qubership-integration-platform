@@ -58,3 +58,58 @@ func TestEvaluateRecordsRealAttemptAndPreservesLegacyResponse(t *testing.T) {
 		t.Fatal(route, e)
 	}
 }
+
+func TestPartialRetrievalRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		name, path, action, reason, attribution, route string
+	}{
+		{"release tooling", "scripts/build-bom.sh", "no_change", "outside_help_scope", "unchanged", "docs-no-change"},
+		{"mixed change", "ui/src/Panel.tsx", "no_change", "internal_only", "unchanged", "docs-assess"},
+		{"missing help", "ui/src/Panel.tsx", "needed", "missing_guidance", "change_related", "docs-write"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := packet()
+			p.Complete = false
+			p.PartialContext = true
+			p.Diff = "diff --git a/p b/p"
+			p.ChangedPaths = []string{".github/workflows/build.yaml", tc.path}
+			if !p.CanClassify() {
+				t.Fatal("skipped a usable diff")
+			}
+			r, err := Evaluate(context.Background(), p, jev.DefaultModel, &fake{action: tc.action, reason: tc.reason, attribution: tc.attribution})
+			if err != nil || r.SuggestedRoute != tc.route {
+				t.Fatalf("route = %s, want %s; err = %v", r.SuggestedRoute, tc.route, err)
+			}
+			p.PartialContext = false
+			if p.CanClassify() {
+				t.Fatal("incomplete packet without verified change evidence reached the classifier")
+			}
+		})
+	}
+}
+
+func TestRoutingVersionsDuringReplay(t *testing.T) {
+	p := packet()
+	current, err := Evaluate(context.Background(), p, jev.DefaultModel, &fake{action: "needed", reason: "missing_guidance", attribution: "change_related"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []struct {
+		classifier, routing string
+		valid               bool
+	}{
+		{"docs-impact-v5", "docs-routing-v1", true},
+		{"docs-impact-v5", "docs-routing-v2", true},
+		{"docs-impact-v6", "docs-routing-v3", true},
+		{"docs-impact-v6", "docs-routing-v2", false},
+		{"docs-impact-v6", "docs-routing-v1", false},
+		{"docs-impact-v5", "docs-routing-v3", false},
+	} {
+		report := current
+		report.PolicyVersion = v.classifier
+		route, err := ReplayRoute(p, report, DefaultRoutingPolicy(), v.routing)
+		if (err == nil) != v.valid || v.valid && (route.Route != "docs-write" || route.Version != v.routing) {
+			t.Errorf("%s/%s: route %s version %s error %v", v.classifier, v.routing, route.Route, route.Version, err)
+		}
+	}
+}

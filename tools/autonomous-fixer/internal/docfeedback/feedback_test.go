@@ -65,6 +65,9 @@ func fixtureWithRoute(t *testing.T, changeRoute func(*doctriage.Routing)) string
 		t.Fatal(e)
 	}
 	changeRoute(&route)
+	if route.Version == "docs-routing-v1" {
+		prediction.PolicyVersion = "docs-impact-v5"
+	}
 	ctx := workcontext.Packet{Kind: "documentation", Text: "frozen context", Files: []workcontext.File{}}
 	b, _ := json.Marshal(ctx)
 	ctx.SHA256 = digest(b)

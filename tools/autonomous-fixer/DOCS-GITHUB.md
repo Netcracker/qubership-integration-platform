@@ -98,12 +98,13 @@ Keep the workflow artifacts until publication finishes. For a transient publicat
 `docs-agent prepare` reads the issue, its project status, and merged implementing PRs. A PR that closes
 the issue can qualify even when it changes only tests. Preparation uses strong closing relationships to
 select implementations and records ambiguous production references as limitations. The command accepts
-an already-closed issue in documentation review. For a squash or rebase merge, preparation verifies the
-landed changes against the original PR head and commit count. If verification fails, preparation stops
+an already-closed issue in documentation review. Preparation requires the original PR head SHA and a positive commit count
+for every merge. An ordinary merge identifies the head by its second parent. For squash, rebase, and nested
+merges, preparation checks the commit count against Git history and verifies the landed changes. If verification fails, preparation stops
 before calling Jev. The finalized plan binds the source revision, initial issue state, and exact evidence
 packet. A reopened issue invalidates a plan prepared while it was closed.
 
-`docs-agent work` uses the prepared packet. An incomplete packet routes directly to assessment and skips the billable Jev request. Completed output includes an immutable feedback record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish completion.
+`docs-agent work` uses the prepared packet. If issue or patch evidence is missing, the workflow skips Jev and starts assessment. If only supplementary retrieval is incomplete, Jev sees the landed diff, available help pages, and the recorded limitations. A confident positive result can start a documentation draft. Automatic closure on this path requires a change confined to recognized release tooling. Completed output includes an immutable feedback record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish completion.
 
 For a local publication with the organization account, load both credentials into your shell
 from your secret store. The CLI reads the repository token from `GITHUB_TOKEN` and the project

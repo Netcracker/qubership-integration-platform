@@ -21,13 +21,15 @@ func TestIncompletePacketSkipsCredentialLookup(t *testing.T) {
 	if e != nil || !doctriage.IsPreflightSkip(report) || report.RequestAttempted || report.Response != nil {
 		t.Fatal(report, e)
 	}
-	p.Complete = true
+	p.PartialContext = true
+	p.Diff = "diff --git a/path b/path"
+	p.Documentation = []doctriage.Document{{Path: "help/docs/guide.md", Content: "Current guide"}}
 	p.BaseSHA = "base"
 	p.HeadSHA = "head"
 	p.DocsSHA = "docs"
 	p.ChangedPaths = []string{"file"}
 	if _, e = classifyPacket(context.Background(), p, key); e == nil {
-		t.Fatal("complete packet ignored missing credentials")
+		t.Fatal("usable partial packet skipped the provider credential lookup")
 	}
 }
 

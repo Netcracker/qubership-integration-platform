@@ -55,8 +55,8 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if p.Complete {
-		t.Fatal("automatic retrieval claimed complete coverage")
+	if p.Complete || !p.CanClassify() {
+		t.Fatal("a complete landed change with partial retrieval should reach the classifier")
 	}
 	joined := func(v any) string { b, _ := json.Marshal(v); return string(b) }
 	docs := joined(p.Documentation)
@@ -82,6 +82,22 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if e != nil || joined(p) != joined(p2) || joined(r) != joined(r2) {
 		t.Fatal("retrieval is not deterministic")
 	}
+	t.Run("excerpt from oversized pages", func(t *testing.T) {
+		git("switch", "-c", "large-help")
+		t.Cleanup(func() { git("switch", "main") })
+		long := strings.Repeat("Supporting text. ", 9000)
+		write("help/docs/widget.md", "## WidgetPanel\nOpen the widget.\n## Appendix\n"+long)
+		write("help/docs/linked.md", "## Appendix\n"+long)
+		git("add", "help/docs")
+		git("commit", "-m", "Expand the guides")
+		large := c
+		large.DocsRef = git("rev-parse", "HEAD")
+		large.MaxDocBytes = 1_000_000
+		packet, _, err := Build(context.Background(), large)
+		if err != nil || !packet.CanClassify() || len(packet.HelpExcerpts) == 0 {
+			t.Fatalf("short section on oversized page should reach Jev: %v", err)
+		}
+	})
 	// A documentation-only change with a resolved link can complete the plan.
 	write("help/docs/widget.md", "WidgetPanel final [details](linked.md)\n")
 	git("add", "help/docs/widget.md")
@@ -92,9 +108,15 @@ func TestAutomaticRetrievalAtDocsRevision(t *testing.T) {
 	if err != nil || !complete.Complete {
 		t.Fatalf("complete documentation plan: %+v %v", complete.Limitations, err)
 	}
+	c.MaxDiffBytes = 60
+	p, _, e = Build(context.Background(), c)
+	if e != nil || p.CanClassify() {
+		t.Fatal("sent an incomplete implementation diff to the classifier", e)
+	}
+	c.MaxDiffBytes = 0
 	c.MaxDocBytes = 4
 	p, _, e = Build(context.Background(), c)
-	if e != nil || p.Complete || !strings.Contains(joined(p.Limitations), "budget truncated") {
+	if e != nil || p.CanClassify() || !strings.Contains(joined(p.Limitations), "budget truncated") {
 		t.Fatal("documentation truncation not reported")
 	}
 }

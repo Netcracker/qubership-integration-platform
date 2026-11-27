@@ -20,7 +20,7 @@ var words = regexp.MustCompile(`[A-Za-z][A-Za-z0-9]{3,}`)
 var links = regexp.MustCompile(`\]\(([^)#?]+)(?:[?#][^)]*)?\)`)
 var stopWords = map[string]bool{"this": true, "that": true, "with": true, "from": true, "when": true, "then": true, "into": true, "have": true, "should": true, "using": true, "user": true, "issue": true, "change": true, "changes": true, "the": true, "file": true, "src": true, "components": true, "component": true, "schemas": true, "runtime": true, "catalog": true, "help": true, "docs": true, "readme": true, "main": true, "java": true, "tsx": true, "json": true, "typescript": true, "function": true, "const": true, "return": true, "import": true, "export": true, "class": true, "public": true, "private": true, "string": true, "boolean": true, "false": true, "true": true}
 
-func terms(s string) []string {
+func splitIdentifierWords(s string) string {
 	// Split identifiers as well as path and prose words.
 	var split strings.Builder
 	var prev rune
@@ -31,9 +31,13 @@ func terms(s string) []string {
 		split.WriteRune(r)
 		prev = r
 	}
+	return split.String()
+}
+
+func terms(s string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, w := range words.FindAllString(split.String(), -1) {
+	for _, w := range words.FindAllString(splitIdentifierWords(s), -1) {
 		w = strings.ToLower(w)
 		if !stopWords[w] && !seen[w] {
 			seen[w] = true

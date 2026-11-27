@@ -135,6 +135,18 @@ func TestDocumentationTriageNativeRoutes(t *testing.T) {
 
 func TestDocumentationResumeRetainsLegacyRoutingProof(t *testing.T) {
 	cfg := triageFixture(t, triageClassifier{"needed", "missing_guidance", "change_related", 1})
+	raw, err := os.ReadFile(cfg.DocumentationTriage.ReportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archived doctriage.Report
+	if err := json.Unmarshal(raw, &archived); err != nil {
+		t.Fatal(err)
+	}
+	archived.PolicyVersion = "docs-impact-v5"
+	if err := writeJSON(cfg.DocumentationTriage.ReportPath, archived); err != nil {
+		t.Fatal(err)
+	}
 	seed, err := Execute(context.Background(), cfg)
 	if err != nil || seed.Status != "docs-ready-for-pr" {
 		t.Fatalf("seed status = %s, error = %v", seed.Status, err)

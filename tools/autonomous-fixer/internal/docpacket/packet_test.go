@@ -56,6 +56,12 @@ func TestBuildEvidence(t *testing.T) {
 	merge := git("rev-parse", "HEAD")
 	write("help/docs/current.md", "dirty worktree should not appear")
 	c := Config{RepositoryPath: dir, Repository: "owner/repo", DocsRef: merge, Issue: Issue{Number: 170, Title: "test PR", Body: "full issue body", URL: "https://example.test/170", PRs: []PR{{Number: 42, MergeSHA: merge, Target: "main"}}}, DocsPaths: []string{"help/docs/current.md"}, ResolvePRHead: singleCommitPRHead}
+	c.ResolvePRHead = func(ctx context.Context, pr PR) (PRHead, error) {
+		if pr.MergeSHA == merge {
+			return PRHead{SHA: git("rev-parse", "feature"), CommitCount: 1}, nil
+		}
+		return singleCommitPRHead(ctx, pr)
+	}
 	p, r, e := Build(context.Background(), c)
 	if e != nil {
 		t.Fatal(e)
