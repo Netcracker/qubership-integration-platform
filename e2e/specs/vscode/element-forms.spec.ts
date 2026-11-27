@@ -23,10 +23,13 @@
  * - `getContextServices` and `getMcpServices` each answering `[]`: the form showed no service name;
  * - `getSpecificationModelSource` answering nothing, as before the #1214 fix: the mapper's schema
  *   stayed empty.
+ *
+ * Shown failing: the HTTP trigger form before autocomplete did not show `application/json` for
+ * `json`.
  */
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
-import { pickOption } from "../../support/pick-option.js";
+import { addTag, pickOption } from "../../support/pick-option.js";
 import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
 import {
   chainFile,
@@ -185,6 +188,47 @@ test.describe("element forms", () => {
     await expect(form.getByText("Base path", { exact: true })).toBeVisible();
     await expect(form.locator('input[value="/cip-routes/vsc-implemented"]')).toBeDisabled();
     expect(messages.answered()).toContain("getEnvironment");
+  });
+
+  test("an HTTP trigger saves suggested and custom content types", async ({ vscode }) => {
+    const suggestedType = "application/json";
+    const customType = "application/vnd.example.order+json";
+    await vscode.open();
+    await vscode.openFile(CHAIN);
+    const graph = new ChainGraphPage(vscode.webview);
+    const form = await graph.openElement(HTTP_TRIGGER);
+
+    await test.step("choose the suggested type and enter a custom type", async () => {
+      await form.getByRole("tab", { name: "Validate Request", exact: true }).click();
+      const contentTypes = form.getByRole("combobox");
+      const suggestion = vscode.webview.getByRole("listbox").locator("..").getByTitle(suggestedType, { exact: true });
+      await contentTypes.fill("json");
+      await expect(suggestion).toBeVisible();
+      await contentTypes.fill("application/j");
+      await expect(suggestion).toBeVisible();
+      await contentTypes.press("Enter");
+      await contentTypes.press("Escape");
+      await expect(form.getByTitle(suggestedType, { exact: true })).toBeVisible();
+
+      await addTag(vscode.webview, contentTypes, customType);
+      await contentTypes.press("Escape");
+      await expect(form.getByTitle(customType, { exact: true })).toBeVisible();
+    });
+
+    await test.step("save the selected types to the chain file", async () => {
+      await form.getByRole("button", { name: "Save" }).click();
+      await expect(form).toBeHidden();
+      const text = await vscode.readAsText((each) => each.includes(customType));
+      expect(element(parseChain(text), HTTP_TRIGGER)?.properties?.allowedContentTypes).toEqual([suggestedType, customType]);
+    });
+
+    await test.step("reopen the form with both saved types", async () => {
+      await vscode.reopenWith("CIP Chain File Visual Editor");
+      const reopened = await graph.openElement(HTTP_TRIGGER);
+      await reopened.getByRole("tab", { name: "Validate Request", exact: true }).click();
+      await expect(reopened.getByTitle(suggestedType, { exact: true })).toBeVisible();
+      await expect(reopened.getByTitle(customType, { exact: true })).toBeVisible();
+    });
   });
 
   test("the context-storage form names its context service", async ({ vscode, messages }) => {
