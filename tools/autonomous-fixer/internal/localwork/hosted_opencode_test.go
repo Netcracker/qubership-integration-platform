@@ -80,7 +80,7 @@ printf '%s\n' '{"type":"text","sessionID":"fixture","part":{"type":"text","messa
 	prompt, err := os.ReadFile(filepath.Join(dir, "prompt.txt"))
 	if err != nil || !strings.Contains(string(prompt), "native OpenCode qip-reviewer subagent") ||
 		strings.Contains(string(prompt), "Codex's native subagents") || !strings.Contains(string(prompt), "E2E_PROVISION=auto") ||
-		!strings.Contains(string(prompt), "choose two small inputs") ||
+		!strings.Contains(string(prompt), "run the same inputs on the base revision and the candidate") ||
 		!strings.Contains(string(prompt), "## How to verify") || !strings.Contains(string(prompt), "End-to-end decision:") ||
 		!strings.Contains(report.Summary, "End-to-end decision: The module test exercises the importer.") {
 		t.Fatal(string(prompt), err)
