@@ -78,6 +78,15 @@ func TestBuildEvidence(t *testing.T) {
 	if p.Documentation[0].Content != "Current documented behavior\n" {
 		t.Fatal("read dirty documentation")
 	}
+	t.Run("manual help with a truncated supplementary source", func(t *testing.T) {
+		manual := c
+		manual.SourcePaths = []string{"src/main/run.go"}
+		manual.MaxSourceBytes = 1
+		packet, _, err := Build(context.Background(), manual)
+		if err != nil || packet.Complete || !packet.CanClassify() {
+			t.Fatalf("expected verified diff and current help to reach classification: %v, %v", packet.Limitations, err)
+		}
+	})
 	write("tests/only_test.txt", "second PR test body\n")
 	git("add", "tests/only_test.txt")
 	git("commit", "-m", "test-only follow-up")

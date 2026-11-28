@@ -238,7 +238,8 @@ func (c *Client) linked(ctx context.Context, number int) ([]docpacket.PR, []int,
 			isTest := strings.HasPrefix(name, "e2e/") || strings.Contains("/"+name, "/src/test/") || strings.Contains("/"+name, "/tests/")
 			includesTests = includesTests || isTest
 			nonProduct := strings.HasPrefix(name, "help/") || strings.HasSuffix(strings.ToLower(name), ".md") || isTest || strings.HasPrefix(name, ".apm/")
-			if !nonProduct {
+			fixerMention := !strong[n] && strings.HasPrefix(name, "tools/autonomous-fixer/")
+			if !nonProduct && !fixerMention {
 				production = true
 			}
 		}

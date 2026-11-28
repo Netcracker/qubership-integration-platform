@@ -151,7 +151,7 @@ func contentQuery(description string, title, body []string, pages []doctriage.Do
 func changedIdentifierPhrases(diff string) map[[2]string]bool {
 	pairs := make(map[[2]string]bool)
 	for line := range strings.SplitSeq(diff, "\n") {
-		if !(strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")) || strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") {
+		if !isPatchChange(line) {
 			continue
 		}
 		for _, identifier := range words.FindAllString(line, -1) {

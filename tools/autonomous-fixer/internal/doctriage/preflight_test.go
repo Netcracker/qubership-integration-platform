@@ -2,8 +2,11 @@ package doctriage
 
 import (
 	"context"
-	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
+	"encoding/json"
+	"os"
 	"testing"
+
+	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
 
 func TestIncompletePreflightHasBoundIdentityAndNoProviderAttempt(t *testing.T) {
@@ -89,7 +92,8 @@ func TestPartialRetrievalRoutes(t *testing.T) {
 }
 
 func TestRoutingVersionsDuringReplay(t *testing.T) {
-	p := packet()
+	archive := readArchivedV5(t)
+	p := archive.Packet
 	current, err := Evaluate(context.Background(), p, jev.DefaultModel, &fake{action: "needed", reason: "missing_guidance", attribution: "change_related"})
 	if err != nil {
 		t.Fatal(err)
@@ -104,12 +108,43 @@ func TestRoutingVersionsDuringReplay(t *testing.T) {
 		{"docs-impact-v6", "docs-routing-v2", false},
 		{"docs-impact-v6", "docs-routing-v1", false},
 		{"docs-impact-v5", "docs-routing-v3", false},
+		{PolicyVersion, "docs-routing-v3", true},
 	} {
 		report := current
+		if v.classifier != PolicyVersion {
+			report = archive.Report
+		}
 		report.PolicyVersion = v.classifier
 		route, err := ReplayRoute(p, report, DefaultRoutingPolicy(), v.routing)
 		if (err == nil) != v.valid || v.valid && (route.Route != "docs-write" || route.Version != v.routing) {
 			t.Errorf("%s/%s: route %s version %s error %v", v.classifier, v.routing, route.Route, route.Version, err)
 		}
+	}
+}
+
+// The fixture was produced by docs-impact-v5 at commit 3b003c175.
+type archivedDecision struct {
+	Packet Packet
+	Report Report
+}
+
+func readArchivedV5(t *testing.T) archivedDecision {
+	t.Helper()
+	data, err := os.ReadFile("testdata/docs-impact-v5.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive archivedDecision
+	if err := json.Unmarshal(data, &archive); err != nil {
+		t.Fatal(err)
+	}
+	return archive
+}
+
+func TestReplayArchivedV5Report(t *testing.T) {
+	archive := readArchivedV5(t)
+	route, err := ReplayRoute(archive.Packet, archive.Report, DefaultRoutingPolicy(), "docs-routing-v2")
+	if err != nil || route.Version != "docs-routing-v2" || route.Route != "docs-write" {
+		t.Fatalf("replay returned %s (%s): %v", route.Route, route.Version, err)
 	}
 }

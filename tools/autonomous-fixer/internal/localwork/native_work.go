@@ -63,7 +63,9 @@ Name any generated contract change, changed test expectation, or decision the ma
 
 The supplied task and worktree replace GitHub intake and worktree creation. Use the allocated product environment. Follow the skill through engineering verification and review. %s Assign focused, read-only review questions. You own the patch, checks, and decisions on findings.
 
-When the patch changes precedence, import behavior, or reference resolution, ask the correctness reviewer to state one invariant from the contract and choose two small inputs that test it. For example, if object key order has no meaning, swap two keys and compare the resolved definitions. Use existing test results if they cover that pair. Otherwise, run both inputs through the changed code and report the expected relationship and the two observed results.
+When a patch changes parsing, precedence, import behavior, or reference resolution, give the correctness reviewer this assignment:
+Identify the existing behavior that callers rely on outside the reported case. Read the original implementation, including any library syntax it delegates to. Choose a small pair of related inputs that exercises that behavior. For example, try a default expression with the named value present and absent, or swap the order of two keys whose order should have no effect. Use cases relevant to the actual implementation.
+For this comparison, run the same inputs on the base revision and the candidate through the affected entry point. Reuse recorded results when they cover both versions and inputs. Report the inputs and observed outputs or errors side by side. Trace any difference to a requested change or return it to the author as a regression. If the comparison cannot run, say what evidence is missing. This check applies only when the patch changes one of those behaviors.
 
 %s
 %s

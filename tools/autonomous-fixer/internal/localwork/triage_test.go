@@ -144,6 +144,7 @@ func TestDocumentationResumeRetainsLegacyRoutingProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	archived.PolicyVersion = "docs-impact-v5"
+	archived.InputSHA256 = "bdd4a92faa66f02f0c32ee7dad863b9cd062d8bbbe786b41ef9cf3f0893b5542" // Request digest before the public API scope change.
 	if err := writeJSON(cfg.DocumentationTriage.ReportPath, archived); err != nil {
 		t.Fatal(err)
 	}

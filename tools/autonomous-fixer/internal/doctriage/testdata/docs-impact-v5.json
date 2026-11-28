@@ -1,0 +1,89 @@
+{
+  "packet": {
+    "id": "case",
+    "scope": "single behavior",
+    "issue": {
+      "title": "issue"
+    },
+    "repository": "owner/repo",
+    "base_sha": "base",
+    "head_sha": "head",
+    "docs_sha": "docs",
+    "changed_paths": [
+      "module/file"
+    ],
+    "diff": "actual patch",
+    "sources": null,
+    "documentation": [
+      {
+        "path": "help/docs/readme.md",
+        "content": "actual help"
+      }
+    ],
+    "search_evidence": null,
+    "limitations": null,
+    "complete": true
+  },
+  "report": {
+    "request_attempted": true,
+    "recommendation": {
+      "action": "needed",
+      "reason": "missing_guidance",
+      "attribution": "change_related"
+    },
+    "assessment_required": false,
+    "policy_version": "docs-impact-v5",
+    "mode": "shadow",
+    "packet_id": "case",
+    "input_sha256": "6b3e64497736c4874e6663f9e9361fb4a2151740ecf829d3aa059f70739be18d",
+    "packet_sha256": "2f4298a7d1ac590ecdbe78df4e7c5a2e8d8234633d830632343b27ee47a28cca",
+    "request_bytes": 11572,
+    "requested_model": "typesafe/jev-1.14",
+    "started_at": "2026-11-28T10:38:51.381774388Z",
+    "duration_ms": 0,
+    "response": {
+      "id": "test",
+      "model": "typesafe/jev-1.14",
+      "provider": "",
+      "answers": {
+        "change_attribution": {
+          "type": "choice",
+          "choice": "change_related",
+          "probabilities": {
+            "change_related": 1,
+            "preexisting_independent": 0,
+            "unchanged": 0,
+            "unclear": 0
+          }
+        },
+        "documentation_action": {
+          "type": "choice",
+          "choice": "needed",
+          "probabilities": {
+            "investigate": 0,
+            "needed": 1,
+            "no_change": 0
+          }
+        },
+        "documentation_reason": {
+          "type": "choice",
+          "choice": "missing_guidance",
+          "probabilities": {
+            "already_covered": 0,
+            "insufficient_evidence": 0,
+            "internal_only": 0,
+            "missing_guidance": 1,
+            "no_explanation_needed": 0,
+            "outside_help_scope": 0,
+            "preexisting_only": 0,
+            "restored_behavior": 0,
+            "scope_unclear": 0,
+            "stale_guidance": 0
+          }
+        }
+      }
+    },
+    "suggested_route": "docs-write",
+    "effective_route": "observe_only"
+  }
+}

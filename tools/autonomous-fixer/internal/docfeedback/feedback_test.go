@@ -67,6 +67,7 @@ func fixtureWithRoute(t *testing.T, changeRoute func(*doctriage.Routing)) string
 	changeRoute(&route)
 	if route.Version == "docs-routing-v1" {
 		prediction.PolicyVersion = "docs-impact-v5"
+		prediction.InputSHA256 = "eb41edd1ac5849cb9fd31effea7a68e710d97987f2669db2ed57da229a43e6a1" // Request digest before the public API scope change.
 	}
 	ctx := workcontext.Packet{Kind: "documentation", Text: "frozen context", Files: []workcontext.File{}}
 	b, _ := json.Marshal(ctx)
