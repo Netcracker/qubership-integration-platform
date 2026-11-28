@@ -16,12 +16,12 @@ No branch publishes to GitHub. `delivery-draft.json` records proposed actions wi
 
 The required skill is `docs-authoring`, rather than `fix-issue`. The full root guidance, selected instructions, task, and attachments are bound to the context packet. Include `english-developer-style` in the selected instructions. Use the actual documentation tree when a historical skill example names an older page path.
 
-Supply a frozen issue and merged-change packet.
+Supply a frozen issue and merged-change packet. A PR that changes only the fixer can cite issues used in its tests. Intake ignores those mentions unless GitHub identifies the PR as closing the issue.
 Configured triage selects the entry route from the recorded probabilities and consistency checks; simply attaching a prediction does not enable routing.
 A positive Jev prediction remains a hypothesis for the combined writer to investigate.
 Incomplete evidence goes to `docs-assess`.
 A valid no-change result finishes without a mandatory second reviewer.
-Code, environment configuration, developer reference, and product help have different audiences.
+Product help covers inputs that users send directly to a supported API. Check whether the reader can predict what the operation will do from the documented inputs, including inputs omitted from a request.
 The controller permits writes only under `help/docs/`.
 A no-change result needs evidence showing why the current help remains adequate or why the change falls outside its reader scope.
 

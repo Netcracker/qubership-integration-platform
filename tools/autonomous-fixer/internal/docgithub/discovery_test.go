@@ -151,6 +151,8 @@ func TestScheduleDiscoveryReportsEligibleAndSkippedWithoutWriting(t *testing.T) 
 		{name: "merged documentation PR mentions this issue", reference: &referencedPR{"MERGED", "", "help/docs/topic.md"}},
 		{name: "open documentation PR closes a foreign issue with the same number", reference: &referencedPR{"OPEN", "OTHER_ISSUE", "help/docs/topic.md"}},
 		{name: "merged product PR closes a foreign issue with the same number", reference: &referencedPR{"MERGED", "OTHER_ISSUE", "ui/src/App.tsx"}, reason: "ambiguous-implementations"},
+		{name: "fixer evaluation mentions the issue", reference: &referencedPR{"MERGED", "OTHER_ISSUE", "tools/autonomous-fixer/internal/docpacket/build.go"}},
+		{name: "implementing PR changes the fixer", implementationFile: "tools/autonomous-fixer/internal/docpacket/build.go"},
 		{name: "implementing PR changes only e2e tests", implementationFile: "e2e/specs/ui/navigation.spec.ts"},
 		{name: "implementing PR changes only module tests", implementationFile: "engine/src/test/java/EngineTest.java"},
 	} {

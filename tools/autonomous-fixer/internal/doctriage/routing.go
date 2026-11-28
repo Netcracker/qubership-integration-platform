@@ -137,10 +137,15 @@ func ReplayRoute(packet Packet, report Report, policy RoutingPolicy, version str
 }
 
 func ValidateReport(packet Packet, report Report) error {
-	if report.PolicyVersion != PolicyVersion && report.PolicyVersion != previousPolicyVersion {
+	scope := HelpScope
+	switch report.PolicyVersion {
+	case previousPolicyVersion, sectionPolicyVersion:
+		scope = legacyHelpScope
+	case PolicyVersion:
+	default:
 		return fmt.Errorf("classifier policy %q does not match %q", report.PolicyVersion, PolicyVersion)
 	}
-	req, err := Request(packet, report.RequestedModel)
+	req, err := requestWithScope(packet, report.RequestedModel, scope)
 	if err != nil {
 		return err
 	}
