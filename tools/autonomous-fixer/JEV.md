@@ -4,7 +4,13 @@ The local classifier uses OpenRouter's Decisions API with `typesafe/jev-1.14`. I
 
 The command runs in **shadow mode**. `effective_route` remains `observe_only`, including when Jev says that documentation is unnecessary. It performs no GitHub operation, starts no coding model, and does not change the current product work cycle. The local worker can consume this report through an explicit routing configuration. It does not require a second model review for every negative classification.
 
-Policy `docs-impact-v7` includes supported APIs that product users call directly. Help should explain how a changed input affects the outcome, even when the UI instructions remain accurate. Kubernetes/Helm setup, service-account wiring, CI, and developer tooling are outside that audience unless the change makes a concrete existing help statement false. Configuration topics already documented in help, such as retention and token processing, remain in scope. An internal enum or routine confirmation dialog alone does not require a new explanation. The question concerns work remaining against current documentation, not whether a feature historically deserved documentation.
+Policy `docs-impact-v7` includes supported APIs that product users call directly. Help should explain how a
+changed input affects the outcome, even when the UI instructions remain accurate. Kubernetes/Helm setup,
+service-account wiring, CI, and developer tooling are outside that audience unless the change makes a concrete
+existing help statement false. Configuration topics already documented in help, such as retention and token
+processing, remain in scope. An internal enum or routine confirmation dialog alone does not require a new
+explanation. The question concerns work remaining against current documentation, not whether a feature
+historically deserved documentation.
 
 Three typed questions separate the proposed action (`needed`, `no_change`, or `investigate`), its reason, and the documentation problem's relationship to the implementing change. A visible fix can require no new explanation. An older independent help error is a separate finding, not documentation work caused by this issue.
 
