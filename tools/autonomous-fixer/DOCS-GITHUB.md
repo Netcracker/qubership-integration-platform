@@ -104,7 +104,14 @@ merges, preparation checks the commit count against Git history and verifies the
 If the range is known but the enclosing merge rewrote or reverted a nested change, preparation saves the packet for assessment. The finalized plan binds the source revision, initial issue state, and exact evidence
 packet. A reopened issue invalidates a plan prepared while it was closed.
 
-`docs-agent work` uses the prepared packet. If issue or patch evidence is missing, the workflow skips Jev and starts assessment. When only supplementary retrieval is incomplete, Jev can classify a verified diff of up to 128 KiB (131072 bytes) with a usable current help page or excerpt. The request includes the retrieval limitations. A confident positive result can start a documentation draft. Automatic closure on this path requires every changed path to be one of the following: files under `.github/workflows/`, `.github/release-drafter-config.yml`, or `scripts/build-bom.sh`. Completed output includes an immutable feedback record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish completion.
+`docs-agent work` uses the prepared packet. If issue or patch evidence is missing, the workflow skips Jev and
+starts assessment. When only supplementary retrieval is incomplete, Jev can classify a verified diff of up to
+128 KiB (131072 bytes) with a usable current help page or excerpt. The request includes the retrieval
+limitations. A confident positive result can start a documentation draft. Automatic closure on this path
+requires every changed path to be one of the following: files under `.github/workflows/`,
+`.github/release-drafter-config.yml`, or `scripts/build-bom.sh`. Completed output includes an immutable feedback
+record. A result that still needs an owner decision is preserved as an unresolved run and cannot publish
+completion.
 
 For a local publication with the organization account, load both credentials into your shell
 from your secret store. The CLI reads the repository token from `GITHUB_TOKEN` and the project
