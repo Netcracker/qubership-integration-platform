@@ -70,7 +70,7 @@ func hasClassifierPage(pages []Document) bool {
 	return false
 }
 
-func releaseAutomationOnly(paths []string) bool {
+func onlyWorkflowOrReleaseFiles(paths []string) bool {
 	for _, path := range paths {
 		switch {
 		case strings.HasPrefix(path, ".github/workflows/"), path == ".github/release-drafter-config.yml",
@@ -292,7 +292,7 @@ func normalize(packet Packet, response jev.Response) (Recommendation, []string, 
 		record(RouteAnswersConflict, answersConflictNote)
 	}
 	if !packet.CanClassify() || strings.TrimSpace(packet.Diff) == "" ||
-		(!packet.Complete && rec.Action == "no_change" && !releaseAutomationOnly(packet.ChangedPaths)) {
+		(!packet.Complete && rec.Action == "no_change" && !onlyWorkflowOrReleaseFiles(packet.ChangedPaths)) {
 		record(RouteIncompleteEvidence, incompleteEvidenceNote)
 	}
 	if len(packet.Documentation) == 0 && (rec.Action == "needed" || rec.Reason == "already_covered" || rec.Reason == "restored_behavior" || rec.Reason == "preexisting_only" || rec.Reason == "no_explanation_needed") {

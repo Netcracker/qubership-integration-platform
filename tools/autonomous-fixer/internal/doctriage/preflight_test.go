@@ -2,8 +2,11 @@ package doctriage
 
 import (
 	"context"
-	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
+	"encoding/json"
+	"os"
 	"testing"
+
+	"github.com/Netcracker/qubership-integration-platform/tools/autonomous-fixer/internal/jev"
 )
 
 func TestIncompletePreflightHasBoundIdentityAndNoProviderAttempt(t *testing.T) {
@@ -111,5 +114,24 @@ func TestRoutingVersionsDuringReplay(t *testing.T) {
 		if (err == nil) != v.valid || v.valid && (route.Route != "docs-write" || route.Version != v.routing) {
 			t.Errorf("%s/%s: route %s version %s error %v", v.classifier, v.routing, route.Route, route.Version, err)
 		}
+	}
+}
+
+// The fixture was produced by docs-impact-v5 at commit 3b003c175.
+func TestReplayArchivedV5Report(t *testing.T) {
+	data, err := os.ReadFile("testdata/docs-impact-v5.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive struct {
+		Packet Packet
+		Report Report
+	}
+	if err := json.Unmarshal(data, &archive); err != nil {
+		t.Fatal(err)
+	}
+	route, err := ReplayRoute(archive.Packet, archive.Report, DefaultRoutingPolicy(), "docs-routing-v2")
+	if err != nil || route.Version != "docs-routing-v2" || route.Route != "docs-write" {
+		t.Fatalf("replay returned %s (%s): %v", route.Route, route.Version, err)
 	}
 }

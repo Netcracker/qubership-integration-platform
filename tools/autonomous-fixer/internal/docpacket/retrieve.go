@@ -60,6 +60,10 @@ func buildOnly(paths []string) bool {
 	return true
 }
 
+func isPatchChange(line string) bool {
+	return (strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")) && !strings.HasPrefix(line, "+++") && !strings.HasPrefix(line, "---")
+}
+
 // retrieve searches only Git objects at the documentation revision.
 func retrieve(git func(...string) ([]byte, error), sha string, changed []string, issue Issue, diff string) (retrievalResult, error) {
 	var result retrievalResult
@@ -83,7 +87,7 @@ func retrieve(git func(...string) ([]byte, error), sha string, changed []string,
 	// Identifiers from changed lines are useful, but common prose and imports are noisy.
 	var changedLines strings.Builder
 	for _, line := range strings.Split(diff, "\n") {
-		if (strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")) && !strings.HasPrefix(line, "+++") && !strings.HasPrefix(line, "---") {
+		if isPatchChange(line) {
 			changedLines.WriteString(line)
 			changedLines.WriteByte(' ')
 		}

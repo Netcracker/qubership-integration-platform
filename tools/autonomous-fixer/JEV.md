@@ -52,10 +52,10 @@ assessment.
 The preparation report records both the reported merge and the diff tip. For a squash or rebase merge, the builder verifies the landed range against the original PR before including the diff. Exclude backports and unrelated cross-references from the dataset.
 
 The dataset contains `repository`, `docs_ref`, and `issues`.
-Each issue contains `number`, `title`, `body`, `url`, `timeline_complete`, `primary_linked_merged_prs` (numbers), `prs`, `docs_paths`, and optional `classification_sources`.
+Each issue contains `number`, `title`, `body`, `url`, `timeline_complete`, `primary_linked_merged_prs` (numbers), `prs`, `docs_paths`, and optional `classification_sources`. Missing or truncated supplementary sources follow the same routing rules for manually selected and automatically retrieved pages.
 For every merge type, supply `number`, `merge_sha`, `target`, the original PR commit count in `commit_count`, and its full head SHA in `head_sha`.
 Fetch the original PR head into the local repository before preparing the packet.
-If the builder cannot verify the landed range, it writes `error.json` for the issue.
+If the builder cannot identify the implementing range, it writes `error.json` for the issue. A known nested range that the enclosing merge rewrote or reverted produces a packet for assessment.
 Keep manual expected outcomes in a separate file.
 
 ```bash
@@ -118,7 +118,7 @@ Each new output directory stores the exact `request.json` and a `report.json` wi
 | `no_change` | `already_covered`, `restored_behavior`, `no_explanation_needed`, `internal_only`, `outside_help_scope`, `preexisting_only` |
 | `investigate` | `insufficient_evidence`, `scope_unclear` |
 
-Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. With partial retrieval, a negative recommendation can close an issue only for recognized release tooling. Other negative recommendations go to assessment.
+Attribution is `change_related` for a required correction, `preexisting_independent` for an unrelated older error, `unchanged` when no necessary help work remains, or `unclear`. A `needed` answer without `change_related` attribution requires investigation. With partial retrieval, a negative recommendation can close an issue only when all changed paths are files under `.github/workflows/`, `.github/release-drafter-config.yml`, or `scripts/build-bom.sh`. Other negative recommendations go to assessment.
 
 `recommendation` contains the validated action, reason, and attribution. `assessment_notes` explains conflicts or missing evidence. The raw answers, probabilities, hashes, and provider usage remain available for evaluation. The selected branch is recorded with its evidence and policy. Negative outcomes need no mandatory second reviewer. A documentation patch retains the existing independent review and final checks.
 

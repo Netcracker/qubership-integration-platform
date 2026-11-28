@@ -477,7 +477,7 @@ func Build(ctx context.Context, c Config) (doctriage.Packet, BuildReport, error)
 		}
 	}
 	p.Complete = p.Complete && helpComplete
-	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete && c.AutoRetrieve
+	p.PartialContext = !p.Complete && landedDiffComplete && helpComplete
 	if p.PartialContext {
 		p.HelpExcerpts = selectHelpSections(c.Issue, p.Diff, screenMappings, r.DocumentationMappings, p.Documentation)
 	}
