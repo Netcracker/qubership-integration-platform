@@ -61,7 +61,7 @@ func TestDefaultNativeWorkflowRunsOneAuthorWithReviewersAndNoControllerStages(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"--offline", "checks/wire", "signed-response", "desktop client", "signature-regression", "wire adapter", "via-global-list", "Open the saved item from the global list.", nativeFixIssueSkill, filepath.Join(cfg.TaskDirectory, "task.md"), "Codex's native subagents for the review with model gpt-6-luna and xhigh reasoning effort", "choose two small inputs", "Do not commit, push, publish, write to GitHub"} {
+	for _, required := range []string{"--offline", "checks/wire", "signed-response", "desktop client", "signature-regression", "wire adapter", "via-global-list", "Open the saved item from the global list.", nativeFixIssueSkill, filepath.Join(cfg.TaskDirectory, "task.md"), "Codex's native subagents for the review with model gpt-6-luna and xhigh reasoning effort", "run the same inputs on the base revision and the candidate", "outside the reported case", "Do not commit, push, publish, write to GitHub"} {
 		if !strings.Contains(string(prompt), required) {
 			t.Fatalf("native prompt omitted %q", required)
 		}
